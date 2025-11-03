@@ -1,0 +1,1559 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>JS/TS Playground</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            height: 100vh;
+            overflow: hidden;
+            transition: background-color 0.3s, color 0.3s;
+        }
+
+        body.light {
+            background-color: #ffffff;
+            color: #000000;
+        }
+
+        body.dark {
+            background-color: #1e1e1e;
+            color: #d4d4d4;
+        }
+
+        body.resizing-horizontal {
+            cursor: col-resize !important;
+            user-select: none !important;
+        }
+
+        body.resizing-vertical {
+            cursor: row-resize !important;
+            user-select: none !important;
+        }
+
+        body.resizing-horizontal *,
+        body.resizing-vertical * {
+            pointer-events: none !important;
+        }
+
+        .container {
+            display: flex;
+            height: 100vh;
+        }
+
+        .left-panel {
+            flex: 0 0 50%;
+            display: flex;
+            flex-direction: column;
+            border-right: 1px solid;
+            min-width: 100px;
+            overflow: hidden;
+        }
+
+        body.light .left-panel {
+            border-right-color: #e0e0e0;
+        }
+
+        body.dark .left-panel {
+            border-right-color: #3e3e3e;
+        }
+
+        .horizontal-resizer {
+            flex: 0 0 4px;
+            cursor: col-resize;
+            background-color: transparent;
+            transition: background-color 0.2s;
+            position: relative;
+        }
+
+        .horizontal-resizer::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            bottom: 0;
+            left: -4px;
+            right: -4px;
+        }
+
+        .horizontal-resizer:hover,
+        .horizontal-resizer.resizing {
+            background-color: #0066cc;
+        }
+
+        .right-panel {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            min-width: 100px;
+            overflow: hidden;
+        }
+
+        .toolbar {
+            padding: 10px;
+            display: flex;
+            gap: 10px;
+            align-items: center;
+            border-bottom: 1px solid;
+        }
+
+        body.light .toolbar {
+            background-color: #f5f5f5;
+            border-bottom-color: #e0e0e0;
+        }
+
+        body.dark .toolbar {
+            background-color: #2d2d2d;
+            border-bottom-color: #3e3e3e;
+        }
+
+        .btn {
+            padding: 4px 8px;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 12px;
+            transition: background-color 0.2s;
+        }
+
+        .btn:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+
+        body.light .btn {
+            background-color: #0066cc;
+            color: white;
+        }
+
+        body.light .btn:hover:not(:disabled) {
+            background-color: #0052a3;
+        }
+
+        body.dark .btn {
+            background-color: #0e639c;
+            color: white;
+        }
+
+        body.dark .btn:hover:not(:disabled) {
+            background-color: #1177bb;
+        }
+
+        .theme-toggle {
+            margin-left: auto;
+            padding: 4px 8px;
+        }
+
+        #editor {
+            flex: 1;
+            overflow: hidden;
+        }
+
+        .editor-loading {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            height: 100%;
+            font-size: 12px;
+            color: #888;
+        }
+
+        .editor-error {
+            padding: 20px;
+            color: #ff5555;
+            background-color: rgba(255, 0, 0, 0.1);
+        }
+
+        .preview-container {
+            flex: 0 0 50%;
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+            min-height: 100px;
+        }
+
+        .preview-header {
+            padding: 10px;
+            font-weight: 600;
+            font-size: 12px;
+            border-bottom: 1px solid;
+            display: flex;
+            align-items: center;
+        }
+
+        body.light .preview-header {
+            background-color: #f5f5f5;
+            border-bottom-color: #e0e0e0;
+        }
+
+        body.dark .preview-header {
+            background-color: #2d2d2d;
+            border-bottom-color: #3e3e3e;
+        }
+
+        .preview-frame {
+            flex: 1;
+            overflow: hidden;
+        }
+
+        body.light .preview-frame {
+            background-color: #ffffff;
+        }
+
+        body.dark .preview-frame {
+            background-color: #1e1e1e;
+        }
+
+        #preview {
+            width: 100%;
+            height: 100%;
+            border: none;
+        }
+
+        .vertical-resizer {
+            flex: 0 0 4px;
+            cursor: row-resize;
+            background-color: transparent;
+            transition: background-color 0.2s;
+            position: relative;
+        }
+
+        .vertical-resizer::before {
+            content: '';
+            position: absolute;
+            left: 0;
+            right: 0;
+            top: -4px;
+            bottom: -4px;
+        }
+
+        .vertical-resizer:hover,
+        .vertical-resizer.resizing {
+            background-color: #0066cc;
+        }
+
+        .console-container {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            min-height: 100px;
+            overflow: hidden;
+        }
+
+        .console-header {
+            padding: 10px;
+            font-weight: 600;
+            font-size: 12px;
+            border-bottom: 1px solid;
+            display: flex;
+            align-items: center;
+        }
+
+        body.light .console-header {
+            background-color: #f5f5f5;
+            border-bottom-color: #e0e0e0;
+        }
+
+        body.dark .console-header {
+            background-color: #2d2d2d;
+            border-bottom-color: #3e3e3e;
+        }
+
+        .console-output {
+            flex: 1;
+            overflow-y: auto;
+            padding: 8px;
+            font-family: 'Consolas', 'Monaco', monospace;
+            font-size: 12px;
+        }
+
+        body.light .console-output {
+            background-color: #fafafa;
+        }
+
+        body.dark .console-output {
+            background-color: #1e1e1e;
+        }
+
+        .console-line {
+            padding: 4px 8px;
+            margin: 2px 0;
+            border-radius: 3px;
+            word-wrap: break-word;
+        }
+
+        .console-log {
+            color: inherit;
+        }
+
+        .console-error {
+            background-color: rgba(255, 0, 0, 0.1);
+            color: #ff5555;
+        }
+
+        .console-warn {
+            background-color: rgba(255, 165, 0, 0.1);
+            color: #ffaa00;
+        }
+
+        .console-info {
+            color: #5599ff;
+        }
+
+        .clear-btn {
+            padding: 4px 8px;
+            font-size: 12px;
+            margin-left: auto;
+        }
+    </style>
+</head>
+<body class="dark">
+    <div class="container">
+        <div class="left-panel" id="leftPanel">
+            <div class="toolbar">
+                <button class="btn" id="runBtn">Run</button>
+                <select id="language" class="btn">
+                    <option value="javascript">JavaScript</option>
+                    <option value="typescript">TypeScript</option>
+                    <option value="html">HTML</option>
+                </select>
+                <button class="btn" id="downloadBtn">Download</button>
+                <button class="btn theme-toggle" id="themeBtn">Theme</button>
+            </div>
+            <div id="editor"></div>
+        </div>
+        <div class="horizontal-resizer" id="horizontalResizer"></div>
+        <div class="right-panel" id="rightPanel">
+            <div class="preview-container" id="previewContainer">
+                <div class="preview-header">
+                    Preview
+                    <button class="btn clear-btn" id="reloadBtn">Reload</button>
+                </div>
+                <div class="preview-frame">
+                    <iframe id="preview" sandbox="allow-scripts"></iframe>
+                </div>
+            </div>
+            <div class="vertical-resizer" id="verticalResizer"></div>
+            <div class="console-container" id="consoleContainer">
+                <div class="console-header">
+                    Console
+                    <button class="btn clear-btn" id="clearBtn">Clear</button>
+                </div>
+                <div id="console-output" class="console-output"></div>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/monaco-editor/0.44.0/min/vs/loader.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/typescript/5.2.2/typescript.min.js"></script>
+    <script>
+        /**
+         * Theme management class - handles light/dark theme switching and persistence
+         */
+        class ThemeManager {
+            static STORAGE_KEY = 'code-playground-theme';
+            static THEMES = {
+                DARK: 'dark',
+                LIGHT: 'light'
+            };
+            static MONACO_THEMES = {
+                dark: 'vs-dark',
+                light: 'vs'
+            };
+
+            constructor() {
+                this.currentTheme = this.loadTheme();
+                this.applyTheme(this.currentTheme);
+            }
+
+            loadTheme() {
+                try {
+                    const savedTheme = localStorage.getItem(ThemeManager.STORAGE_KEY);
+                    return savedTheme && Object.values(ThemeManager.THEMES).includes(savedTheme)
+                        ? savedTheme
+                        : ThemeManager.THEMES.DARK;
+                } catch (error) {
+                    console.warn('Failed to load theme from localStorage:', error);
+                    return ThemeManager.THEMES.DARK;
+                }
+            }
+
+            saveTheme(theme) {
+                try {
+                    localStorage.setItem(ThemeManager.STORAGE_KEY, theme);
+                } catch (error) {
+                    console.warn('Failed to save theme to localStorage:', error);
+                }
+            }
+
+            applyTheme(theme) {
+                if (!Object.values(ThemeManager.THEMES).includes(theme)) {
+                    console.warn(`Invalid theme: ${theme}, using default`);
+                    theme = ThemeManager.THEMES.DARK;
+                }
+
+                document.body.classList.remove(...Object.values(ThemeManager.THEMES));
+                document.body.classList.add(theme);
+                this.currentTheme = theme;
+                this.saveTheme(theme);
+            }
+
+            toggle() {
+                const newTheme = this.currentTheme === ThemeManager.THEMES.DARK
+                    ? ThemeManager.THEMES.LIGHT
+                    : ThemeManager.THEMES.DARK;
+                this.applyTheme(newTheme);
+                return newTheme;
+            }
+
+            getMonacoTheme() {
+                return ThemeManager.MONACO_THEMES[this.currentTheme] || ThemeManager.MONACO_THEMES.dark;
+            }
+        }
+
+        /**
+         * Console display manager - handles formatting and displaying console messages
+         */
+        class ConsoleManager {
+            constructor(outputElement) {
+                if (!outputElement) {
+                    throw new Error('ConsoleManager requires a valid output element');
+                }
+                this.outputElement = outputElement;
+            }
+
+            clear() {
+                this.outputElement.innerHTML = '';
+            }
+
+            addMessage(message, type = 'log') {
+                if (!['log', 'error', 'warn', 'info'].includes(type)) {
+                    type = 'log';
+                }
+
+                const line = document.createElement('div');
+                line.className = `console-line console-${type}`;
+                line.textContent = this.formatMessage(message);
+
+                this.outputElement.appendChild(line);
+                this.scrollToBottom();
+            }
+
+            formatMessage(message) {
+                if (message === null) {
+                    return 'null';
+                }
+
+                if (message === undefined) {
+                    return 'undefined';
+                }
+
+                if (typeof message === 'string') {
+                    return message;
+                }
+
+                if (typeof message === 'number' || typeof message === 'boolean') {
+                    return String(message);
+                }
+
+                if (typeof message === 'function') {
+                    return message.toString();
+                }
+
+                if (typeof message === 'symbol') {
+                    return message.toString();
+                }
+
+                if (message instanceof Error) {
+                    return `${message.name}: ${message.message}\n${message.stack || ''}`;
+                }
+
+                // Handle objects and arrays
+                try {
+                    return JSON.stringify(message, this.getCircularReplacer(), 2);
+                } catch (error) {
+                    console.warn('Failed to stringify message:', error);
+                    return String(message);
+                }
+            }
+
+            getCircularReplacer() {
+                const seen = new WeakSet();
+                return (key, value) => {
+                    if (typeof value === 'object' && value !== null) {
+                        if (seen.has(value)) {
+                            return '[Circular]';
+                        }
+                        seen.add(value);
+                    }
+                    return value;
+                };
+            }
+
+            scrollToBottom() {
+                this.outputElement.scrollTop = this.outputElement.scrollHeight;
+            }
+        }
+
+        /**
+         * TypeScript compiler wrapper - handles TypeScript to JavaScript transpilation
+         */
+        class TypeScriptCompiler {
+            static isAvailable() {
+                return typeof ts !== 'undefined';
+            }
+
+            static compile(code) {
+                if (!this.isAvailable()) {
+                    throw new Error('TypeScript compiler is not loaded');
+                }
+
+                if (!code || typeof code !== 'string') {
+                    throw new Error('Invalid TypeScript code provided');
+                }
+
+                try {
+                    const result = ts.transpileModule(code, {
+                        compilerOptions: {
+                            module: ts.ModuleKind.None,
+                            target: ts.ScriptTarget.ES2015,
+                            noEmitOnError: false
+                        }
+                    });
+
+                    const diagnostics = result.diagnostics || [];
+                    const errors = diagnostics.map(diagnostic => {
+                        const message = ts.flattenDiagnosticMessageText(diagnostic.messageText, '\n');
+                        const line = diagnostic.start !== undefined
+                            ? ` (line ${diagnostic.start})`
+                            : '';
+                        return `TypeScript Error${line}: ${message}`;
+                    });
+
+                    return {
+                        success: true,
+                        code: result.outputText,
+                        errors: errors
+                    };
+                } catch (error) {
+                    return {
+                        success: false,
+                        code: null,
+                        errors: [`TypeScript compilation failed: ${error.message}`]
+                    };
+                }
+            }
+        }
+
+        /**
+         * Preview iframe manager - handles code execution in isolated iframe
+         */
+        class PreviewManager {
+            constructor(iframeElement) {
+                if (!iframeElement) {
+                    throw new Error('PreviewManager requires a valid iframe element');
+                }
+                this.iframeElement = iframeElement;
+                this.currentBlobUrl = null;
+                this.isReady = false;
+                this.pendingCode = null;
+            }
+
+            runCode(code) {
+                if (!code || typeof code !== 'string') {
+                    console.warn('Invalid code provided to PreviewManager');
+                    return;
+                }
+
+                this.pendingCode = code;
+                this.isHTMLMode = false;
+                this.refreshIframe();
+            }
+
+            runHTML(htmlCode) {
+                if (!htmlCode || typeof htmlCode !== 'string') {
+                    console.warn('Invalid HTML provided to PreviewManager');
+                    return;
+                }
+
+                this.cleanupBlobUrl();
+                this.isReady = false;
+                this.isHTMLMode = true;
+
+                try {
+                    const wrappedHTML = this.wrapHTMLWithConsoleCapture(htmlCode);
+                    const blob = new Blob([wrappedHTML], { type: 'text/html' });
+                    this.currentBlobUrl = URL.createObjectURL(blob);
+
+                    this.iframeElement.onload = () => {
+                        this.isReady = true;
+                    };
+
+                    this.iframeElement.onerror = (error) => {
+                        console.error('Iframe loading error:', error);
+                        this.isReady = false;
+                    };
+
+                    this.iframeElement.src = this.currentBlobUrl;
+                } catch (error) {
+                    console.error('Failed to load HTML:', error);
+                }
+            }
+
+            wrapHTMLWithConsoleCapture(htmlCode) {
+                const consoleScript = `
+                    <script>
+                        (function() {
+                            const originalConsole = {
+                                log: console.log,
+                                error: console.error,
+                                warn: console.warn,
+                                info: console.info
+                            };
+
+                            ['log', 'error', 'warn', 'info'].forEach(method => {
+                                console[method] = function(...args) {
+                                    try {
+                                        originalConsole[method].apply(console, args);
+                                    } catch (e) {}
+
+                                    try {
+                                        window.parent.postMessage({
+                                            type: 'console',
+                                            method: method,
+                                            args: args.map(arg => {
+                                                if (arg === null) return null;
+                                                if (arg === undefined) return undefined;
+                                                if (typeof arg === 'string' || typeof arg === 'number' || typeof arg === 'boolean') {
+                                                    return arg;
+                                                }
+                                                if (typeof arg === 'function') {
+                                                    return arg.toString();
+                                                }
+                                                if (typeof arg === 'symbol') {
+                                                    return arg.toString();
+                                                }
+                                                if (arg instanceof Error) {
+                                                    return {
+                                                        __error: true,
+                                                        name: arg.name,
+                                                        message: arg.message,
+                                                        stack: arg.stack
+                                                    };
+                                                }
+                                                try {
+                                                    return JSON.parse(JSON.stringify(arg));
+                                                } catch (e) {
+                                                    return String(arg);
+                                                }
+                                            })
+                                        }, '*');
+                                    } catch (e) {}
+                                };
+                            });
+
+                            window.onerror = function(message, source, lineno, colno, error) {
+                                const errorMessage = error ? error.message : message;
+                                const errorStack = error ? error.stack : '';
+                                const fullMessage = 'Runtime Error: ' + errorMessage + (errorStack ? '\\n' + errorStack : '');
+                                console.error(fullMessage);
+                                return true;
+                            };
+
+                            window.addEventListener('unhandledrejection', function(event) {
+                                const reason = event.reason;
+                                const message = reason instanceof Error ? reason.message : String(reason);
+                                console.error('Unhandled Promise Rejection: ' + message);
+                            });
+                        })();
+                    </` + `script>
+                `;
+
+                if (htmlCode.toLowerCase().includes('</head>')) {
+                    return htmlCode.replace(/<\/head>/i, consoleScript + '</head>');
+                } else if (htmlCode.toLowerCase().includes('<body')) {
+                    return htmlCode.replace(/<body/i, consoleScript + '<body');
+                } else if (htmlCode.toLowerCase().includes('<html')) {
+                    return htmlCode.replace(/<html[^>]*>/i, '$&' + consoleScript);
+                } else {
+                    return consoleScript + htmlCode;
+                }
+            }
+
+            refreshIframe() {
+                this.cleanupBlobUrl();
+                this.isReady = false;
+
+                try {
+                    const htmlContent = this.createIframeHTML();
+                    const blob = new Blob([htmlContent], { type: 'text/html' });
+                    this.currentBlobUrl = URL.createObjectURL(blob);
+
+                    this.iframeElement.onload = () => {
+                        this.isReady = true;
+                        if (this.pendingCode) {
+                            this.sendCodeToIframe(this.pendingCode);
+                        }
+                    };
+
+                    this.iframeElement.onerror = (error) => {
+                        console.error('Iframe loading error:', error);
+                        this.isReady = false;
+                    };
+
+                    this.iframeElement.src = this.currentBlobUrl;
+                } catch (error) {
+                    console.error('Failed to refresh iframe:', error);
+                }
+            }
+
+            sendCodeToIframe(code) {
+                if (!this.isReady) {
+                    this.pendingCode = code;
+                    return;
+                }
+
+                try {
+                    if (!this.iframeElement.contentWindow) {
+                        throw new Error('Iframe contentWindow is not accessible');
+                    }
+
+                    this.iframeElement.contentWindow.postMessage(
+                        { type: 'runCode', code: code },
+                        '*'
+                    );
+                    this.pendingCode = null;
+                } catch (error) {
+                    console.error('Failed to send code to iframe:', error);
+                }
+            }
+
+            cleanupBlobUrl() {
+                if (this.currentBlobUrl) {
+                    try {
+                        URL.revokeObjectURL(this.currentBlobUrl);
+                    } catch (error) {
+                        console.warn('Failed to revoke blob URL:', error);
+                    }
+                    this.currentBlobUrl = null;
+                }
+            }
+
+            createIframeHTML() {
+                return `<!DOCTYPE html>
+<html>
+<head>
+    <style>
+        body {
+            margin: 0;
+            padding: 20px;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+        }
+    </style>
+</head>
+<body>
+    <script>
+        const originalConsole = {
+            log: console.log,
+            error: console.error,
+            warn: console.warn,
+            info: console.info
+        };
+
+        ['log', 'error', 'warn', 'info'].forEach(method => {
+            console[method] = function(...args) {
+                try {
+                    originalConsole[method].apply(console, args);
+                } catch (e) {}
+
+                try {
+                    window.parent.postMessage({
+                        type: 'console',
+                        method: method,
+                        args: args.map(arg => serializeArgument(arg))
+                    }, '*');
+                } catch (e) {}
+            };
+        });
+
+        function serializeArgument(arg) {
+            if (arg === null) return null;
+            if (arg === undefined) return undefined;
+
+            if (typeof arg === 'string' || typeof arg === 'number' || typeof arg === 'boolean') {
+                return arg;
+            }
+
+            if (typeof arg === 'function') {
+                return arg.toString();
+            }
+
+            if (typeof arg === 'symbol') {
+                return arg.toString();
+            }
+
+            if (arg instanceof Error) {
+                return {
+                    __error: true,
+                    name: arg.name,
+                    message: arg.message,
+                    stack: arg.stack
+                };
+            }
+
+            try {
+                return JSON.parse(JSON.stringify(arg));
+            } catch (e) {
+                return String(arg);
+            }
+        }
+
+        window.onerror = function(message, source, lineno, colno, error) {
+            const errorMessage = error ? error.message : message;
+            const errorStack = error ? error.stack : '';
+            const fullMessage = 'Runtime Error: ' + errorMessage + (errorStack ? '\\n' + errorStack : '');
+            console.error(fullMessage);
+            return true;
+        };
+
+        window.addEventListener('unhandledrejection', function(event) {
+            const reason = event.reason;
+            const message = reason instanceof Error ? reason.message : String(reason);
+            console.error('Unhandled Promise Rejection: ' + message);
+        });
+
+        window.addEventListener('message', function(event) {
+            if (event.data && event.data.type === 'runCode') {
+                try {
+                    document.body.innerHTML = '';
+                    eval(event.data.code);
+                } catch (err) {
+                    console.error(err.message + (err.stack ? '\\n' + err.stack : ''));
+                }
+            }
+        });
+    </` + `script>
+</body>
+</html>`;
+            }
+
+            destroy() {
+                this.cleanupBlobUrl();
+                this.iframeElement.onload = null;
+                this.iframeElement.onerror = null;
+            }
+        }
+
+        /**
+         * Monaco Editor wrapper - handles editor initialization and configuration
+         */
+        class EditorManager {
+            static STORAGE_KEY = 'code-playground-content';
+            static STORAGE_KEY_LANGUAGE = 'code-playground-language';
+            static DEFAULT_CODE = {
+                javascript: `// Write your JavaScript or TypeScript code here
+console.log("Hello, World!");
+
+// Create some DOM elements
+const div = document.createElement("div");
+div.textContent = "This appears in the preview!";
+div.style.padding = "20px";
+div.style.fontSize = "18px";
+document.body.appendChild(div);`,
+                typescript: `// Write your TypeScript code here
+const message: string = "Hello, World!";
+console.log(message);
+
+const div: HTMLDivElement = document.createElement("div");
+div.textContent = "This appears in the preview!";
+div.style.padding = "20px";
+div.style.fontSize = "18px";
+document.body.appendChild(div);`,
+                html: `<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>HTML Preview</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            padding: 20px;
+        }
+        h1 {
+            color: #333;
+        }
+    </style>
+</head>
+<body>
+    <h1>Hello, World!</h1>
+    <p>This is an HTML preview.</p>
+
+    <script>
+        console.log("HTML page loaded!");
+    </` + `script>
+</body>
+</html>`
+            };
+
+            constructor(containerElement, themeManager) {
+                if (!containerElement) {
+                    throw new Error('EditorManager requires a valid container element');
+                }
+                if (!themeManager) {
+                    throw new Error('EditorManager requires a ThemeManager instance');
+                }
+
+                this.containerElement = containerElement;
+                this.themeManager = themeManager;
+                this.editor = null;
+                this.currentLanguage = this.loadLanguage();
+                this.changeListeners = [];
+            }
+
+            loadLanguage() {
+                try {
+                    const savedLanguage = localStorage.getItem(EditorManager.STORAGE_KEY_LANGUAGE);
+                    if (savedLanguage && ['javascript', 'typescript', 'html'].includes(savedLanguage)) {
+                        return savedLanguage;
+                    }
+                    return 'javascript';
+                } catch (error) {
+                    console.warn('Failed to load language from localStorage:', error);
+                    return 'javascript';
+                }
+            }
+
+            saveLanguage(language) {
+                try {
+                    localStorage.setItem(EditorManager.STORAGE_KEY_LANGUAGE, language);
+                } catch (error) {
+                    console.warn('Failed to save language to localStorage:', error);
+                }
+            }
+
+            static isMonacoAvailable() {
+                return typeof monaco !== 'undefined';
+            }
+
+            async initialize() {
+                return new Promise((resolve, reject) => {
+                    if (!window.require) {
+                        reject(new Error('Monaco loader (require.js) is not available'));
+                        return;
+                    }
+
+                    try {
+                        require.config({
+                            paths: {
+                                vs: 'https://cdnjs.cloudflare.com/ajax/libs/monaco-editor/0.44.0/min/vs'
+                            }
+                        });
+
+                        require(['vs/editor/editor.main'], () => {
+                            try {
+                                this.createEditor();
+                                resolve(this.editor);
+                            } catch (error) {
+                                reject(error);
+                            }
+                        }, (error) => {
+                            reject(new Error('Failed to load Monaco editor: ' + error.message));
+                        });
+                    } catch (error) {
+                        reject(error);
+                    }
+                });
+            }
+
+            createEditor() {
+                if (!EditorManager.isMonacoAvailable()) {
+                    throw new Error('Monaco is not loaded');
+                }
+
+                const savedCode = this.loadCode();
+
+                this.editor = monaco.editor.create(this.containerElement, {
+                    value: savedCode,
+                    language: this.currentLanguage,
+                    theme: this.themeManager.getMonacoTheme(),
+                    automaticLayout: true,
+                    fontSize: 14,
+                    minimap: { enabled: false },
+                    scrollBeyondLastLine: false,
+                    wordWrap: 'on'
+                });
+
+                this.editor.onDidChangeModelContent(() => {
+                    this.saveCode();
+                    this.notifyChangeListeners();
+                });
+            }
+
+            loadCode() {
+                try {
+                    const savedCode = localStorage.getItem(EditorManager.STORAGE_KEY);
+                    if (savedCode) {
+                        return savedCode;
+                    }
+                    return EditorManager.DEFAULT_CODE[this.currentLanguage] || EditorManager.DEFAULT_CODE.javascript;
+                } catch (error) {
+                    console.warn('Failed to load code from localStorage:', error);
+                    return EditorManager.DEFAULT_CODE[this.currentLanguage] || EditorManager.DEFAULT_CODE.javascript;
+                }
+            }
+
+            saveCode() {
+                if (!this.editor) return;
+
+                try {
+                    const code = this.editor.getValue();
+                    localStorage.setItem(EditorManager.STORAGE_KEY, code);
+                } catch (error) {
+                    console.warn('Failed to save code to localStorage:', error);
+                }
+            }
+
+            getValue() {
+                return this.editor ? this.editor.getValue() : '';
+            }
+
+            setLanguage(language, changeCode = false) {
+                if (!this.editor) return;
+
+                if (!['javascript', 'typescript', 'html'].includes(language)) {
+                    console.warn(`Unsupported language: ${language}, defaulting to javascript`);
+                    language = 'javascript';
+                }
+
+                const previousLanguage = this.currentLanguage;
+                this.currentLanguage = language;
+                this.saveLanguage(language);
+
+                try {
+                    const model = this.editor.getModel();
+                    if (model) {
+                        monaco.editor.setModelLanguage(model, language);
+                    }
+
+                    // Change to default code for the new language if requested and current code is empty or is default code from previous language
+                    if (changeCode) {
+                        const currentCode = this.editor.getValue().trim();
+                        const isDefaultCode = !currentCode ||
+                                            currentCode === EditorManager.DEFAULT_CODE[previousLanguage]?.trim();
+
+                        if (isDefaultCode && EditorManager.DEFAULT_CODE[language]) {
+                            this.editor.setValue(EditorManager.DEFAULT_CODE[language]);
+                        }
+                    }
+                } catch (error) {
+                    console.error('Failed to set editor language:', error);
+                }
+            }
+
+            setTheme(theme) {
+                if (!EditorManager.isMonacoAvailable() || !this.editor) return;
+
+                try {
+                    monaco.editor.setTheme(theme);
+                } catch (error) {
+                    console.error('Failed to set editor theme:', error);
+                }
+            }
+
+            getLanguage() {
+                return this.currentLanguage;
+            }
+
+            onChange(callback) {
+                if (typeof callback === 'function') {
+                    this.changeListeners.push(callback);
+                }
+            }
+
+            notifyChangeListeners() {
+                this.changeListeners.forEach(callback => {
+                    try {
+                        callback();
+                    } catch (error) {
+                        console.error('Error in change listener:', error);
+                    }
+                });
+            }
+
+            destroy() {
+                if (this.editor) {
+                    try {
+                        this.editor.dispose();
+                    } catch (error) {
+                        console.error('Failed to dispose editor:', error);
+                    }
+                    this.editor = null;
+                }
+                this.changeListeners = [];
+            }
+        }
+
+        /**
+         * Resizer manager - handles panel resizing using flexbox approach
+         */
+        class ResizerManager {
+            static STORAGE_KEY_HORIZONTAL = 'code-playground-horizontal-split';
+            static STORAGE_KEY_VERTICAL = 'code-playground-vertical-split';
+            static MIN_PANEL_SIZE_PX = 100;
+
+            constructor() {
+                this.container = document.querySelector('.container');
+                this.leftPanel = document.getElementById('leftPanel');
+                this.rightPanel = document.getElementById('rightPanel');
+                this.previewContainer = document.getElementById('previewContainer');
+                this.consoleContainer = document.getElementById('consoleContainer');
+                this.horizontalResizer = document.getElementById('horizontalResizer');
+                this.verticalResizer = document.getElementById('verticalResizer');
+
+                this.isResizingHorizontal = false;
+                this.isResizingVertical = false;
+                this.startX = 0;
+                this.startY = 0;
+                this.startLeftWidth = 0;
+                this.startPreviewHeight = 0;
+
+                this.setupResizers();
+                this.loadSavedSizes();
+            }
+
+            setupResizers() {
+                if (this.horizontalResizer && this.leftPanel) {
+                    this.horizontalResizer.addEventListener('mousedown', (e) => {
+                        e.preventDefault();
+                        this.startHorizontalResize(e);
+                    });
+                }
+
+                if (this.verticalResizer && this.previewContainer) {
+                    this.verticalResizer.addEventListener('mousedown', (e) => {
+                        e.preventDefault();
+                        this.startVerticalResize(e);
+                    });
+                }
+
+                document.addEventListener('mousemove', (e) => {
+                    if (this.isResizingHorizontal) {
+                        this.handleHorizontalResize(e);
+                    } else if (this.isResizingVertical) {
+                        this.handleVerticalResize(e);
+                    }
+                });
+
+                document.addEventListener('mouseup', () => {
+                    this.stopResize();
+                });
+
+                document.addEventListener('selectstart', (e) => {
+                    if (this.isResizingHorizontal || this.isResizingVertical) {
+                        e.preventDefault();
+                    }
+                });
+            }
+
+            startHorizontalResize(event) {
+                this.isResizingHorizontal = true;
+                this.startX = event.clientX;
+                this.startLeftWidth = this.leftPanel.offsetWidth;
+
+                this.horizontalResizer.classList.add('resizing');
+                document.body.classList.add('resizing-horizontal');
+            }
+
+            startVerticalResize(event) {
+                this.isResizingVertical = true;
+                this.startY = event.clientY;
+                this.startPreviewHeight = this.previewContainer.offsetHeight;
+
+                this.verticalResizer.classList.add('resizing');
+                document.body.classList.add('resizing-vertical');
+            }
+
+            handleHorizontalResize(event) {
+                if (!this.isResizingHorizontal || !this.leftPanel || !this.container) {
+                    return;
+                }
+
+                const containerWidth = this.container.offsetWidth;
+                const resizerWidth = this.horizontalResizer.offsetWidth;
+
+                const deltaX = event.clientX - this.startX;
+                let newLeftWidth = this.startLeftWidth + deltaX;
+
+                const availableWidth = containerWidth - resizerWidth;
+
+                const minWidth = ResizerManager.MIN_PANEL_SIZE_PX;
+                const maxWidth = availableWidth - minWidth;
+
+                newLeftWidth = Math.max(minWidth, Math.min(newLeftWidth, maxWidth));
+
+                this.leftPanel.style.flexBasis = `${newLeftWidth}px`;
+
+                const percentage = (newLeftWidth / availableWidth) * 100;
+                this.saveHorizontalSize(percentage);
+            }
+
+            handleVerticalResize(event) {
+                if (!this.isResizingVertical || !this.previewContainer || !this.rightPanel) {
+                    return;
+                }
+
+                const containerHeight = this.rightPanel.offsetHeight;
+                const resizerHeight = this.verticalResizer.offsetHeight;
+
+                const deltaY = event.clientY - this.startY;
+                let newPreviewHeight = this.startPreviewHeight + deltaY;
+
+                const availableHeight = containerHeight - resizerHeight;
+
+                const minHeight = ResizerManager.MIN_PANEL_SIZE_PX;
+                const maxHeight = availableHeight - minHeight;
+
+                newPreviewHeight = Math.max(minHeight, Math.min(newPreviewHeight, maxHeight));
+
+                this.previewContainer.style.flexBasis = `${newPreviewHeight}px`;
+
+                const percentage = (newPreviewHeight / availableHeight) * 100;
+                this.saveVerticalSize(percentage);
+            }
+
+            stopResize() {
+                if (this.isResizingHorizontal) {
+                    this.isResizingHorizontal = false;
+                    this.horizontalResizer.classList.remove('resizing');
+                    document.body.classList.remove('resizing-horizontal');
+                }
+
+                if (this.isResizingVertical) {
+                    this.isResizingVertical = false;
+                    this.verticalResizer.classList.remove('resizing');
+                    document.body.classList.remove('resizing-vertical');
+                }
+            }
+
+            saveHorizontalSize(percentage) {
+                try {
+                    localStorage.setItem(ResizerManager.STORAGE_KEY_HORIZONTAL, percentage.toString());
+                } catch (error) {
+                    console.warn('Failed to save horizontal split size:', error);
+                }
+            }
+
+            saveVerticalSize(percentage) {
+                try {
+                    localStorage.setItem(ResizerManager.STORAGE_KEY_VERTICAL, percentage.toString());
+                } catch (error) {
+                    console.warn('Failed to save vertical split size:', error);
+                }
+            }
+
+            loadSavedSizes() {
+                try {
+                    const savedHorizontal = localStorage.getItem(ResizerManager.STORAGE_KEY_HORIZONTAL);
+                    if (savedHorizontal && this.leftPanel && this.container) {
+                        const percentage = parseFloat(savedHorizontal);
+                        if (percentage >= 10 && percentage <= 90) {
+                            const containerWidth = this.container.offsetWidth;
+                            const resizerWidth = this.horizontalResizer ? this.horizontalResizer.offsetWidth : 4;
+                            const availableWidth = containerWidth - resizerWidth;
+                            const leftWidth = (percentage / 100) * availableWidth;
+                            this.leftPanel.style.flexBasis = `${leftWidth}px`;
+                        }
+                    }
+
+                    const savedVertical = localStorage.getItem(ResizerManager.STORAGE_KEY_VERTICAL);
+                    if (savedVertical && this.previewContainer && this.rightPanel) {
+                        const percentage = parseFloat(savedVertical);
+                        if (percentage >= 10 && percentage <= 90) {
+                            requestAnimationFrame(() => {
+                                const containerHeight = this.rightPanel.offsetHeight;
+                                const resizerHeight = this.verticalResizer ? this.verticalResizer.offsetHeight : 4;
+                                const availableHeight = containerHeight - resizerHeight;
+                                const previewHeight = (percentage / 100) * availableHeight;
+                                this.previewContainer.style.flexBasis = `${previewHeight}px`;
+                            });
+                        }
+                    }
+                } catch (error) {
+                    console.warn('Failed to load saved sizes:', error);
+                }
+            }
+        }
+
+        /**
+         * Main application controller - orchestrates all managers
+         */
+        class PlaygroundApp {
+            constructor() {
+                this.themeManager = null;
+                this.editorManager = null;
+                this.consoleManager = null;
+                this.previewManager = null;
+                this.resizerManager = null;
+                this.debounceTimer = null;
+                this.debounceDelay = 500;
+            }
+
+            async initialize() {
+                try {
+                    this.themeManager = new ThemeManager();
+                    this.resizerManager = new ResizerManager();
+
+                    const consoleOutput = document.getElementById('console-output');
+                    if (!consoleOutput) {
+                        throw new Error('Console output element not found');
+                    }
+                    this.consoleManager = new ConsoleManager(consoleOutput);
+
+                    const previewIframe = document.getElementById('preview');
+                    if (!previewIframe) {
+                        throw new Error('Preview iframe element not found');
+                    }
+                    this.previewManager = new PreviewManager(previewIframe);
+
+                    const editorContainer = document.getElementById('editor');
+                    if (!editorContainer) {
+                        throw new Error('Editor container element not found');
+                    }
+
+                    this.editorManager = new EditorManager(editorContainer, this.themeManager);
+                    await this.editorManager.initialize();
+
+                    // Sync language dropdown with loaded language
+                    const languageSelect = document.getElementById('language');
+                    if (languageSelect) {
+                        languageSelect.value = this.editorManager.getLanguage();
+                    }
+
+                    this.setupEventListeners();
+                    this.runCode();
+
+                    console.log('Playground initialized successfully');
+                } catch (error) {
+                    this.handleInitializationError(error);
+                }
+            }
+
+            setupEventListeners() {
+                const themeBtn = document.getElementById('themeBtn');
+                if (themeBtn) {
+                    themeBtn.addEventListener('click', () => {
+                        this.themeManager.toggle();
+                        this.editorManager.setTheme(this.themeManager.getMonacoTheme());
+                    });
+                }
+
+                const languageSelect = document.getElementById('language');
+                if (languageSelect) {
+                    languageSelect.addEventListener('change', (event) => {
+                        const language = event.target.value;
+                        this.editorManager.setLanguage(language, true);
+                        this.runCode();
+                    });
+                }
+
+                const runBtn = document.getElementById('runBtn');
+                if (runBtn) {
+                    runBtn.addEventListener('click', () => {
+                        this.runCode();
+                    });
+                }
+
+                const clearBtn = document.getElementById('clearBtn');
+                if (clearBtn) {
+                    clearBtn.addEventListener('click', () => {
+                        this.consoleManager.clear();
+                    });
+                }
+
+                const reloadBtn = document.getElementById('reloadBtn');
+                if (reloadBtn) {
+                    reloadBtn.addEventListener('click', () => {
+                        this.runCode();
+                    });
+                }
+
+                const downloadBtn = document.getElementById('downloadBtn');
+                if (downloadBtn) {
+                    downloadBtn.addEventListener('click', () => {
+                        this.downloadCode();
+                    });
+                }
+
+                this.editorManager.onChange(() => {
+                    this.debouncedRunCode();
+                });
+
+                window.addEventListener('message', (event) => {
+                    this.handleIframeMessage(event);
+                });
+
+                window.addEventListener('beforeunload', () => {
+                    this.destroy();
+                });
+            }
+
+            debouncedRunCode() {
+                clearTimeout(this.debounceTimer);
+                this.debounceTimer = setTimeout(() => {
+                    this.runCode();
+                }, this.debounceDelay);
+            }
+
+            downloadCode() {
+                if (!this.editorManager) {
+                    console.warn('Editor not initialized');
+                    return;
+                }
+
+                const code = this.editorManager.getValue();
+                if (!code || code.trim().length === 0) {
+                    this.consoleManager.addMessage('No code to download', 'warn');
+                    return;
+                }
+
+                const language = this.editorManager.getLanguage();
+                const extensions = {
+                    javascript: 'js',
+                    typescript: 'ts',
+                    html: 'html'
+                };
+
+                const extension = extensions[language] || 'txt';
+                const filename = `code.${extension}`;
+
+                try {
+                    const blob = new Blob([code], { type: 'text/plain;charset=utf-8' });
+                    const url = URL.createObjectURL(blob);
+                    const link = document.createElement('a');
+                    link.href = url;
+                    link.download = filename;
+                    link.style.display = 'none';
+                    document.body.appendChild(link);
+                    link.click();
+                    document.body.removeChild(link);
+                    URL.revokeObjectURL(url);
+
+                    this.consoleManager.addMessage(`Downloaded as ${filename}`, 'info');
+                } catch (error) {
+                    console.error('Failed to download file:', error);
+                    this.consoleManager.addMessage('Failed to download file: ' + error.message, 'error');
+                }
+            }
+
+            runCode() {
+                if (!this.editorManager || !this.previewManager || !this.consoleManager) {
+                    console.warn('Playground not fully initialized');
+                    return;
+                }
+
+                this.consoleManager.clear();
+
+                let code = this.editorManager.getValue();
+                if (!code || code.trim().length === 0) {
+                    return;
+                }
+
+                const language = this.editorManager.getLanguage();
+
+                // Check if code looks like HTML (starts with < or <!DOCTYPE)
+                const looksLikeHTML = code.trim().startsWith('<');
+
+                if (language === 'html' || (looksLikeHTML && language !== 'typescript')) {
+                    this.previewManager.runHTML(code);
+                } else if (language === 'typescript') {
+                    if (!TypeScriptCompiler.isAvailable()) {
+                        this.consoleManager.addMessage('TypeScript compiler is not available', 'error');
+                        return;
+                    }
+
+                    const result = TypeScriptCompiler.compile(code);
+
+                    if (result.errors && result.errors.length > 0) {
+                        result.errors.forEach(error => {
+                            this.consoleManager.addMessage(error, 'error');
+                        });
+                    }
+
+                    if (!result.success || !result.code) {
+                        return;
+                    }
+
+                    code = result.code;
+                    this.previewManager.runCode(code);
+                } else {
+                    // JavaScript mode
+                    this.previewManager.runCode(code);
+                }
+            }
+
+            handleIframeMessage(event) {
+                if (!event.data || event.data.type !== 'console') {
+                    return;
+                }
+
+                const { method, args } = event.data;
+
+                if (!Array.isArray(args)) {
+                    return;
+                }
+
+                args.forEach(arg => {
+                    if (arg && typeof arg === 'object' && arg.__error) {
+                        const errorMessage = `${arg.name}: ${arg.message}${arg.stack ? '\n' + arg.stack : ''}`;
+                        this.consoleManager.addMessage(errorMessage, method);
+                    } else {
+                        this.consoleManager.addMessage(arg, method);
+                    }
+                });
+            }
+
+            handleInitializationError(error) {
+                console.error('Failed to initialize playground:', error);
+
+                const editorContainer = document.getElementById('editor');
+                if (editorContainer) {
+                    editorContainer.innerHTML = `
+                        <div class="editor-error">
+                            <h3>Failed to load editor</h3>
+                            <p>${error.message}</p>
+                            <p>Please refresh the page to try again.</p>
+                        </div>
+                    `;
+                }
+
+                const buttons = document.querySelectorAll('.btn');
+                buttons.forEach(btn => btn.disabled = true);
+            }
+
+            destroy() {
+                if (this.debounceTimer) {
+                    clearTimeout(this.debounceTimer);
+                }
+
+                if (this.editorManager) {
+                    this.editorManager.destroy();
+                }
+
+                if (this.previewManager) {
+                    this.previewManager.destroy();
+                }
+            }
+        }
+
+        const app = new PlaygroundApp();
+        app.initialize();
+    </script>
+</body>
+</html>
