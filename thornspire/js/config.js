@@ -81,10 +81,20 @@ export const CARDS = {
     hp: 1150, dmg: 270, hitSpeed: 1.4, range: 0.8, sight: 5.5, speed: 1.8, radius: 0.45, mass: 6,
     air: false, hitsAir: false, lifesteal: 0.45, lore: 'Swift and cruel. Drinks from every wound.',
   },
+  fiend: {
+    name: 'Fallen Seraph', cost: 5, type: 'unit', count: 1, model: 'fiend',
+    hp: 1350, dmg: 190, hitSpeed: 1.3, range: 1.2, sight: 5.5, speed: 1.2, radius: 0.5, mass: 8,
+    air: false, hitsAir: false, splash: 1.1, lore: 'Horned, winged, crowned with a blackened halo. Each trident thrust sweeps every foe around its mark.',
+  },
+  ghoul: {
+    name: 'Grave Ghoul', cost: 4, type: 'unit', count: 1, model: 'ghoul',
+    hp: 1050, dmg: 150, hitSpeed: 1.5, range: 0.8, sight: 5.5, speed: 1.2, radius: 0.45, mass: 7,
+    air: false, hitsAir: false, cripple: 1.6, lore: 'A grave-robbing brute. Its club cripples whatever it strikes, halving its pace.',
+  },
   wraiths: {
-    name: 'Wraiths', cost: 3, type: 'unit', count: 3, model: 'wraith', spread: 0.6,
-    hp: 210, dmg: 88, hitSpeed: 1.0, range: 0.8, sight: 5.5, speed: 2.2, radius: 0.32, mass: 1,
-    air: true, hitsAir: true, lore: 'Three cold whispers on the wind.',
+    name: 'Wraiths', cost: 3, type: 'unit', count: 2, model: 'wraith', spread: 0.55,
+    hp: 300, dmg: 115, hitSpeed: 1.1, range: 0.8, sight: 5.5, speed: 2.0, radius: 0.4, mass: 2,
+    air: true, hitsAir: true, lore: 'Two fanged shades on the wind, all claws and hunger.',
   },
   lantern: {
     name: 'Gallows Lantern', cost: 4, type: 'building', count: 1, model: 'lantern',

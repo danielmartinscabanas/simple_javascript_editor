@@ -25,6 +25,7 @@ function ownMaterials(root) {
     if (!map.has(src)) {
       const c = src.clone();
       c.userData = { origT: src.transparent, baseOpacity: src.opacity, baseEm: c.emissive ? c.emissive.clone() : null };
+      c.onBeforeCompile = src.onBeforeCompile; c.customProgramCacheKey = src.customProgramCacheKey;
       map.set(src, c); list.push(c);
     }
     o.material = map.get(src);
@@ -153,7 +154,7 @@ export class Sim {
     const model = buildModel(card.model, team);
     const mats = ownMaterials(model.root);
     // faint self-light so units separate from the stone in low light
-    for (const m of mats) if (m.emissive && m.userData.baseEm && m.userData.baseEm.getHex() === 0) { m.emissive.copy(m.color).multiplyScalar(0.22); m.userData.baseEm.copy(m.emissive); }
+    for (const m of mats) if (m.emissive && m.userData.baseEm && m.userData.baseEm.getHex() === 0) { if (m.map && !m.emissiveMap) m.emissiveMap = m.map; m.emissive.copy(m.color).multiplyScalar(m.map ? 0.35 : 0.22); m.userData.baseEm.copy(m.emissive); }
     model.root.position.set(x, 0, z);
     model.root.rotation.y = team === 0 ? Math.PI : 0;
     model.root.traverse((o) => { if (o.isMesh) { o.castShadow = true; o.receiveShadow = false; } });
@@ -660,6 +661,14 @@ export class Sim {
     if (proj) this.spawnProjectile(e, tg, proj);
     else {
       this.damage(tg, e.dmg, e);
+      if (e.card?.cripple && tg.kind === 'unit') tg.slowT = Math.max(tg.slowT, e.card.cripple);
+      if (e.card?.splash) {
+        for (const o of this.entities) {
+          if (o === tg || !o.alive || o.team === e.team || (o.air && !e.hitsAir)) continue;
+          if (Math.hypot(o.x - tg.x, o.z - tg.z) <= e.card.splash + o.radius * 0.5) this.damage(o, e.dmg, e);
+        }
+        this.world.fx.emit({ x: tg.x, y: 0.4, z: tg.z, count: 14, spread: 0.2, radial: 3, velRand: 0.5, gravity: 3, life: 0.4, size: 0.12, color: [1.8, 0.5, 0.15, 1] });
+      }
       const c = FACTION[e.team].glow;
       this.world.fx.emit({ x: (e.x + tg.x) / 2, y: (tg.y || 0) + 0.6, z: (e.z + tg.z) / 2, count: 6, spread: 0.1, velRand: 1.6, gravity: 4, life: 0.3, size: 0.09, color: [2, 1.6, 1.2, 1] });
       if (e.card?.lifesteal) this.world.fx.emit({ x: tg.x, y: 0.8, z: tg.z, count: 6, spread: 0.1, vel: [(e.x - tg.x) * 2, 0.6, (e.z - tg.z) * 2], life: 0.5, size: 0.12, color: [1.6, 0.05, 0.05, 1] });
@@ -800,7 +809,7 @@ export class Sim {
       const v = c.e.view.root, rig = c.e.view.rig;
       let k, fade;
       if (rig.gltf) {
-        if (!c.played) { c.played = true; playClip(rig, 'Death_A', 0.1, true, 1.3); }
+        if (!c.played) { c.played = true; playClip(rig, rig.spec.death || 'Death_A', 0.1, true, 1.3); }
         rig.mixer.update(dt);
         k = Math.min(1, c.t / 1.8);
         fade = Math.max(0, (k - 0.55) / 0.45);
@@ -824,7 +833,7 @@ export class Sim {
     const flyer = rig.flyer;
     const hover = flyer ? 1.55 + Math.sin(now * 3 + e.id) * 0.1 : 0;
     e.y = flyer ? hover : 0;
-    const rise = deploying && !rig.gltf ? (flyer ? (1 - k) * 2.5 : -(1 - k) * (1 - k) * e.height * 0.9) : 0;
+    const rise = deploying && !(rig.gltf && rig.actions.Spawn_Ground_Skeletons) ? (flyer ? (1 - k) * 2.5 : -(1 - k) * (1 - k) * e.height * 0.9) : 0;
     root.position.set(e.x, e.y + rise, e.z);
     e.ring.position.set(e.x, 0.035, e.z);
     if (e.facingTarget !== undefined && e.kind === 'unit') {
@@ -906,7 +915,7 @@ export class Sim {
   animateRigged(e, rig, deploying, walking, dt) {
     const sp = rig.spec;
     if (deploying) {
-      if (!e._spawned) { e._spawned = true; playClip(rig, 'Spawn_Ground_Skeletons', 0, true, 2.2 / Math.max(0.4, e.deployMax)); }
+      if (!e._spawned) { e._spawned = true; if (rig.actions.Spawn_Ground_Skeletons) playClip(rig, 'Spawn_Ground_Skeletons', 0, true, 2.2 / Math.max(0.4, e.deployMax)); }
     } else if (e.attackSeq && e.attackSeq !== e._seenSeq) {
       e._seenSeq = e.attackSeq;
       const clip = rig.actions[sp.attack]?.getClip();
@@ -916,9 +925,9 @@ export class Sim {
     } else if ((e._attackUntil -= dt) > 0) {
       // let the swing finish
     } else if (walking) {
-      playClip(rig, sp.move, 0.2, false, sp.move === 'Running_A' ? e.speed / 2.2 : e.speed / 1.0);
+      playClip(rig, sp.move, 0.2, false, sp.move === 'Running_A' ? e.speed / 2.2 : sp.move === 'Walk' ? e.speed / 1.1 : sp.move === 'Fast_Flying' ? 1 : e.speed / 1.0);
     } else {
-      playClip(rig, 'Idle', 0.25);
+      playClip(rig, sp.idle || 'Idle', 0.25);
     }
     rig.mixer.update(dt);
     e.moving = false;

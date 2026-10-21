@@ -3,7 +3,7 @@ import { CARDS, RIFT_HALF, ALTAR, EMOTES } from './config.js';
 // Rival AI. Plays the rival team (1, -z side). Ignores units it cannot see (hidden in thickets).
 const ROLE = {
   knight: ['tank', 'melee'], horde: ['swarm', 'melee'], hunters: ['ranged', 'air'], gargoyle: ['air', 'melee', 'antiAir'],
-  colossus: ['tank', 'win'], hemomancer: ['ranged', 'splash', 'antiAir'], vampire: ['melee', 'dps'], wraiths: ['swarm', 'air', 'antiAir'],
+  colossus: ['tank', 'win'], hemomancer: ['ranged', 'splash', 'antiAir'], vampire: ['melee', 'dps'], fiend: ['melee', 'splash', 'dps'], ghoul: ['melee'], wraiths: ['swarm', 'air', 'antiAir'],
   lantern: ['building', 'antiAir'], hellfire: ['spell'], crows: ['spell'], raise: ['spell', 'win'],
 };
 

@@ -11,7 +11,7 @@ import { World } from './world.js';
 import { Sim } from './sim.js';
 import { Bot, rivalDeck } from './bot.js';
 import { Audio } from './audio.js';
-import { buildModel, loadAssets, setRigged } from './models.js';
+import { buildModel, loadAssets, setRigged, boundsOf } from './models.js';
 
 const $ = (id) => document.getElementById(id);
 const TROPHY_SVG = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 3h12v3h3v3a5 5 0 0 1-5 5 6 6 0 0 1-3 2.6V19h3v2H8v-2h3v-2.4A6 6 0 0 1 8 14a5 5 0 0 1-5-5V6h3zm-1 5v1a3 3 0 0 0 2 2.8V8zm14 0h-2v3.8A3 3 0 0 0 19 9z"/></svg>';
@@ -130,7 +130,7 @@ function renderThumbs() {
       g.add(m.root);
     }
     s.add(g);
-    const box = new THREE.Box3().setFromObject(g);
+    const box = boundsOf(g);
     const size = box.getSize(new THREE.Vector3()), ctr = box.getCenter(new THREE.Vector3());
     const d = Math.max(size.y * 1.05, size.x * 1.25) / (2 * Math.tan(THREE.MathUtils.degToRad(15)));
     cam.position.set(ctr.x + d * 0.25, ctr.y + size.y * 0.12, ctr.z + d);

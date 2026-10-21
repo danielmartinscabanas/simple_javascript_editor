@@ -13,7 +13,60 @@ const RIGGED = {
   colossus: { file: 'skeleton_warrior', right: 'weapon_axe', h: 2.7, attack: '2H_Melee_Attack_Chop', move: 'Walking_D_Skeletons', bone: 0x8f8572 },
   hunter: { file: 'skeleton_rogue', right: 'weapon_crossbow', h: 1.2, attack: '2H_Ranged_Shoot', move: 'Walking_D_Skeletons' },
   witch: { file: 'skeleton_mage', right: 'weapon_staff', h: 1.35, attack: 'Spellcast_Shoot', move: 'Walking_D_Skeletons', robe: true },
+  // Quaternius Ultimate Monsters (CC0): repainted dark at load, eyes and fangs glow in team colour
+  fiend: { file: 'q_demon', h: 1.7, attack: 'Weapon', move: 'Walk', idle: 'Idle', death: 'Death', quat: true },
+  ghoul: { file: 'q_bluedemon', h: 1.45, attack: 'Weapon', move: 'Walk', idle: 'Idle', death: 'Death', quat: true },
+  wraith: { file: 'q_ghost', h: 1.0, attack: 'Punch', move: 'Fast_Flying', idle: 'Flying_Idle', death: 'Death', flyer: true, quat: true },
 };
+
+// Darken a Quaternius palette atlas: muted, desaturated flesh; near-white texels (eyes, fangs) kept pale so the shader can light them.
+const gothCache = new Map();
+function gothAtlas(tex) {
+  if (gothCache.has(tex)) return gothCache.get(tex);
+  const img = tex.image;
+  const c = document.createElement('canvas');
+  c.width = img.width; c.height = img.height;
+  const ctx = c.getContext('2d');
+  ctx.drawImage(img, 0, 0);
+  const d = ctx.getImageData(0, 0, c.width, c.height);
+  for (let i = 0; i < d.data.length; i += 4) {
+    const r = d.data[i], g = d.data[i + 1], b = d.data[i + 2];
+    const mx = Math.max(r, g, b), mn = Math.min(r, g, b);
+    const l = (r * 0.3 + g * 0.59 + b * 0.11) / 255, sat = mx ? (mx - mn) / mx : 0;
+    if (l > 0.5 && sat < 0.25) { d.data[i] = 235; d.data[i + 1] = 228; d.data[i + 2] = 210; continue; }
+    const gr = l * 255, k = 0.5;
+    d.data[i] = (r * 0.55 + gr * 0.45) * k; d.data[i + 1] = (g * 0.55 + gr * 0.45) * k; d.data[i + 2] = (b * 0.55 + gr * 0.45) * k;
+  }
+  ctx.putImageData(d, 0, 0);
+  const t = new THREE.CanvasTexture(c);
+  t.colorSpace = THREE.SRGBColorSpace; t.flipY = tex.flipY;
+  gothCache.set(tex, t);
+  return t;
+}
+
+// Pale texels become emissive in the team's glow colour.
+function glowPale(mat, glow) {
+  mat.userData.glow = { value: glow.clone().multiplyScalar(2.6) };
+  mat.onBeforeCompile = (sh) => {
+    sh.uniforms.uPaleGlow = mat.userData.glow;
+    sh.fragmentShader = 'uniform vec3 uPaleGlow;\n' + sh.fragmentShader.replace('#include <emissivemap_fragment>',
+      '#include <emissivemap_fragment>\n  totalEmissiveRadiance += uPaleGlow * smoothstep(0.55, 0.7, dot(diffuseColor.rgb, vec3(0.3, 0.59, 0.11)));');
+  };
+  mat.customProgramCacheKey = () => 'paleglow';
+}
+
+// Bounds that account for skinning (bind-pose geometry boxes are wrong for scaled armatures).
+export function boundsOf(obj) {
+  obj.updateMatrixWorld(true);
+  const box = new THREE.Box3(), tmp = new THREE.Box3();
+  obj.traverse((o) => {
+    if (!o.isMesh || !o.visible) return;
+    if (o.isSkinnedMesh) { o.computeBoundingBox(); tmp.copy(o.boundingBox).applyMatrix4(o.matrixWorld); }
+    else { if (!o.geometry.boundingBox) o.geometry.computeBoundingBox(); tmp.copy(o.geometry.boundingBox).applyMatrix4(o.matrixWorld); }
+    box.union(tmp);
+  });
+  return box;
+}
 
 export async function loadAssets(base = './assets/') {
   const loader = new GLTFLoader();
@@ -26,8 +79,8 @@ export async function loadAssets(base = './assets/') {
     const g = packed?.[f] ? await loader.parseAsync(decode(packed[f]), '') : await loader.loadAsync(`${base}${f}.glb`);
     // drop scale tracks so we can shrink the chibi skull for a grimmer silhouette
     for (const clip of g.animations) clip.tracks = clip.tracks.filter((t) => !t.name.endsWith('.scale'));
-    const box = new THREE.Box3().setFromObject(g.scene);
-    GLB[f] = { scene: g.scene, animations: g.animations, height: box.max.y - box.min.y };
+    const box = boundsOf(g.scene);
+    GLB[f] = { scene: g.scene, animations: g.animations, height: box.max.y - Math.min(0, box.min.y) };
   }));
   return Object.keys(GLB).length;
 }
@@ -50,6 +103,16 @@ function rigged(spec, team) {
   body.traverse((o) => {
     if (!o.isMesh) return;
     o.castShadow = true; o.frustumCulled = false;
+    if (spec.hide && spec.hide.test(o.name)) { o.visible = false; return; }
+    if (spec.quat) {
+      const c = o.material.clone();
+      if (c.map) c.map = gothAtlas(c.map);
+      c.color.copy(team === 0 ? new THREE.Color(0.85, 0.95, 1.15) : new THREE.Color(1.25, 0.8, 0.78));
+      c.roughness = 0.7; c.metalness = 0.05;
+      glowPale(c, m.glowColor);
+      o.material = c;
+      return;
+    }
     const n = o.name.toLowerCase();
     if (n.includes('eyes')) o.material = m.glow;
     else o.material = matFor(o.material, /cloak|cape|hood|hat|helmet/.test(n) || (spec.robe && n.includes('body')) ? 'cloth' : 'bone');
@@ -70,8 +133,8 @@ function rigged(spec, team) {
   const mixer = new THREE.AnimationMixer(body);
   const actions = {};
   for (const clip of src.animations) actions[clip.name] = mixer.clipAction(clip);
-  const rig = { gltf: true, mixer, actions, spec, current: null, body: root };
-  playClip(rig, 'Idle', 0);
+  const rig = { gltf: true, mixer, actions, spec, current: null, body: root, flyer: !!spec.flyer };
+  playClip(rig, spec.idle || 'Idle', 0);
   mixer.update(0.01);
   return { root, rig, height: spec.h };
 }
