@@ -66,7 +66,7 @@ function applyQuality() {
 
 // ---------- camera framing ----------
 let view = { mode: 'menu', lookZ: 0.6, dist: 34 };
-const BATTLE_DIR = new THREE.Vector3(0, Math.sin(THREE.MathUtils.degToRad(56)), Math.cos(THREE.MathUtils.degToRad(56)));
+const BATTLE_DIR = new THREE.Vector3(0, Math.sin(THREE.MathUtils.degToRad(63)), Math.cos(THREE.MathUtils.degToRad(63)));
 function fitBattleCamera() {
   const w = window.innerWidth, h = window.innerHeight;
   camera.aspect = w / h;
@@ -76,7 +76,7 @@ function fitBattleCamera() {
   const topPx = 64;
   const yLow = -1 + (2 * bottomPx) / h, yHigh = 1 - (2 * topPx) / h;
   const pts = [[-ARENA.halfW - 0.3, 0, ARENA.halfL + 0.3], [ARENA.halfW + 0.3, 0, ARENA.halfL + 0.3],
-    [-ARENA.halfW - 0.3, 0, -ARENA.halfL - 0.3], [ARENA.halfW + 0.3, 0, -ARENA.halfL - 0.3], [0, 6.5, -13.2]].map((p) => new THREE.Vector3(...p));
+    [-ARENA.halfW - 0.3, 0, -ARENA.halfL - 0.3], [ARENA.halfW + 0.3, 0, -ARENA.halfL - 0.3], [0, 3.6, -13.2]].map((p) => new THREE.Vector3(...p));
   let dist = 34, lookZ = 1;
   const v = new THREE.Vector3();
   for (let i = 0; i < 60; i++) {
@@ -372,7 +372,7 @@ function endBattleScene() {
   document.querySelectorAll('.bubble').forEach((b) => b.remove());
 }
 
-function toMenu() { view.mode = 'menu'; refreshMenu(); show('menu'); audio.playMusic('menu'); }
+function toMenu() { view.mode = 'menu'; refreshMenu(); show('menu'); audio.playMusic('menu'); audio.setLoops({}); }
 
 function endBattle(r) {
   if (!sim) return;

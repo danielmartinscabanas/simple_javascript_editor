@@ -26,8 +26,9 @@ Riflemen, SMG Rush, Marksman, Heavy Gunner (shotgun splash), Assault Mech (struc
 | Towers and walls | Kenney, Castle Kit |
 | Drones, sentry turret | Kenney, Tower Defense Kit and Space Kit |
 | Crates, grenade | Kenney, Blaster Kit; Survival Kit; Retro Urban Kit |
-| Gunfire | "PPSh" recording, Still North Media firearm library (CC0), cut into single shots |
-| Impacts, explosions, lasers, UI, announcer, jingles | Kenney audio packs |
+| Gunfire | Real recordings (AK-47, Carl Gustav M45, PPSh, 1911, .22 Magnum) from The Free Firearm Sound Library and OpenGameArt CC0 packs |
+| Explosions, impacts, footsteps, dog, voices, smoke, fire, rotor and wind loops | CC0 recordings by OpenGameArt authors (EZduzziteh, qubodup, rubberduck, HaelDB and others); full per-file list in `assets/audio/CREDITS.md` |
+| Announcer, victory sting | Kenney audio packs |
 | Music | "Battle Theme A" by cynicmusic; "Head in the Sand" by congusbongus (OpenGameArt, CC0) |
 
 License files are in `assets/licenses/` and `assets/audio/`. `js/assets-data.js` is `assets/models/*.glb` base64-packed (some hosts won't serve `.glb`).

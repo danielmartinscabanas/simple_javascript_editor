@@ -28,12 +28,12 @@ export class World {
     this.t = 0;
     const wallTex = plaster(4);
     this.mats = {
-      wall: std({ map: wallTex, color: 0xf0d6aa, roughness: 0.95 }),
-      wallTop: std({ color: 0xb98e5c, roughness: 0.9 }),
+      wall: std({ map: wallTex, color: 0xc49a6a, roughness: 0.95 }),
+      wallTop: std({ color: 0x7e5a38, roughness: 0.9 }),
       wood: std({ color: 0x6a4424, roughness: 0.85 }),
       darkWood: std({ color: 0x3e2614, roughness: 0.9 }),
       metal: std({ color: 0x4a4e52, roughness: 0.45, metalness: 0.7 }),
-      roof: std({ color: 0x9a7a52, roughness: 0.9, transparent: true, opacity: 0.62, side: THREE.DoubleSide }),
+      roof: std({ color: 0x9a7a52, roughness: 0.9, transparent: true, opacity: 0.45, side: THREE.DoubleSide, depthWrite: false }),
       shade: std({ color: 0x3a2c1c, roughness: 1 }),
       flame: new THREE.MeshBasicMaterial({ color: new THREE.Color(3, 1.3, 0.4) }),
     };
@@ -114,7 +114,7 @@ export class World {
     this.scene.add(strip);
   }
 
-  wallSegment(x0, x1, h = 2.7) {
+  wallSegment(x0, x1, h = 1.0) {
     const w = x1 - x0;
     if (w <= 0.05) return;
     const d = WALL_HALF * 2;
@@ -124,13 +124,9 @@ export class World {
     // UV scale so plaster repeats per metre
     const uv = body.geometry.attributes.uv;
     for (let i = 0; i < uv.count; i++) uv.setXY(i, uv.getX(i) * w / 2, uv.getY(i) * h / 2);
-    const cap = mesh(new THREE.BoxGeometry(w + 0.12, 0.18, d + 0.12), this.mats.wallTop);
-    cap.position.set((x0 + x1) / 2, h + 0.09, 0);
+    const cap = mesh(new THREE.BoxGeometry(w + 0.08, 0.1, d + 0.08), this.mats.wallTop);
+    cap.position.set((x0 + x1) / 2, h + 0.05, 0);
     g.add(body, cap);
-    // crenels along both faces
-    for (let x = x0 + 0.35; x < x1 - 0.2; x += 0.9) {
-      for (const s of [-1, 1]) g.add(at(mesh(new THREE.BoxGeometry(0.45, 0.35, 0.3), this.mats.wallTop), x, h + 0.35, s * (d / 2 - 0.1)));
-    }
     this.scene.add(g);
   }
 
@@ -140,10 +136,9 @@ export class World {
     let x = -W;
     for (const [a, b] of gaps) { this.wallSegment(x, a); x = b; }
     this.wallSegment(x, W);
-    // pillars at gap edges
-    for (const [a, b] of gaps) for (const px of [a, b]) for (const s of [-1, 1]) {
-      const p = prop('c_wall-pillar', { h: 3.1 });
-      if (p) place(this.scene, p, px, s * (WALL_HALF + 0.05));
+    // short posts at gap edges
+    for (const [a, b] of gaps) for (const px of [a, b]) {
+      this.scene.add(at(mesh(new THREE.BoxGeometry(0.3, 1.3, WALL_HALF * 2 + 0.1), this.mats.wallTop), px, 0.65, 0));
     }
   }
 
@@ -153,42 +148,34 @@ export class World {
     for (const s of [-1, 1]) {
       const pivot = new THREE.Group();
       pivot.position.set(LONG_X + s * LONG_HALF, 0, WALL_HALF);
-      const door = mesh(new THREE.BoxGeometry(LONG_HALF, 2.4, 0.12), m.wood);
-      door.position.set(-s * LONG_HALF / 2, 1.2, 0);
-      for (let k = 0; k < 4; k++) door.add(at(mesh(new THREE.BoxGeometry(LONG_HALF * 0.95, 0.08, 0.14), m.darkWood), 0, -0.9 + k * 0.6, 0));
+      const door = mesh(new THREE.BoxGeometry(LONG_HALF * 0.9, 1.0, 0.1), m.wood);
+      door.position.set(-s * LONG_HALF * 0.45, 0.55, 0);
+      for (let k = 0; k < 2; k++) door.add(at(mesh(new THREE.BoxGeometry(LONG_HALF * 0.85, 0.07, 0.12), m.darkWood), 0, -0.25 + k * 0.5, 0));
       pivot.add(door);
       pivot.rotation.y = s * 1.2;
       this.scene.add(pivot);
     }
-    const lintel = mesh(new THREE.BoxGeometry(LONG_HALF * 2 + 0.4, 0.35, WALL_HALF * 2), m.wallTop);
-    lintel.position.set(LONG_X, 2.75, 0);
-    this.scene.add(lintel);
-    // Mid Doors: arched doorways at both ends of the passage
-    for (const s of [-1, 1]) {
-      const arch = prop('c_wall-doorway', { w: MID_HALF * 2 + 1.4 });
-      if (arch) place(this.scene, arch, 0, s * (WALL_HALF - 0.1), 0);
-      else this.scene.add(at(mesh(new THREE.BoxGeometry(MID_HALF * 2 + 0.4, 0.4, 0.4), m.wallTop), 0, 2.6, s * WALL_HALF));
-    }
+
     // Tunnels: a roofed corridor, dark inside; units under the roof are concealed
     const tc = TUNNEL_COVER;
     for (const s of [-1, 1]) {
-      const side = mesh(new THREE.BoxGeometry(0.3, 2.2, tc.hz * 2), m.wall);
-      side.position.set(TUNNEL_X + s * (TUNNEL_HALF + 0.15), 1.1, 0);
+      const side = mesh(new THREE.BoxGeometry(0.25, 1.0, tc.hz * 2), m.wall);
+      side.position.set(TUNNEL_X + s * (TUNNEL_HALF + 0.15), 0.5, 0);
       this.scene.add(side);
     }
     const floor = mesh(new THREE.PlaneGeometry(TUNNEL_HALF * 2, tc.hz * 2), m.shade, false, true);
     floor.rotation.x = -Math.PI / 2; floor.position.set(TUNNEL_X, 0.012, 0);
     this.scene.add(floor);
     const roof = new THREE.Group();
-    const slab = mesh(new THREE.BoxGeometry(tc.hx * 2 + 0.3, 0.22, tc.hz * 2), m.roof, true, false);
-    slab.position.y = 2.3;
+    const slab = mesh(new THREE.BoxGeometry(tc.hx * 2 + 0.3, 0.08, tc.hz * 2), m.roof, true, false);
+    slab.position.y = 1.15;
     roof.add(slab);
-    for (let z = -tc.hz + 0.4; z <= tc.hz; z += 1.1) roof.add(at(mesh(new THREE.BoxGeometry(tc.hx * 2 + 0.4, 0.14, 0.14), m.darkWood), 0, 2.45, z));
+    for (let z = -tc.hz + 0.3; z <= tc.hz; z += 1.5) roof.add(at(mesh(new THREE.BoxGeometry(tc.hx * 2 + 0.35, 0.08, 0.1), m.darkWood), 0, 1.22, z));
     roof.position.set(TUNNEL_X, 0, 0);
     this.scene.add(roof);
     this.tunnelRoof = roof;
     const bulb = new THREE.PointLight(0xffc070, 6, 5, 2);
-    bulb.position.set(TUNNEL_X, 1.9, 0);
+    bulb.position.set(TUNNEL_X, 0.95, 0);
     this.scene.add(bulb);
     // mines
     this.mines = MINES.map((d) => {
@@ -265,14 +252,15 @@ export class World {
     for (const b of mirrored(BLOCKS)) {
       const rot = b.z < 0 ? Math.PI : 0;
       if (b.kind === 'house') this.house(b, rot);
+      else if (b.kind === 'barrierX') {
+        for (const dx of [-b.hx / 2, b.hx / 2]) place(this.scene, prop('r_detail-barrier-strong-type-a', { w: b.hx * 1.02 }) || prop('e_TrafficBarrier_1', { w: b.hx }), b.x + dx, b.z, 0);
+      }
       else if (b.kind === 'container') place(this.scene, prop(b.x < 0 ? 'e_Container_Red' : 'e_Container_Green', { w: b.hx * 2.05 }), b.x, b.z, rot);
       else if (b.kind === 'crates') {
         const s = b.hx * 2;
         place(this.scene, prop('b_crate-medium', { w: s }), b.x, b.z, rot);
-        const top = prop('b_crate-medium', { w: s * 0.75 });
-        if (top) place(this.scene, top, b.x + 0.05, b.z - 0.05, rot + 0.4, s * 0.72);
       } else if (b.kind === 'barrels') {
-        for (const [dx, dz] of [[-0.2, -0.2], [0.22, -0.15], [0, 0.22]]) place(this.scene, prop('e_Barrel', { h: 0.9 }), b.x + dx, b.z + dz, Math.random() * 3);
+        for (const [dx, dz] of [[-0.18, -0.18], [0.2, -0.12], [0, 0.2]]) place(this.scene, prop('e_Barrel', { h: 0.7 }), b.x + dx, b.z + dz, Math.random() * 3);
       } else if (b.kind === 'barrier') place(this.scene, prop('r_detail-barrier-strong-type-a', { w: b.hz * 2.2 }) || prop('e_TrafficBarrier_1', { w: b.hz * 2 }), b.x, b.z, Math.PI / 2);
     }
   }
@@ -315,21 +303,10 @@ export class World {
     // low sandstone curb with wall modules along the long sides
     const curb = [];
     for (const s of [-1, 1]) {
-      curb.push(new THREE.BoxGeometry(0.5, 0.5, L * 2 + 0.6).translate(s * (W + 0.3), 0.25, 0));
-      curb.push(new THREE.BoxGeometry(W * 2 + 1.1, 0.5, 0.5).translate(0, 0.25, s * (L + 0.3)));
+      curb.push(new THREE.BoxGeometry(0.35, 0.28, L * 2 + 0.6).translate(s * (W + 0.25), 0.14, 0));
+      curb.push(new THREE.BoxGeometry(W * 2 + 0.85, 0.28, 0.35).translate(0, 0.14, s * (L + 0.25)));
     }
     this.scene.add(mesh(mergeGeometries(curb), this.mats.wallTop));
-    for (const s of [-1, 1]) {
-      for (let z = -L + 1; z < L; z += 2.6) {
-        if (Math.abs(z) < WALL_HALF + 0.8) continue;
-        const w = prop('c_wall', { w: 2.6 });
-        if (w) { this.dim(w); place(this.scene, w, s * (W + 0.75), z, Math.PI / 2); }
-      }
-      for (let x = -W + 1.3; x < W; x += 2.6) {
-        const w = prop('c_wall', { w: 2.6 });
-        if (w) { this.dim(w); place(this.scene, w, x, s * (L + 0.75), 0); }
-      }
-    }
   }
 
   dim(obj, k = 0.78) {
@@ -341,7 +318,6 @@ export class World {
     const W = ARENA.halfW, L = ARENA.halfL;
     const spots = [
       ['v_Vehicle_Truck_Armored', { w: 2.4 }, -W - 3.2, 6, 0.3], ['v_Vehicle_Truck_Armored', { w: 2.4 }, W + 3.4, -7, Math.PI + 0.4],
-      ['e_WaterTower', { h: 6 }, W + 4.5, 9], ['e_WaterTower', { h: 6 }, -W - 4.5, -10],
       ['e_Container_Red', { w: 3 }, -W - 3, -3, 1.4], ['e_Container_Green', { w: 3 }, W + 3, 3, -1.2],
       ['e_Container_Green', { w: 3 }, -W - 3.2, 12, 0.2], ['e_Container_Red', { w: 3 }, W + 3.2, -13, -0.3],
       ['e_Wheels_Stack', { h: 0.9 }, -W - 2, 0.5], ['e_Wheels_Stack', { h: 0.9 }, W + 2, -0.5],
@@ -350,7 +326,6 @@ export class World {
       ['e_PlasticBarrier', { w: 1.4 }, -W - 1.8, 9], ['e_PlasticBarrier', { w: 1.4 }, W + 1.8, -9],
     ];
     for (const [f, opt, x, z, rot = r() * 6] of spots) place(this.scene, prop(f, opt), x, z, rot);
-    for (const s of [-1, 1]) for (const z of [-11, -4, 4, 11]) place(this.scene, prop('e_StreetLights', { h: 4.2 }), s * (W + 1.4), z, s > 0 ? Math.PI / 2 : -Math.PI / 2);
     // distant sandstone town
     const blocks = [];
     for (let i = 0; i < 40; i++) {

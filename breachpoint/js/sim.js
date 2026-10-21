@@ -143,6 +143,7 @@ export class Sim {
     }
     this.portal(team, x, z, Math.max(0.9, spread + 0.6));
     this.audio.play('deploy');
+    if (!card.air && card.type === 'unit' && card.model !== 'dog' && Math.random() < 0.45) this.audio.play('charge');
   }
 
   createUnit(team, key, x, z, deployT = 1.0) {
@@ -459,6 +460,7 @@ export class Sim {
   finish(tiebreak) {
     if (this.over) return;
     this.over = true;
+    this.audio.setLoops({ wind: 0.6 });
     const [a, b] = this.players;
     let winner = a.crowns > b.crowns ? 0 : b.crowns > a.crowns ? 1 : null;
     if (winner === null && tiebreak) {
@@ -528,6 +530,10 @@ export class Sim {
     if (!this._doubled && this.doubleSouls()) { this._doubled = true; this.hooks.onMessage?.('Final minute — funds flow twice as fast', null); this.audio.play('vo_final_round'); }
     this.smokes = this.smokes.filter((sm) => sm.until > this.time);
     this.fires = this.fires.filter((f) => f.until > this.time);
+    let flyers = 0, choking = false;
+    for (const e of this.entities) if (e.alive) { if (e.air) flyers++; else if (e.kind === 'unit' && this.smokes.length && this.inSmoke(e)) choking = true; }
+    this.audio.setLoops({ wind: 1, rotor: Math.min(1, flyers / 2), fire: this.fires.length ? 1 : 0 });
+    if (choking && Math.random() < dt * 0.6) this.audio.play('cough');
     for (const f of this.fires) {
       for (const e of this.entities) {
         if (!e.alive || e.team === f.team || e.air || e.deployT > 0) continue;
@@ -866,6 +872,11 @@ export class Sim {
       root.rotation.y = e.facing;
     }
     const walking = e.moving && !deploying && e.alive;
+    if (walking && !e.air && (e.stepT = (e.stepT ?? Math.random() * 0.4) - dt) <= 0) {
+      const mech = e.card?.model === 'mech';
+      e.stepT = mech ? 0.62 : 0.34 + Math.random() * 0.1;
+      this.audio.play(mech ? 'mechStep' : 'step');
+    }
     if (rig.gltf) this.animateRigged(e, rig, deploying, walking, dt);
     e.moving = false;
     if (walking) e.walkPhase += dt * e.speed * 5.5;

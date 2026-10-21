@@ -298,7 +298,8 @@ function fallbackUnit(team, h, flyer) {
 }
 
 // ---------- towers (stacked Kenney castle-kit modules) ----------
-function stack(pieces, width) {
+// maxH squashes the stack vertically so outposts stay low and don't hide the field
+function stack(pieces, width, maxH = Infinity) {
   const g = new THREE.Group();
   let y = 0;
   for (const name of pieces) {
@@ -308,7 +309,9 @@ function stack(pieces, width) {
     y += p.userData.size.y;
     g.add(p);
   }
-  g.userData.top = y;
+  const k = Math.min(1, maxH / y);
+  g.scale.y = k;
+  g.userData.top = y * k;
   return g;
 }
 
@@ -335,7 +338,7 @@ function teamBanners(g, team, width, y, h) {
 export function bellTower(team) {
   const root = new THREE.Group();
   const width = 2.3;
-  const t = stack(['c_tower-square-base', 'c_tower-square-mid', 'c_tower-square-top'], width);
+  const t = stack(['c_tower-square-base', 'c_tower-square-top'], width, 1.5);
   root.add(t);
   const top = t.userData.top || 4;
   teamBanners(root, team, width, top * 0.55, top * 0.35);
@@ -350,7 +353,7 @@ export function bellTower(team) {
 export function cathedralKeep(team) {
   const root = new THREE.Group();
   const width = 3.1;
-  const t = stack(['c_tower-square-base', 'c_tower-square-mid', 'c_tower-square-mid', 'c_tower-square-top'], width);
+  const t = stack(['c_tower-square-base', 'c_tower-square-mid', 'c_tower-square-top'], width, 2.1);
   root.add(t);
   const top = t.userData.top || 6;
   teamBanners(root, team, width, top * 0.5, top * 0.4);

@@ -1,11 +1,11 @@
 // Arena + card definitions. World units ≈ tiles. Player side is +z, rival side is -z.
 
 export const ARENA = { halfW: 9, halfL: 16, cell: 0.5 };
-export const WALL_HALF = 2.0;                  // |z| < WALL_HALF is the central sandstone wall
-export const LONG_X = -6.2, LONG_HALF = 1.1;   // Long Doors (wide, left)
-export const MID_HALF = 0.75;                  // Mid Doors (narrow, centre)
+export const WALL_HALF = 0.7;                  // |z| < WALL_HALF is the low central wall
+export const LONG_X = -6.2, LONG_HALF = 1.5;   // Long Doors (wide, left)
+export const MID_HALF = 1.0;                   // Mid Doors (centre)
 export const TUNNEL_X = 6.2, TUNNEL_HALF = 1.0;// Tunnels (covered, right)
-export const TUNNEL_COVER = { x: TUNNEL_X, z: 0, hx: 1.25, hz: 3.4 }; // roofed section: units inside are concealed
+export const TUNNEL_COVER = { x: TUNNEL_X, z: 0, hx: 1.2, hz: 2.3 }; // roofed section: units inside are concealed
 
 export const TEAM = { PLAYER: 0, RIVAL: 1 };
 
@@ -17,16 +17,15 @@ export const TOWERS = [
 
 // Hard cover. Listed for the player half; the rival half mirrors z.
 export const BLOCKS = [
-  { x: 0, z: 6.6, hx: 1.5, hz: 1.0, kind: 'house' },
-  { x: -2.9, z: 5.4, hx: 1.25, hz: 0.5, kind: 'container' },
-  { x: 2.7, z: 4.9, hx: 0.55, hz: 0.55, kind: 'crates' },
-  { x: 3.6, z: 8.0, hx: 0.45, hz: 0.45, kind: 'barrels' },
-  { x: -2.6, z: 9.3, hx: 0.5, hz: 0.5, kind: 'crates' },
-  { x: 8.0, z: 4.6, hx: 0.5, hz: 0.6, kind: 'barrier' },
+  { x: 0, z: 6.4, hx: 1.1, hz: 0.3, kind: 'barrierX' },
+  { x: -2.9, z: 4.6, hx: 1.1, hz: 0.45, kind: 'container' },
+  { x: 2.8, z: 4.4, hx: 0.4, hz: 0.4, kind: 'crates' },
+  { x: 3.6, z: 8.0, hx: 0.4, hz: 0.4, kind: 'barrels' },
+  { x: 8.0, z: 4.2, hx: 0.3, hz: 0.6, kind: 'barrier' },
 ];
-export const SANDS = [{ x: -6.2, z: 4.3, r: 1.2 }];            // deep sand: halves ground speed
+export const SANDS = [{ x: -6.2, z: 3.6, r: 1.2 }];            // deep sand: halves ground speed
 export const MINES = [                                         // proximity mines, re-arm after a delay
-  { x: 0, z: 1.3 }, { x: 0, z: -1.3 }, { x: LONG_X, z: 0 },
+  { x: 0, z: 2.4 }, { x: 0, z: -2.4 }, { x: LONG_X, z: 0 },
 ];
 export const MINE = { radius: 0.55, splash: 1.2, dmg: 190, rearm: 9 };
 
@@ -97,7 +96,7 @@ export const CARDS = {
   sentry: {
     name: 'Sentry Gun', cost: 4, type: 'building', count: 1, model: 'sentry',
     hp: 1150, dmg: 52, hitSpeed: 0.32, range: 6.5, sight: 6.5, radius: 0.7, lifetime: 32,
-    air: false, hitsAir: true, projectile: 'tracer', sfx: 'smg', lore: 'Automated turret. Rapid fire at ground and air for 32 seconds.',
+    air: false, hitsAir: true, projectile: 'tracer', sfx: 'sentry', lore: 'Automated turret. Rapid fire at ground and air for 32 seconds.',
   },
   frag: {
     name: 'Frag Grenade', cost: 3, type: 'spell', model: 'grenade',
