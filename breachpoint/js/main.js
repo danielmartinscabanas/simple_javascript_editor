@@ -504,9 +504,9 @@ function killFeed(k, v) {
   const how = k ? (k.kind === 'tower' ? 'tower' : WEAPON[k.key] || 'hit') : 'blast';
   row.innerHTML = `${k ? tag(k) : '<b>Hazard</b>'} <span>[${how}]</span> ${tag(v)}`;
   host.prepend(row);
-  while (host.children.length > 4) host.lastChild.remove();
-  setTimeout(() => { row.style.opacity = 0; }, 3800);
-  setTimeout(() => row.remove(), 4400);
+  while (host.children.length > 3) host.lastChild.remove();
+  setTimeout(() => { row.style.opacity = 0; }, 3000);
+  setTimeout(() => row.remove(), 3600);
 }
 
 let bannerTimer = null;
