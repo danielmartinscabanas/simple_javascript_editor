@@ -19,8 +19,11 @@ export async function loadAssets(base = './assets/') {
   const loader = new GLTFLoader();
   const files = new Set();
   for (const r of Object.values(RIGGED)) { files.add(r.file); if (r.right) files.add(r.right); if (r.left) files.add(r.left); }
+  let packed = null;
+  try { packed = (await import('./assets-data.js')).default; } catch { /* fall back to loose .glb files */ }
+  const decode = (b64) => { const bin = atob(b64); const u = new Uint8Array(bin.length); for (let i = 0; i < bin.length; i++) u[i] = bin.charCodeAt(i); return u.buffer; };
   await Promise.allSettled([...files].map(async (f) => {
-    const g = await loader.loadAsync(`${base}${f}.glb`);
+    const g = packed?.[f] ? await loader.parseAsync(decode(packed[f]), '') : await loader.loadAsync(`${base}${f}.glb`);
     // drop scale tracks so we can shrink the chibi skull for a grimmer silhouette
     for (const clip of g.animations) clip.tracks = clip.tracks.filter((t) => !t.name.endsWith('.scale'));
     const box = new THREE.Box3().setFromObject(g.scene);

@@ -28,3 +28,5 @@ Three minutes, souls cap at 10 and regenerate twice as fast in the final minute,
 ## Credits
 
 Skeleton units (Grave Knight, Ossuary Horde, Witch-Hunters, Bone Colossus, Hemomancer) use the rigged, animated models and weapons from the [KayKit Character Pack: Skeletons](https://github.com/KayKit-Game-Assets/KayKit-Character-Pack-Skeletons-1.0) by Kay Lousberg, released under CC0. Assets in `assets/` were trimmed to the animations the game uses; the license is in `assets/LICENSE-KayKit-Skeletons.txt`.
+
+`js/assets-data.js` is the same `.glb` files base64-packed into a module (some static hosts won't serve `.glb`). Regenerate it after changing `assets/`.
