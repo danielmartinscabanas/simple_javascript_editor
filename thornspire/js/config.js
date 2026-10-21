@@ -77,9 +77,10 @@ export const CARDS = {
     air: false, hitsAir: true, projectile: 'blood', splash: 1.3, lore: 'Hurls bursting orbs of blood.',
   },
   vampire: {
-    name: 'Vampire Lord', cost: 5, type: 'unit', count: 1, model: 'vampire',
-    hp: 1150, dmg: 270, hitSpeed: 1.4, range: 0.8, sight: 5.5, speed: 1.8, radius: 0.45, mass: 6,
-    air: false, hitsAir: false, lifesteal: 0.45, lore: 'Swift and cruel. Drinks from every wound.',
+    name: 'Vampire Lord', cost: 5, type: 'unit', count: 1, model: 'vampire', charge: { after: 2.5, speedMul: 1.75, dmgMul: 2 },
+    hp: 1150, dmg: 165, hitSpeed: 0.85, range: 0.8, sight: 5.5, speed: 1.3, radius: 0.45, mass: 6,
+    air: false, hitsAir: false, lifesteal: 0.4,
+    lore: 'Alternating claws drink from every wound. After a run-up it blurs into a sprint, and its first strike lands double.',
   },
   fiend: {
     name: 'Fallen Seraph', cost: 5, type: 'unit', count: 1, model: 'fiend',

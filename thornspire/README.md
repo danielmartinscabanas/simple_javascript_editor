@@ -12,7 +12,7 @@ No two-lane layout. A chasm of embers splits the field with **three crossings**:
 
 Three minutes, souls cap at 10 and regenerate twice as fast in the final minute, then one minute of sudden death; tiebreak on lowest spire health. Bell Towers give a crown and open deployment ground behind them; the Cathedral Keep wakes when hit or when a Bell Tower falls, and felling it takes all three crowns.
 
-14 cards (8 per deck, chosen in the Grimoire): Grave Knight, Ossuary Horde, Witch-Hunters, Gargoyle, Bone Colossus, Hemomancer, Vampire Lord, Fallen Seraph (trident sweep: melee splash), Grave Ghoul (club cripples: slows its target), Wraiths, Gallows Lantern, Hellfire, Murder of Crows, Raise the Dead.
+14 cards (8 per deck, chosen in the Grimoire): Grave Knight, Ossuary Horde, Witch-Hunters, Gargoyle, Bone Colossus, Hemomancer, Vampire Lord (alternating claws with lifesteal; sprints after a run-up and its first strike lands double), Fallen Seraph (trident sweep: melee splash), Grave Ghoul (club cripples: slows its target), Wraiths, Gallows Lantern, Hellfire, Murder of Crows, Raise the Dead.
 
 ## Code map
 
@@ -30,5 +30,7 @@ Three minutes, souls cap at 10 and regenerate twice as fast in the final minute,
 Skeleton units (Grave Knight, Ossuary Horde, Witch-Hunters, Bone Colossus, Hemomancer) use the rigged, animated models and weapons from the [KayKit Character Pack: Skeletons](https://github.com/KayKit-Game-Assets/KayKit-Character-Pack-Skeletons-1.0) by Kay Lousberg, released under CC0. Assets in `assets/` were trimmed to the animations the game uses; the license is in `assets/LICENSE-KayKit-Skeletons.txt`.
 
 Fallen Seraph, Grave Ghoul and Wraiths use Demon, BlueDemon and Ghost from [Ultimate Monsters](https://quaternius.com/packs/ultimatemonsters.html) by Quaternius (CC0; `assets/LICENSE-Quaternius-UltimateMonsters.txt`), repainted dark at load with team-coloured glowing eyes and fangs.
+
+Vampire Lord uses `character-vampire` from Kenney's [Graveyard Kit](https://kenney.nl/assets/graveyard-kit) (CC0; `assets/LICENSE-Kenney-GraveyardKit.txt`), repainted corpse-pale with a black coat and crimson cape.
 
 `js/assets-data.js` is the same `.glb` files base64-packed into a module (some static hosts won't serve `.glb`). Regenerate it after changing `assets/`.

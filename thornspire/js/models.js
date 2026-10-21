@@ -16,6 +16,8 @@ const RIGGED = {
   // Quaternius Ultimate Monsters (CC0): repainted dark at load, eyes and fangs glow in team colour
   fiend: { file: 'q_demon', h: 1.7, attack: 'Weapon', move: 'Walk', idle: 'Idle', death: 'Death', quat: true },
   ghoul: { file: 'q_bluedemon', h: 1.45, attack: 'Weapon', move: 'Walk', idle: 'Idle', death: 'Death', quat: true },
+  // Kenney Graveyard Kit (CC0): blocky vampire, repainted corpse-pale with a black coat and crimson cape
+  vampire: { file: 'k_vampire', h: 1.4, attack: ['attack-melee-right', 'attack-melee-left'], move: 'walk', run: 'sprint', idle: 'idle', death: 'die', repaint: 'vampire' },
   wraith: { file: 'q_ghost', h: 1.0, attack: 'Punch', move: 'Fast_Flying', idle: 'Flying_Idle', death: 'Death', flyer: true, quat: true },
 };
 
@@ -41,6 +43,40 @@ function gothAtlas(tex) {
   const t = new THREE.CanvasTexture(c);
   t.colorSpace = THREE.SRGBColorSpace; t.flipY = tex.flipY;
   gothCache.set(tex, t);
+  return t;
+}
+
+// Palette swaps for flat-colour atlases, keyed by spec.repaint.
+const REPAINTS = {
+  vampire(r, g, b) {
+    const l = (r * 0.3 + g * 0.59 + b * 0.11) / 255;
+    if (b > r + 15) return [26 + l * 30, 22 + l * 26, 32 + l * 34];                       // trousers: black
+    if (r > 170 && g < 105 && b < 110) return [120 + l * 60, 10, 22];                    // shirt, eyes, cape: crimson
+    if (r > 180 && r - b > 105) return [52 + l * 20, 34 + l * 12, 34 + l * 12];           // belt, boots: dark leather
+    if (r > 180 && r - b > 60) { const k = 0.55 + l * 0.45; return [200 * k, 202 * k, 214 * k]; } // skin: corpse-pale
+    return [r * 0.7, g * 0.7, b * 0.75];                                                  // coat, hair: deeper black
+  },
+};
+const repaintCache = new Map();
+function repaintAtlas(tex, name) {
+  const key = tex.uuid + name;
+  if (repaintCache.has(key)) return repaintCache.get(key);
+  const img = tex.image;
+  const c = document.createElement('canvas');
+  c.width = img.width; c.height = img.height;
+  const ctx = c.getContext('2d');
+  ctx.drawImage(img, 0, 0);
+  const d = ctx.getImageData(0, 0, c.width, c.height);
+  const fn = REPAINTS[name];
+  for (let i = 0; i < d.data.length; i += 4) {
+    const [r, g, b] = fn(d.data[i], d.data[i + 1], d.data[i + 2]);
+    d.data[i] = r; d.data[i + 1] = g; d.data[i + 2] = b;
+  }
+  ctx.putImageData(d, 0, 0);
+  const t = new THREE.CanvasTexture(c);
+  t.colorSpace = THREE.SRGBColorSpace; t.flipY = tex.flipY;
+  t.magFilter = tex.magFilter; t.minFilter = tex.minFilter;
+  repaintCache.set(key, t);
   return t;
 }
 
@@ -104,6 +140,13 @@ function rigged(spec, team) {
     if (!o.isMesh) return;
     o.castShadow = true; o.frustumCulled = false;
     if (spec.hide && spec.hide.test(o.name)) { o.visible = false; return; }
+    if (spec.repaint) {
+      const c = o.material.clone();
+      if (c.map) c.map = repaintAtlas(c.map, spec.repaint);
+      c.roughness = 0.65; c.metalness = 0.05;
+      o.material = c;
+      return;
+    }
     if (spec.quat) {
       const c = o.material.clone();
       if (c.map) c.map = gothAtlas(c.map);

@@ -660,7 +660,12 @@ export class Sim {
     const proj = e.kind === 'tower' ? 'soul' : e.card?.projectile;
     if (proj) this.spawnProjectile(e, tg, proj);
     else {
-      this.damage(tg, e.dmg, e);
+      const charged = e.charging && e.card?.charge;
+      this.damage(tg, e.dmg * (charged ? e.card.charge.dmgMul : 1), e);
+      if (e.card?.charge) {
+        if (charged) this.world.fx.emit({ x: tg.x, y: 0.8, z: tg.z, count: 22, spread: 0.15, velRand: 2.4, gravity: 4, life: 0.5, size: 0.14, color: [1.8, 0.05, 0.08, 1] });
+        e.runUp = 0; e.charging = false;
+      }
       if (e.card?.cripple && tg.kind === 'unit') tg.slowT = Math.max(tg.slowT, e.card.cripple);
       if (e.card?.splash) {
         for (const o of this.entities) {
@@ -682,6 +687,8 @@ export class Sim {
       if (this.nav.flagAt(e.x, e.z) & F.MIRE) speed *= 0.5;
     }
     if (e.slowT > 0) speed *= 0.5;
+    const ch = e.card?.charge;
+    if (ch) { e.charging = (e.runUp || 0) >= ch.after; if (e.charging) speed *= ch.speedMul; }
     let gx = tg.x, gz = tg.z;
     if (!e.air && !this.nav.lineClear(e.x, e.z, tg.x, tg.z)) {
       e.pathT -= dt;
@@ -697,6 +704,7 @@ export class Sim {
     const len = Math.hypot(dx, dz);
     if (len < 1e-4) return;
     const step = Math.min(len, speed * dt);
+    if (ch) e.runUp = (e.runUp || 0) + step;
     const nx = e.x + (dx / len) * step, nz = e.z + (dz / len) * step;
     if (e.air || this.nav.walkable(nx, nz)) { e.x = nx; e.z = nz; }
     else if (this.nav.walkable(nx, e.z)) e.x = nx;
@@ -918,14 +926,16 @@ export class Sim {
       if (!e._spawned) { e._spawned = true; if (rig.actions.Spawn_Ground_Skeletons) playClip(rig, 'Spawn_Ground_Skeletons', 0, true, 2.2 / Math.max(0.4, e.deployMax)); }
     } else if (e.attackSeq && e.attackSeq !== e._seenSeq) {
       e._seenSeq = e.attackSeq;
-      const clip = rig.actions[sp.attack]?.getClip();
+      const atk = Array.isArray(sp.attack) ? sp.attack[e.attackSeq % sp.attack.length] : sp.attack;
+      const clip = rig.actions[atk]?.getClip();
       const dur = clip ? clip.duration : 1;
-      playClip(rig, sp.attack, 0.08, true, Math.max(1, dur / Math.max(0.35, e.hitSpeed * 0.85)));
+      playClip(rig, atk, 0.08, true, Math.max(1, dur / Math.max(0.35, e.hitSpeed * 0.85)));
       e._attackUntil = dur / rig.current.timeScale;
     } else if ((e._attackUntil -= dt) > 0) {
       // let the swing finish
     } else if (walking) {
-      playClip(rig, sp.move, 0.2, false, sp.move === 'Running_A' ? e.speed / 2.2 : sp.move === 'Walk' ? e.speed / 1.1 : sp.move === 'Fast_Flying' ? 1 : e.speed / 1.0);
+      if (e.charging && sp.run) playClip(rig, sp.run, 0.15, false, 1.1);
+      else playClip(rig, sp.move, 0.2, false, sp.move === 'Running_A' ? e.speed / 2.2 : sp.move === 'Walk' ? e.speed / 1.1 : sp.move === 'Fast_Flying' ? 1 : e.speed / 1.0);
     } else {
       playClip(rig, sp.idle || 'Idle', 0.25);
     }

@@ -140,6 +140,73 @@ function renderThumbs() {
     s.remove(g);
   }
   r.dispose(); r.forceContextLoss?.();
+  thumbs.hellfire = paintFireball(W, H);
+}
+
+// Hand-painted card art for Hellfire: a falling meteor of brimstone with a flaming tail.
+function paintFireball(W, H) {
+  const c = document.createElement('canvas');
+  c.width = W; c.height = H;
+  const g = c.getContext('2d');
+  let seed = 7;
+  const rnd = () => { seed = (seed * 16807) % 2147483647; return seed / 2147483647; };
+  const cx = W * 0.42, cy = H * 0.6, R = W * 0.2;
+  const ang = Math.atan2(-1, 0.75); // tail points up and to the right
+  const tx = Math.cos(ang), ty = Math.sin(ang), nx = -ty, ny = tx;
+  // smoke behind the tail
+  for (let i = 0; i < 14; i++) {
+    const d = R * (1.2 + i * 0.35), w = R * (0.5 + i * 0.07);
+    const x = cx + tx * d + nx * (rnd() - 0.5) * w, y = cy + ty * d + ny * (rnd() - 0.5) * w;
+    const rg = g.createRadialGradient(x, y, 0, x, y, w);
+    rg.addColorStop(0, `rgba(20,12,12,${0.35 - i * 0.02})`); rg.addColorStop(1, 'rgba(20,12,12,0)');
+    g.fillStyle = rg; g.fillRect(x - w, y - w, w * 2, w * 2);
+  }
+  g.globalCompositeOperation = 'lighter';
+  // flame tongues streaming into the tail
+  const tongue = (len, width, off, col) => {
+    const bx = cx + nx * off, by = cy + ny * off;
+    const ex = bx + tx * len, ey = by + ty * len;
+    const grad = g.createLinearGradient(bx, by, ex, ey);
+    grad.addColorStop(0, col); grad.addColorStop(1, 'rgba(255,60,0,0)');
+    g.fillStyle = grad;
+    g.beginPath();
+    g.moveTo(bx + nx * width, by + ny * width);
+    g.quadraticCurveTo(bx + tx * len * 0.5 + nx * width * 1.2, by + ty * len * 0.5 + ny * width * 1.2, ex + nx * width * 0.1, ey + ny * width * 0.1);
+    g.quadraticCurveTo(bx + tx * len * 0.5 - nx * width * 0.6, by + ty * len * 0.5 - ny * width * 0.6, bx - nx * width, by - ny * width);
+    g.closePath(); g.fill();
+  };
+  for (let i = 0; i < 9; i++) tongue(R * (2.2 + rnd() * 2.2), R * (0.35 + rnd() * 0.5), (rnd() - 0.5) * R * 1.4, `rgba(255,${80 + rnd() * 70 | 0},10,0.55)`);
+  for (let i = 0; i < 5; i++) tongue(R * (1.4 + rnd() * 1.2), R * (0.25 + rnd() * 0.3), (rnd() - 0.5) * R * 0.8, 'rgba(255,210,90,0.6)');
+  // outer glow + fireball body
+  let rg = g.createRadialGradient(cx, cy, 0, cx, cy, R * 2.4);
+  rg.addColorStop(0, 'rgba(255,120,20,0.55)'); rg.addColorStop(1, 'rgba(255,40,0,0)');
+  g.fillStyle = rg; g.fillRect(0, 0, W, H);
+  rg = g.createRadialGradient(cx - R * 0.2, cy + R * 0.15, R * 0.05, cx, cy, R * 1.1);
+  rg.addColorStop(0, '#fffbe8'); rg.addColorStop(0.25, '#ffe27a'); rg.addColorStop(0.55, '#ff8a1c'); rg.addColorStop(0.85, '#c42a06'); rg.addColorStop(1, 'rgba(120,10,0,0)');
+  g.fillStyle = rg;
+  g.beginPath(); g.arc(cx, cy, R * 1.1, 0, Math.PI * 2); g.fill();
+  // brimstone crust with glowing cracks
+  g.globalCompositeOperation = 'source-over';
+  g.save();
+  g.beginPath(); g.arc(cx, cy, R * 0.82, 0, Math.PI * 2); g.clip();
+  for (let i = 0; i < 5; i++) {
+    const a = Math.PI * (0.1 + rnd() * 0.9), d = R * (0.55 + rnd() * 0.25);
+    const px = cx + Math.cos(a) * d, py = cy + Math.sin(a) * d, pr = R * (0.12 + rnd() * 0.12);
+    g.fillStyle = `rgba(150,36,8,${0.35 + rnd() * 0.2})`;
+    g.beginPath();
+    for (let k = 0; k < 6; k++) { const aa = (k / 6) * Math.PI * 2 + rnd() * 0.5, rr = pr * (0.7 + rnd() * 0.4); g.lineTo(px + Math.cos(aa) * rr, py + Math.sin(aa) * rr); }
+    g.closePath(); g.fill();
+  }
+  g.restore();
+  // embers
+  g.globalCompositeOperation = 'lighter';
+  for (let i = 0; i < 40; i++) {
+    const d = R * (0.8 + rnd() * 4), sp = (rnd() - 0.5) * R * 2.2;
+    const x = cx + tx * d + nx * sp, y = cy + ty * d + ny * sp, s = 0.8 + rnd() * 2.2;
+    g.fillStyle = `rgba(255,${150 + rnd() * 100 | 0},60,${0.5 + rnd() * 0.5})`;
+    g.beginPath(); g.arc(x, y, s, 0, Math.PI * 2); g.fill();
+  }
+  return c.toDataURL('image/png');
 }
 
 function cardEl(key, extra = '') {
