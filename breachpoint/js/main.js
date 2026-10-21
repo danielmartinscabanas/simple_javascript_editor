@@ -358,7 +358,7 @@ function startBattle() {
   audio.play('vo_prepare');
   setTimeout(() => { if (sim && !sim.over) { audio.play('vo_fight'); banner('Fight!', null, true); } }, 1700);
   banner('Defend your towers', null, true);
-  audio.playMusic('battle');
+  clearTimeout(resultMusicT); audio.playMusic('battle');
   setTimeout(() => bot?.emote('glhf'), 1800);
 }
 
@@ -372,7 +372,8 @@ function endBattleScene() {
   document.querySelectorAll('.bubble').forEach((b) => b.remove());
 }
 
-function toMenu() { view.mode = 'menu'; refreshMenu(); show('menu'); audio.playMusic('menu'); audio.setLoops({}); }
+let resultMusicT = 0;
+function toMenu() { clearTimeout(resultMusicT); view.mode = 'menu'; refreshMenu(); show('menu'); audio.playMusic('menu'); audio.setLoops({}); }
 
 function endBattle(r) {
   if (!sim) return;
@@ -394,9 +395,17 @@ function endBattle(r) {
     : draw ? ['Neither squad broke through. Call it a draw.']
       : r.forfeit ? ['You surrendered. The rival squad takes the round.'] : ['Your towers fell. Regroup and queue again.', 'Outplayed this time. Check your loadout and go again.'];
   $('r-epitaph').textContent = ep[Math.floor(Math.random() * ep.length)];
+  // victory: brass fanfare, then an orchestral song over the result screen; defeat: a short lament
   audio.play(win ? 'victory' : 'defeat');
-  audio.playMusic('menu');
-  if (win) setTimeout(() => audio.play('win_jingle'), 1200);
+  audio.playMusic(null);
+  clearTimeout(resultMusicT);
+  if (win) {
+    setTimeout(() => audio.play('fanfare'), 900);
+    resultMusicT = setTimeout(() => audio.playMusic('victory'), 6500);
+  } else if (!draw) {
+    setTimeout(() => audio.play('lament'), 900);
+    resultMusicT = setTimeout(() => audio.playMusic('menu'), 9800);
+  } else audio.playMusic('menu');
   if (!win && !draw && !r.forfeit) setTimeout(() => bubble('gg', 1), 300);
   show('result');
 }

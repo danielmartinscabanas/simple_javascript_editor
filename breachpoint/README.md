@@ -28,7 +28,8 @@ Riflemen, SMG Rush, Marksman, Heavy Gunner (shotgun splash), Assault Mech (struc
 | Crates, grenade | Kenney, Blaster Kit; Survival Kit; Retro Urban Kit |
 | Gunfire | Real recordings (AK-47, Carl Gustav M45, PPSh, 1911, .22 Magnum) from The Free Firearm Sound Library and OpenGameArt CC0 packs |
 | Explosions, impacts, footsteps, dog, voices, smoke, fire, rotor and wind loops | CC0 recordings by OpenGameArt authors (EZduzziteh, qubodup, rubberduck, HaelDB and others); full per-file list in `assets/audio/CREDITS.md` |
-| Announcer, victory sting | Kenney audio packs |
+| Announcer | Kenney Voiceover Pack |
+| Victory fanfare and song, defeat theme | "Classic fanfare lick" by fvcalderan; "Ending Scene (orchestral)" by nene; "Medieval: Defeat Theme" by RandomMind (OpenGameArt, CC0) |
 | Music | "Battle Theme A" by cynicmusic; "Head in the Sand" by congusbongus (OpenGameArt, CC0) |
 
 License files are in `assets/licenses/` and `assets/audio/`. `js/assets-data.js` is `assets/models/*.glb` base64-packed (some hosts won't serve `.glb`).

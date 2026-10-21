@@ -48,5 +48,7 @@ Mirrors used (the container could only reach GitHub):
 | fire_loop | burning molotov | "Fire Crackling" | AntumDeluge |
 | wind_loop | desert wind bed | "Mild Wind Background Noise" | Bashar3A |
 | vo_* | announcer | Voiceover Pack | Kenney |
-| jingles_STEEL07 | victory sting | Music Jingles | Kenney |
+| fanfare | victory brass fanfare | "Classic fanfare lick" (opengameart.org/content/classic-fanfare-lick), via github.com/FlamingFury00/Cartoon-Hitster | fvcalderan |
+| music_victory | victory song on the result screen (first 2:19) | "Ending Scene (orchestral)" (opengameart.org/content/ending-scene), via github.com/Taan9448/Four | nene |
+| defeat_theme | defeat lament | "Medieval: Defeat Theme" (opengameart.org/content/medieval-defeat-theme), via github.com/Taan9448/Four | RandomMind |
 | music_battle, music_menu | music | see CREDITS-music-battle.md | cynicmusic; congusbongus |
