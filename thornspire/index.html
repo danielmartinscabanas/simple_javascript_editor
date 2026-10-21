@@ -1,0 +1,393 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Thornspire</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Cinzel:wght@500;700;900&family=Cormorant+Garamond:ital,wght@0,400;0,600;1,400;1,600&family=UnifrakturCook:wght@700&display=swap">
+<style>
+/* Layout: full-bleed 3D arena; parchment-and-iron overlays pinned to the edges, menus as reliquary panels. */
+:root {
+  --night: #07060a;        /* ground of everything */
+  --vellum: #d9cfbc;       /* primary text, aged parchment */
+  --ash: #8a8174;          /* secondary text */
+  --gilt: #a88a4e;         /* tarnished gold for frames and rules */
+  --soul: #9fd6ff;         /* our soulfire */
+  --blood: #ff4a3a;        /* the rival's covenant */
+  --iron: #16141a;         /* panel fill */
+  --iron-2: #211e26;
+  --display: 'Cinzel', 'Trajan Pro', 'Times New Roman', serif;
+  --body: 'Cormorant Garamond', 'Garamond', 'Georgia', serif;
+  --black: 'UnifrakturCook', 'Old English Text MT', 'Cinzel', serif;
+  color-scheme: dark;
+}
+[hidden] { display: none !important; }
+html, body { height: 100%; }
+body {
+  margin: 0; background: var(--night); color: var(--vellum); font-family: var(--body); font-size: 17px;
+  overflow: hidden; user-select: none; -webkit-user-select: none; -webkit-tap-highlight-color: transparent;
+}
+#stage { position: fixed; inset: 0; }
+#stage canvas { display: block; width: 100%; height: 100%; touch-action: none; }
+#vignette {
+  position: fixed; inset: 0; pointer-events: none;
+  background: radial-gradient(ellipse at 50% 45%, transparent 55%, rgba(0,0,0,0.4) 88%, rgba(0,0,0,0.7) 100%);
+}
+#grain { position: fixed; inset: 0; pointer-events: none; opacity: 0.07; mix-blend-mode: overlay; }
+button { font: inherit; color: inherit; }
+button:focus-visible, input:focus-visible { outline: 2px solid var(--soul); outline-offset: 3px; }
+
+/* ---------- reliquary panels ---------- */
+.screen {
+  position: fixed; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center;
+  padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px));
+  padding-block: max(16px, env(safe-area-inset-top, 0px)) max(16px, env(safe-area-inset-bottom, 0px));
+  box-sizing: border-box; overflow-y: auto;
+}
+.screen.dim { background: radial-gradient(ellipse at 50% 40%, rgba(7,6,10,0.25), rgba(7,6,10,0.88) 70%); }
+.logo {
+  font-family: var(--black); font-weight: 700; font-size: clamp(56px, 13vw, 128px); line-height: 0.9; margin: 0;
+  color: var(--vellum); text-shadow: 0 0 30px rgba(255,74,58,0.25), 0 2px 0 #000; letter-spacing: 0.01em; text-align: center;
+}
+.tagline {
+  font-family: var(--display); font-weight: 500; letter-spacing: 0.42em; text-transform: uppercase; font-size: 12px;
+  color: var(--gilt); margin: 14px 0 28px; text-align: center; padding-left: 0.42em;
+}
+.rule { width: min(360px, 80vw); height: 1px; background: linear-gradient(90deg, transparent, var(--gilt), transparent); margin: 6px auto; }
+.menu-stack { display: flex; flex-direction: column; gap: 12px; width: min(340px, 100%); align-items: stretch; }
+.btn {
+  appearance: none; border: 1px solid rgba(168,138,78,0.55); background: linear-gradient(180deg, var(--iron-2), var(--iron));
+  font-family: var(--display); font-weight: 700; letter-spacing: 0.18em; text-transform: uppercase; font-size: 14px;
+  padding: 14px 18px; cursor: pointer; position: relative; color: var(--vellum);
+  box-shadow: inset 0 0 0 3px rgba(0,0,0,0.6), 0 6px 24px rgba(0,0,0,0.5);
+  transition: border-color .2s, color .2s, transform .1s;
+}
+.btn:hover { border-color: var(--gilt); color: #fff; }
+.btn:active { transform: translateY(1px); }
+.btn.primary {
+  background: linear-gradient(180deg, #3a0d10, #1d0608); border-color: #8c2a22; font-size: 16px; padding: 18px;
+  text-shadow: 0 0 12px rgba(255,74,58,0.6);
+}
+.btn.primary:hover { border-color: var(--blood); }
+.btn.small { font-size: 11px; padding: 9px 12px; letter-spacing: 0.14em; }
+.pilgrim {
+  display: grid; grid-template-columns: 1fr auto; gap: 4px 16px; align-items: baseline;
+  width: min(340px, 100%); margin-bottom: 18px; padding: 12px 14px; box-sizing: border-box;
+  border-top: 1px solid rgba(168,138,78,0.35); border-bottom: 1px solid rgba(168,138,78,0.35);
+}
+.pilgrim input {
+  background: transparent; border: none; border-bottom: 1px dashed rgba(217,207,188,0.25); color: var(--vellum);
+  font-family: var(--display); font-size: 17px; font-weight: 700; padding: 2px 0; min-width: 0; width: 100%;
+}
+.pilgrim .rank { font-style: italic; color: var(--ash); font-size: 16px; }
+.trophy { font-family: var(--display); font-weight: 700; font-variant-numeric: tabular-nums; color: var(--gilt); white-space: nowrap; }
+.trophy svg { width: 14px; height: 14px; vertical-align: -1px; margin-right: 4px; fill: currentColor; }
+.foot { margin-top: 22px; font-style: italic; color: var(--ash); font-size: 15px; text-align: center; max-width: 34ch; }
+.row { display: flex; gap: 10px; flex-wrap: wrap; justify-content: center; }
+
+.panel {
+  width: min(760px, 100%); background: rgba(14,12,17,0.94); border: 1px solid rgba(168,138,78,0.45);
+  box-shadow: inset 0 0 0 4px rgba(0,0,0,0.6), 0 20px 80px rgba(0,0,0,0.7); padding: 22px clamp(14px, 4vw, 30px); box-sizing: border-box;
+  max-height: 100%; overflow-y: auto;
+}
+.panel h2 { font-family: var(--display); font-weight: 900; letter-spacing: 0.2em; text-transform: uppercase; font-size: 18px; margin: 0 0 4px; color: var(--vellum); text-wrap: balance; }
+.panel .sub { color: var(--ash); font-style: italic; margin: 0 0 16px; }
+.panel-foot { display: flex; justify-content: space-between; align-items: center; gap: 12px; margin-top: 18px; flex-wrap: wrap; }
+
+.grimoire { display: grid; grid-template-columns: repeat(auto-fill, minmax(98px, 1fr)); gap: 12px; }
+.grimoire .card { width: 100%; }
+.grimoire .card.in { outline: 2px solid var(--soul); outline-offset: 2px; }
+.grimoire .card:not(.in) { filter: saturate(0.4) brightness(0.65); }
+.lore-line { min-height: 2.6em; color: var(--vellum); font-style: italic; margin-top: 14px; }
+
+.guide { display: grid; grid-template-columns: repeat(auto-fit, minmax(210px, 1fr)); gap: 18px 24px; }
+.guide h3 { font-family: var(--display); font-size: 13px; letter-spacing: 0.16em; text-transform: uppercase; color: var(--gilt); margin: 0 0 4px; }
+.guide p { margin: 0; line-height: 1.4; font-size: 16px; }
+
+/* ---------- cards ---------- */
+.card {
+  position: relative; aspect-ratio: 4 / 5; max-width: 100%; cursor: pointer; box-sizing: border-box;
+  background: #0d0b10 center 35% / cover no-repeat; border: 1px solid #4b3d24;
+  box-shadow: inset 0 0 0 2px #000, inset 0 -40px 30px -10px rgba(0,0,0,0.95), 0 4px 14px rgba(0,0,0,0.6);
+  transition: transform .12s, filter .2s, box-shadow .2s; touch-action: none;
+}
+.card .cost {
+  position: absolute; top: -7px; left: -7px; width: 26px; height: 26px; display: grid; place-items: center;
+  background: radial-gradient(circle at 50% 60%, #dff3ff 0, #6db7ea 40%, #1e4c74 100%); border-radius: 50% 50% 50% 0; transform: rotate(-45deg);
+  box-shadow: 0 0 10px rgba(159,214,255,0.55), inset 0 0 0 1px rgba(0,0,0,0.5);
+}
+.card .cost b { transform: rotate(45deg); font-family: var(--display); font-weight: 900; font-size: 14px; color: #06121d; }
+.card .nm {
+  position: absolute; left: 4px; right: 4px; bottom: 5px; text-align: center; font-family: var(--display); font-weight: 700;
+  font-size: 10px; letter-spacing: 0.06em; line-height: 1.1; color: var(--vellum); text-shadow: 0 1px 2px #000; text-wrap: balance;
+}
+.card .tp { position: absolute; top: 4px; right: 5px; font-family: var(--display); font-size: 8px; letter-spacing: 0.12em; color: var(--gilt); text-transform: uppercase; }
+.card .veil { position: absolute; inset: 0; background: rgba(5,4,7,0.72); transform-origin: top; pointer-events: none; transition: transform .1s linear; }
+
+/* ---------- matchmaking ---------- */
+.seek { display: flex; flex-direction: column; align-items: center; gap: 18px; text-align: center; }
+.sigil { width: 120px; height: 120px; animation: spin 9s linear infinite; }
+@keyframes spin { to { transform: rotate(360deg); } }
+.seek h2 { font-family: var(--display); letter-spacing: 0.24em; text-transform: uppercase; font-size: 15px; margin: 0; font-weight: 700; }
+.seek .meta { color: var(--ash); font-style: italic; font-variant-numeric: tabular-nums; }
+.vs { display: grid; grid-template-columns: 1fr auto 1fr; align-items: center; gap: clamp(10px, 4vw, 36px); width: min(760px, 100%); }
+.vs .side { display: flex; flex-direction: column; gap: 6px; min-width: 0; }
+.vs .side.l { text-align: right; align-items: flex-end; }
+.vs .nm { font-family: var(--display); font-weight: 900; font-size: clamp(16px, 4vw, 28px); line-height: 1.1; overflow-wrap: anywhere; }
+.vs .house { font-style: italic; color: var(--ash); }
+.vs .x { font-family: var(--black); font-size: clamp(44px, 10vw, 84px); color: var(--gilt); }
+.vs .l .nm { color: var(--soul); text-shadow: 0 0 18px rgba(159,214,255,0.35); }
+.vs .r .nm { color: var(--blood); text-shadow: 0 0 18px rgba(255,74,58,0.35); }
+.reveal { animation: reveal .6s cubic-bezier(.2,.8,.2,1) both; }
+@keyframes reveal { from { opacity: 0; transform: scale(1.08); letter-spacing: 0.3em; } }
+
+/* ---------- battle HUD ---------- */
+#hud { position: fixed; inset: 0; pointer-events: none; }
+.topbar {
+  position: absolute; top: 0; left: 0; right: 0; display: grid; grid-template-columns: 1fr auto 1fr; align-items: start; gap: 8px;
+  padding: max(10px, env(safe-area-inset-top, 0px)) max(16px, env(safe-area-inset-right, 0px)) 0 max(16px, env(safe-area-inset-left, 0px));
+  background: linear-gradient(180deg, rgba(5,4,7,0.85), transparent); padding-bottom: 18px;
+}
+.rival { display: flex; flex-direction: column; gap: 1px; min-width: 0; }
+.rival .nm { font-family: var(--display); font-weight: 700; color: var(--blood); font-size: 14px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.rival .house { font-style: italic; color: var(--ash); font-size: 13px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.crowns { display: flex; align-items: center; gap: 10px; font-family: var(--display); font-weight: 900; font-size: 20px; font-variant-numeric: tabular-nums; }
+.crowns .c0 { color: var(--soul); } .crowns .c1 { color: var(--blood); }
+.crowns svg { width: 20px; height: 20px; }
+.clock { justify-self: end; text-align: right; display: flex; flex-direction: column; align-items: flex-end; gap: 2px; }
+.clock .t { font-family: var(--display); font-weight: 700; font-size: 22px; font-variant-numeric: tabular-nums; letter-spacing: 0.04em; }
+.clock .t.ot { color: var(--blood); }
+.clock .lbl { font-family: var(--display); font-size: 9px; letter-spacing: 0.2em; text-transform: uppercase; color: var(--ash); }
+.x2 { font-family: var(--display); font-size: 10px; letter-spacing: 0.14em; color: #06121d; background: var(--soul); padding: 2px 6px; }
+.ping { font-size: 12px; color: var(--ash); font-variant-numeric: tabular-nums; display: flex; gap: 5px; align-items: center; }
+.ping i { display: inline-block; width: 3px; background: #6fd08a; margin-right: 1px; }
+.altar-chip { font-family: var(--display); font-size: 9px; letter-spacing: 0.16em; text-transform: uppercase; color: var(--ash); }
+
+.bottom {
+  position: absolute; left: 0; right: 0; bottom: 0; pointer-events: auto;
+  padding: 10px max(16px, env(safe-area-inset-right, 0px)) max(10px, env(safe-area-inset-bottom, 0px)) max(16px, env(safe-area-inset-left, 0px));
+  background: linear-gradient(0deg, rgba(5,4,7,0.97) 60%, rgba(5,4,7,0.7) 85%, transparent);
+  display: flex; flex-direction: column; align-items: center; gap: 8px;
+}
+.handrow { display: flex; align-items: flex-end; gap: 10px; width: min(560px, 100%); }
+.nextbox { display: flex; flex-direction: column; align-items: center; gap: 3px; flex: 0 0 auto; }
+.nextbox .card { width: clamp(40px, 10vw, 54px); cursor: default; }
+.nextbox .card .nm, .nextbox .card .tp { display: none; }
+.nextbox .card .cost { width: 18px; height: 18px; top: -5px; left: -5px; } .nextbox .card .cost b { font-size: 10px; }
+.nextbox span { font-family: var(--display); font-size: 9px; letter-spacing: 0.2em; color: var(--ash); text-transform: uppercase; }
+.hand { display: grid; grid-template-columns: repeat(4, 1fr); gap: clamp(6px, 2vw, 12px); flex: 1 1 auto; min-width: 0; }
+.hand .card.sel { transform: translateY(-12px); box-shadow: 0 0 0 2px var(--soul), 0 0 24px rgba(159,214,255,0.4), inset 0 -40px 30px -10px rgba(0,0,0,0.95); }
+.hand .card.poor { filter: grayscale(0.85) brightness(0.7); }
+.hand .card.enter { animation: enter .35s ease-out both; }
+@keyframes enter { from { transform: translateY(30px) scale(0.8); opacity: 0; } }
+.souls { display: flex; align-items: center; gap: 8px; width: min(560px, 100%); }
+.souls .gem {
+  width: 30px; height: 30px; flex: 0 0 auto; display: grid; place-items: center; border-radius: 50% 50% 50% 0; transform: rotate(-45deg);
+  background: radial-gradient(circle at 50% 60%, #e9f7ff 0, #6db7ea 45%, #1e4c74 100%); box-shadow: 0 0 16px rgba(159,214,255,0.6);
+}
+.souls .gem b { transform: rotate(45deg); font-family: var(--display); font-weight: 900; color: #06121d; font-size: 15px; }
+.souls .bar { flex: 1; height: 14px; display: grid; grid-template-columns: repeat(10, 1fr); gap: 2px; background: #000; padding: 2px; border: 1px solid #2c2633; position: relative; }
+.souls .bar i { background: #121019; position: relative; overflow: hidden; }
+.souls .bar i::after { content: ''; position: absolute; inset: 0; background: linear-gradient(180deg, #c9ecff, #4a95cf); transform: scaleX(var(--f, 0)); transform-origin: left; }
+.souls .lbl { font-family: var(--display); font-size: 9px; letter-spacing: 0.2em; text-transform: uppercase; color: var(--ash); }
+.emote-btn { flex: 0 0 auto; width: 40px; height: 40px; border-radius: 50%; border: 1px solid rgba(168,138,78,0.5); background: var(--iron); cursor: pointer; display: grid; place-items: center; }
+.emote-btn svg { width: 20px; height: 20px; fill: var(--gilt); }
+.emotes { position: absolute; bottom: calc(100% + 6px); right: max(16px, env(safe-area-inset-right, 0px)); display: grid; gap: 6px; }
+.emotes button { background: rgba(14,12,17,0.95); border: 1px solid rgba(168,138,78,0.5); padding: 8px 14px; font-style: italic; font-size: 16px; cursor: pointer; text-align: left; }
+
+.banner {
+  position: absolute; top: 34%; left: 50%; transform: translate(-50%, -50%); text-align: center; pointer-events: none;
+  font-family: var(--display); font-weight: 700; letter-spacing: 0.14em; text-transform: uppercase; font-size: clamp(13px, 3.4vw, 18px);
+  padding: 10px 22px; background: linear-gradient(90deg, transparent, rgba(5,4,7,0.85) 20%, rgba(5,4,7,0.85) 80%, transparent);
+  width: min(560px, 92vw); box-sizing: border-box; transition: opacity .4s; text-wrap: balance;
+}
+.banner.big { font-family: var(--black); text-transform: none; letter-spacing: 0.02em; font-size: clamp(40px, 11vw, 88px); background: none; }
+.bubble {
+  position: absolute; pointer-events: none; padding: 7px 12px; font-style: italic; font-size: 16px; white-space: nowrap;
+  background: rgba(14,12,17,0.95); border: 1px solid; animation: pop .25s ease-out both; transition: opacity .4s;
+}
+@keyframes pop { from { transform: scale(0.6); opacity: 0; } }
+.tlabel { position: absolute; transform: translate(-50%, -100%); pointer-events: none; display: flex; flex-direction: column; align-items: center; gap: 2px; }
+.tlabel .hp { font-family: var(--display); font-weight: 700; font-size: 11px; font-variant-numeric: tabular-nums; text-shadow: 0 1px 2px #000, 0 0 6px #000; }
+.tlabel .hb { width: 46px; height: 5px; background: #050405; border: 1px solid rgba(0,0,0,0.9); }
+.tlabel .hb i { display: block; height: 100%; }
+.tlabel.t0 .hp { color: #cfeaff; } .tlabel.t0 .hb i { background: var(--soul); }
+.tlabel.t1 .hp { color: #ffc2bb; } .tlabel.t1 .hb i { background: var(--blood); }
+.tlabel .zz { font-family: var(--display); font-size: 8px; letter-spacing: 0.2em; color: var(--ash); text-transform: uppercase; }
+.flabel {
+  position: absolute; transform: translate(-50%, -50%); pointer-events: none; text-align: center; font-family: var(--display);
+  font-size: 10px; letter-spacing: 0.12em; text-transform: uppercase; color: var(--vellum); text-shadow: 0 1px 3px #000, 0 0 8px #000;
+  transition: opacity 1s; max-width: 22ch; line-height: 1.25;
+}
+.flabel em { display: block; font-family: var(--body); text-transform: none; letter-spacing: 0; font-size: 13px; color: var(--ash); }
+.pause-btn { pointer-events: auto; background: none; border: 1px solid rgba(168,138,78,0.35); color: var(--ash); font-family: var(--display); font-size: 9px; letter-spacing: 0.16em; padding: 4px 8px; cursor: pointer; text-transform: uppercase; }
+
+/* ---------- result ---------- */
+.result { text-align: center; display: flex; flex-direction: column; align-items: center; gap: 10px; }
+.result .verdict { font-family: var(--black); font-size: clamp(64px, 16vw, 140px); line-height: 0.9; margin: 0; }
+.result .verdict.win { color: var(--vellum); text-shadow: 0 0 40px rgba(159,214,255,0.45); }
+.result .verdict.loss { color: var(--blood); text-shadow: 0 0 40px rgba(255,74,58,0.4); }
+.result .score { font-family: var(--display); font-weight: 900; font-size: 28px; letter-spacing: 0.1em; font-variant-numeric: tabular-nums; }
+.result .delta { font-family: var(--display); font-weight: 700; font-size: 18px; }
+.result .delta.up { color: var(--soul); } .result .delta.down { color: var(--blood); }
+.result .epitaph { font-style: italic; color: var(--ash); max-width: 40ch; }
+
+#loading { position: fixed; inset: 0; display: grid; place-items: center; background: var(--night); font-family: var(--display); letter-spacing: 0.3em; text-transform: uppercase; font-size: 12px; color: var(--gilt); transition: opacity .6s; }
+#err { position: fixed; left: 16px; right: 16px; bottom: 16px; color: #ffb4a8; font-family: monospace; font-size: 12px; white-space: pre-wrap; pointer-events: none; }
+@media (prefers-reduced-motion: reduce) { .sigil { animation: none; } .reveal, .bubble, .hand .card.enter { animation: none; } }
+@media (max-height: 560px) and (orientation: landscape) {
+  .logo { font-size: 56px; } .tagline { margin: 6px 0 12px; } .menu-stack { gap: 8px; } .btn { padding: 10px 14px; } .btn.primary { padding: 12px; }
+}
+</style>
+</head>
+<body>
+<div id="stage"></div>
+<div id="vignette"></div>
+<canvas id="grain" width="256" height="256"></canvas>
+
+<!-- main menu -->
+<section id="menu" class="screen dim" hidden>
+  <h1 class="logo">Thornspire</h1>
+  <div class="tagline">Siege of the Weeping Rift</div>
+  <div class="pilgrim">
+    <input id="pname" maxlength="18" aria-label="Your name" spellcheck="false">
+    <span class="trophy" id="ptroph"></span>
+    <span class="rank" id="prank"></span>
+    <span class="trophy" style="color:var(--ash);font-size:13px" id="precord"></span>
+  </div>
+  <div class="menu-stack">
+    <button class="btn primary" id="btn-battle">Seek a Rival</button>
+    <button class="btn" id="btn-deck">Grimoire · Your Deck</button>
+    <button class="btn" id="btn-guide">The Rift · Field Guide</button>
+    <div class="row">
+      <button class="btn small" id="btn-sound">Sound: On</button>
+      <button class="btn small" id="btn-quality">Quality: High</button>
+    </div>
+  </div>
+  <p class="foot">Ranked duels against rivals of the Covenant. Rivals are matched to your trophies.</p>
+</section>
+
+<!-- deck builder -->
+<section id="deck" class="screen dim" hidden>
+  <div class="panel">
+    <h2>The Grimoire</h2>
+    <p class="sub">Bind eight cards to your deck. Tap a card to bind or release it.</p>
+    <div class="grimoire" id="grimoire"></div>
+    <div class="lore-line" id="lore">&nbsp;</div>
+    <div class="panel-foot">
+      <span class="trophy" id="deckinfo"></span>
+      <button class="btn" id="deck-done">Seal the Deck</button>
+    </div>
+  </div>
+</section>
+
+<!-- field guide -->
+<section id="guide" class="screen dim" hidden>
+  <div class="panel">
+    <h2>The Weeping Rift</h2>
+    <p class="sub">No two lanes here. Three crossings, and the ground itself takes sides.</p>
+    <div class="guide">
+      <div><h3>Three Crossings</h3><p>Two long stone bridges on the flanks and a narrow causeway through the centre. The causeway is the shortest road to a spire, and the deadliest.</p></div>
+      <div><h3>Spike Galleries</h3><p>Iron plates on every crossing. They glow red, then erupt for 130 damage to any ground unit standing on them. Flyers pass untouched. Learn the rhythm.</p></div>
+      <div><h3>Thornbrakes</h3><p>Bramble thickets. Ground units inside are hidden: enemies and spires cannot target them unless they come within arm's reach. Attacking reveals them.</p></div>
+      <div><h3>Weeping Mire</h3><p>Tar pools at the foot of each bridge halve the speed of ground units wading through.</p></div>
+      <div><h3>Altar of the Pale Saint</h3><p>The island in the rift. Hold it with units alone for a few seconds and your souls flow 40% faster until the rival takes it back.</p></div>
+      <div><h3>Spires &amp; Crowns</h3><p>Fell a Bell Tower for a crown and to claim ground beyond it. Fell the Cathedral Keep for all three. Three minutes, then sudden death.</p></div>
+      <div><h3>Souls</h3><p>Your currency. Ten at most, one every 2.8 seconds, twice as fast in the final minute.</p></div>
+      <div><h3>Commands</h3><p>Drag a card onto the field, or tap a card and then the ground. Keys 1–4 pick a card, Esc releases it.</p></div>
+    </div>
+    <div class="panel-foot"><span></span><button class="btn" id="guide-done">Return</button></div>
+  </div>
+</section>
+
+<!-- matchmaking -->
+<section id="seek" class="screen dim" hidden>
+  <div class="seek" id="seek-wait">
+    <svg class="sigil" viewBox="0 0 100 100" aria-hidden="true"><g fill="none" stroke="#a88a4e" stroke-width="1.2"><circle cx="50" cy="50" r="46"/><circle cx="50" cy="50" r="41" stroke-dasharray="2 4"/><path d="M50 12 L83 69 L17 69 Z"/><path d="M50 88 L17 31 L83 31 Z"/><circle cx="50" cy="50" r="12"/></g></svg>
+    <h2>Seeking a rival across the Veil</h2>
+    <div class="meta" id="seek-meta">Searching… 0s</div>
+    <button class="btn small" id="seek-cancel" style="pointer-events:auto">Withdraw</button>
+  </div>
+  <div class="vs" id="seek-vs" hidden>
+    <div class="side l"><div class="nm" id="vs-me"></div><div class="house">The Ashen Vigil</div><div class="trophy" id="vs-met"></div></div>
+    <div class="x reveal">vs</div>
+    <div class="side r"><div class="nm reveal" id="vs-them"></div><div class="house" id="vs-house"></div><div class="trophy" id="vs-themt"></div></div>
+  </div>
+</section>
+
+<!-- battle HUD -->
+<section id="hud" hidden>
+  <div class="topbar">
+    <div class="rival">
+      <span class="nm" id="h-rival"></span>
+      <span class="house" id="h-house"></span>
+      <span class="ping" id="h-ping"></span>
+    </div>
+    <div class="crowns">
+      <span class="c0" id="h-c0">0</span>
+      <svg viewBox="0 0 24 24" aria-hidden="true"><path fill="#a88a4e" d="M3 18h18l1-11-5 4-5-7-5 7-5-4z"/></svg>
+      <span class="c1" id="h-c1">0</span>
+    </div>
+    <div class="clock">
+      <span class="lbl" id="h-lbl">Time left</span>
+      <span class="t" id="h-time">3:00</span>
+      <span class="x2" id="h-x2" hidden>×2 souls</span>
+      <span class="altar-chip" id="h-altar">Altar · unclaimed</span>
+      <button class="pause-btn" id="h-forfeit">Yield</button>
+    </div>
+  </div>
+  <div id="labels"></div>
+  <div class="banner" id="banner" style="opacity:0"></div>
+  <div class="bottom" id="bottom">
+    <div class="handrow">
+      <div class="nextbox"><span>Next</span><div class="card" id="nextcard"></div></div>
+      <div class="hand" id="hand"></div>
+      <button class="emote-btn" id="emote-btn" aria-label="Emote"><svg viewBox="0 0 24 24"><path d="M4 4h16v11H8l-4 4z"/></svg></button>
+    </div>
+    <div class="souls">
+      <div class="gem"><b id="souls-n">5</b></div>
+      <div class="bar" id="souls-bar"></div>
+    </div>
+    <div class="emotes" id="emotes" hidden></div>
+  </div>
+</section>
+
+<!-- yield confirm -->
+<section id="yield" class="screen dim" hidden>
+  <div class="panel" style="width:min(420px,100%);text-align:center">
+    <h2>Yield the field?</h2>
+    <p class="sub">A yield counts as a defeat.</p>
+    <div class="row"><button class="btn" id="yield-no">Fight on</button><button class="btn primary" id="yield-yes">Yield</button></div>
+  </div>
+</section>
+
+<!-- result -->
+<section id="result" class="screen dim" hidden>
+  <div class="result">
+    <h2 class="verdict" id="r-verdict">Victory</h2>
+    <div class="score" id="r-score"></div>
+    <div class="delta" id="r-delta"></div>
+    <p class="epitaph" id="r-epitaph"></p>
+    <div class="row"><button class="btn primary" id="r-again">Seek Another Rival</button><button class="btn" id="r-menu">Return to the Sanctum</button></div>
+  </div>
+</section>
+
+<div id="loading">Lighting the candles…</div>
+<div id="err"></div>
+
+<script type="importmap">
+{ "imports": {
+  "three": "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js",
+  "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/"
+} }
+</script>
+<script>
+  window.addEventListener('error', (e) => { const el = document.getElementById('err'); if (el) el.textContent += (e.message || e) + '\n'; });
+  window.addEventListener('unhandledrejection', (e) => { const el = document.getElementById('err'); if (el) el.textContent += String(e.reason && (e.reason.stack || e.reason)) + '\n'; });
+</script>
+<script type="module" src="./js/main.js"></script>
+</body>
+</html>
