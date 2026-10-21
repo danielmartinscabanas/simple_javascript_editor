@@ -32,7 +32,7 @@ const stage = $('stage');
 const renderer = new THREE.WebGLRenderer({ antialias: true, powerPreference: 'high-performance' });
 renderer.outputColorSpace = THREE.SRGBColorSpace;
 renderer.toneMapping = THREE.ACESFilmicToneMapping;
-renderer.toneMappingExposure = 1.05;
+renderer.toneMappingExposure = 0.98;
 renderer.shadowMap.enabled = true;
 renderer.shadowMap.type = THREE.PCFSoftShadowMap;
 stage.appendChild(renderer.domElement);
@@ -113,9 +113,9 @@ function renderThumbs() {
   const W = 200, H = 250;
   const r = new THREE.WebGLRenderer({ antialias: true, alpha: true, preserveDrawingBuffer: true });
   r.setSize(W, H); r.setPixelRatio(1);
-  r.outputColorSpace = THREE.SRGBColorSpace; r.toneMapping = THREE.ACESFilmicToneMapping; r.toneMappingExposure = 1.5;
+  r.outputColorSpace = THREE.SRGBColorSpace; r.toneMapping = THREE.ACESFilmicToneMapping; r.toneMappingExposure = 1.9;
   const s = new THREE.Scene();
-  s.add(new THREE.HemisphereLight(0x8090c0, 0x302018, 2.4));
+  s.add(new THREE.HemisphereLight(0xdde8ff, 0x6a5030, 2.8));
   const key = new THREE.DirectionalLight(0xc8d4ff, 2.6); key.position.set(-2, 3, 4); s.add(key);
   const rim = new THREE.DirectionalLight(0xff5a30, 3.2); rim.position.set(3, 1.5, -3); s.add(rim);
   const cam = new THREE.PerspectiveCamera(30, W / H, 0.1, 50);
@@ -212,7 +212,7 @@ function cardEl(key, extra = '') {
   const c = CARDS[key];
   const el = document.createElement('div');
   el.className = `card ${extra}`;
-  el.style.backgroundImage = `radial-gradient(ellipse at 50% 40%, rgba(60,40,50,0.0), rgba(0,0,0,0.35)), url(${thumbs[key]}), radial-gradient(ellipse at 50% 30%, #4a3846, #0d0a10 75%)`;
+  el.style.backgroundImage = `radial-gradient(ellipse at 50% 40%, rgba(60,40,50,0.0), rgba(0,0,0,0.35)), url(${thumbs[key]}), radial-gradient(ellipse at 50% 30%, #b08a55, #3a2a18 80%)`;
   el.innerHTML = `<div class="cost"><b>${c.cost}</b></div>${c.type !== 'unit' ? `<span class="tp">${c.type}</span>` : ''}<div class="nm">${c.name}</div>`;
   el.dataset.key = key;
   return el;
@@ -333,6 +333,7 @@ function startBattle() {
     decks: [store.deck.slice(), rivalDeck()],
     hooks: {
       onMessage: (text, team) => banner(text, team),
+      onKill: (k, v) => killFeed(k, v),
       onEnd: (r) => setTimeout(() => endBattle(r), 1800),
       onTowerDown: (t) => {
         if (selected >= 0) paintZone();
@@ -366,6 +367,7 @@ function endBattleScene() {
   clearGhost();
   world.zone.visible = false;
   $('labels').innerHTML = '';
+  $('killfeed').innerHTML = '';
   towerLabels = []; featureLabels = [];
   document.querySelectorAll('.bubble').forEach((b) => b.remove());
 }
@@ -423,7 +425,7 @@ function buildHand(initial) {
   lastHand = p.hand.slice();
   const next = $('nextcard');
   const nk = p.queue[0];
-  next.style.backgroundImage = `url(${thumbs[nk]}), radial-gradient(ellipse at 50% 30%, #2a1e28, #0a080c 70%)`;
+  next.style.backgroundImage = `url(${thumbs[nk]}), radial-gradient(ellipse at 50% 30%, #b08a55, #3a2a18 80%)`;
   next.innerHTML = `<div class="cost"><b>${CARDS[nk].cost}</b></div>`;
 }
 
@@ -436,7 +438,7 @@ function refreshHandSlot(i) {
   old.replaceWith(el);
   handEls[i] = el;
   const nk = p.queue[0];
-  $('nextcard').style.backgroundImage = `url(${thumbs[nk]}), radial-gradient(ellipse at 50% 30%, #2a1e28, #0a080c 70%)`;
+  $('nextcard').style.backgroundImage = `url(${thumbs[nk]}), radial-gradient(ellipse at 50% 30%, #b08a55, #3a2a18 80%)`;
   $('nextcard').innerHTML = `<div class="cost"><b>${CARDS[nk].cost}</b></div>`;
   lastHand[i] = p.hand[i];
 }
@@ -480,6 +482,22 @@ function crowns() {
   if (!sim) return;
   $('h-c0').textContent = sim.players[0].crowns;
   $('h-c1').textContent = sim.players[1].crowns;
+}
+
+const WEAPON = { rifle: 'rifle', smg: 'smg', sniper: 'scope', heavy: 'shotgun', mech: 'cannon', k9: 'bite', breacher: 'C4', drone: 'laser', swarm: 'boom', sentry: 'turret' };
+function killFeed(k, v) {
+  if (!v || v.kind === 'tower' || view.mode !== 'battle') return;
+  const host = $('killfeed');
+  const SINGLE = { rifle: 'Rifleman', smg: 'SMG Rusher', swarm: 'Kamikaze Drone', k9: 'K-9' };
+  const name = (e) => (e.kind === 'tower' ? (e.sub === 'keep' ? 'Command Post' : 'Outpost') : SINGLE[e.key] || e.card?.name || '—');
+  const row = document.createElement('div');
+  const tag = (e) => `<b style="color:${e.team === 0 ? 'var(--soul)' : 'var(--blood)'}">${name(e)}</b>`;
+  const how = k ? (k.kind === 'tower' ? 'tower' : WEAPON[k.key] || 'hit') : 'blast';
+  row.innerHTML = `${k ? tag(k) : '<b>Hazard</b>'} <span>[${how}]</span> ${tag(v)}`;
+  host.prepend(row);
+  while (host.children.length > 4) host.lastChild.remove();
+  setTimeout(() => { row.style.opacity = 0; }, 3800);
+  setTimeout(() => row.remove(), 4400);
 }
 
 let bannerTimer = null;
@@ -694,7 +712,7 @@ function updateHud(dt) {
     L.el.style.top = `${((1 - tmp.y) / 2) * h}px`;
     const hp = Math.ceil(t.hp);
     if (hp !== L.last) { L.last = hp; L.hp.textContent = hp; L.bar.style.width = `${(t.hp / t.maxHp) * 100}%`; }
-    L.zz.textContent = t.sub === 'keep' && !t.active ? 'Dormant' : '';
+    L.zz.textContent = t.sub === 'keep' && !t.active && t.team === 0 ? 'Standby' : '';
   }
   if (featureT > 0) {
     featureT -= dt;
@@ -766,7 +784,7 @@ async function boot() {
 boot();
 
 // test hook (harmless in play)
-window.__breach = { get sim() { return sim; }, get bot() { return bot; }, startBattle: () => { rival = rival || { name: 'Test', house: 'Test', trophies: 0, skill: 0.5, ping: 40 }; startBattle(); }, select, tryDeploy, store };
+window.__breach = { get sim() { return sim; }, get bot() { return bot; }, audio, startBattle: () => { rival = rival || { name: 'Test', house: 'Test', trophies: 0, skill: 0.5, ping: 40 }; startBattle(); }, select, tryDeploy, store };
 window.__cards = CARDS;
 window.__Bot = Bot;
 window.__view = view;

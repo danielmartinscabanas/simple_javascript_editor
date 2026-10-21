@@ -59,8 +59,8 @@ export const CARDS = {
   },
   sniper: {
     name: 'Marksman', cost: 4, type: 'unit', count: 1, model: 'sniper',
-    hp: 300, dmg: 340, hitSpeed: 2.5, range: 8.5, sight: 9, speed: 1.0, radius: 0.35, mass: 3,
-    air: false, hitsAir: true, projectile: 'slug', sfx: 'sniper', lore: 'Out-ranges the towers. One shot, one problem solved.',
+    hp: 300, dmg: 320, hitSpeed: 2.4, range: 7.2, sight: 8, speed: 1.0, radius: 0.35, mass: 3, structMul: 0.4,
+    air: false, hitsAir: true, projectile: 'slug', sfx: 'sniper', lore: 'Long-range precision. Deletes troops; barely scratches concrete.',
   },
   heavy: {
     name: 'Heavy Gunner', cost: 5, type: 'unit', count: 1, model: 'heavy',

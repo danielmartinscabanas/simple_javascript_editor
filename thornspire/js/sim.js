@@ -126,7 +126,7 @@ export class Sim {
       hp: t.hp, maxHp: t.hp, radius: t.half + 0.1, half: t.half,
       dmg: t.dmg, hitSpeed: t.hitSpeed, range: t.range, sight: t.range, cd: 0,
       hitsAir: true, air: false, alive: true, active: t.kind !== 'keep', target: null,
-      view: model, muzzleY: model.rig.muzzleY, structure: true, deployT: 0, revealT: 0,
+      view: model, muzzleY: model.rig.muzzleY, structure: true, deployT: 0, revealT: 0, windup: 0, attackT: -1,
     };
     this.entities.push(e);
     return e;

@@ -316,7 +316,7 @@ function gunner(team) {
   const side = FACTION[team].id;
   const spec = UNITS.rifleman[side];
   if (!GLB[spec.file]) return null;
-  return rigged({ ...spec, h: 1.15 }, team);
+  return rigged({ ...spec, h: 1.5 }, team);
 }
 
 function teamBanners(g, team, width, y, h) {

@@ -201,6 +201,9 @@ button:focus-visible, input:focus-visible { outline: 2px solid var(--soul); outl
 .emotes { position: absolute; bottom: calc(100% + 6px); right: max(16px, env(safe-area-inset-right, 0px)); display: grid; gap: 6px; }
 .emotes button { background: rgba(14,12,17,0.95); border: 1px solid rgba(168,138,78,0.5); padding: 8px 14px; font-style: italic; font-size: 16px; cursor: pointer; text-align: left; }
 
+.killfeed, #killfeed { position: absolute; right: max(16px, env(safe-area-inset-right, 0px)); top: calc(max(10px, env(safe-area-inset-top, 0px)) + 118px); display: flex; flex-direction: column; gap: 3px; align-items: flex-end; pointer-events: none; }
+#killfeed div { font-family: var(--body); font-weight: 600; font-size: 13px; background: rgba(15,12,8,0.72); padding: 2px 8px; border-right: 2px solid var(--gilt); transition: opacity .5s; white-space: nowrap; }
+#killfeed span { color: var(--ash); font-family: var(--mono); font-size: 11px; margin: 0 4px; }
 .banner {
   position: absolute; top: 34%; left: 50%; transform: translate(-50%, -50%); text-align: center; pointer-events: none;
   font-family: var(--display); font-weight: 700; letter-spacing: 0.14em; text-transform: uppercase; font-size: clamp(13px, 3.4vw, 18px);
@@ -346,6 +349,7 @@ button:focus-visible, input:focus-visible { outline: 2px solid var(--soul); outl
     </div>
   </div>
   <div id="labels"></div>
+  <div id="killfeed"></div>
   <div class="banner" id="banner" style="opacity:0"></div>
   <div class="bottom" id="bottom">
     <div class="handrow">

@@ -122,7 +122,7 @@ export class Sim {
       hp: t.hp, maxHp: t.hp, radius: t.half + 0.1, half: t.half,
       dmg: t.dmg, hitSpeed: t.hitSpeed, range: t.range, sight: t.range, cd: 0,
       hitsAir: true, air: false, alive: true, active: t.kind !== 'keep', target: null,
-      view: model, muzzleY: model.rig.muzzleY, structure: true, deployT: 0, revealT: 0,
+      view: model, muzzleY: model.rig.muzzleY, structure: true, deployT: 0, revealT: 0, windup: 0, attackT: -1,
     };
     this.entities.push(e);
     return e;
@@ -380,7 +380,7 @@ export class Sim {
     e.flashT = 0.1;
     if (e.kind === 'tower' && e.sub === 'keep' && !e.active) this.activateKeep(e);
     if (src && src.card?.lifesteal && src.alive) src.hp = Math.min(src.maxHp, src.hp + amount * src.card.lifesteal);
-    if (e.hp <= 0) this.kill(e);
+    if (e.hp <= 0) { this.hooks.onKill?.(src, e); this.kill(e); }
   }
 
   activateKeep(k) {
@@ -487,7 +487,7 @@ export class Sim {
     this.projectiles.push({
       team: src.team, src, target, kind, mesh, x: src.x, y: y0, z: src.z,
       tx: target.x, ty: (target.y || 0) + 0.5, tz: target.z,
-      speed: spec.speed, dmg: src.dmg, splash: src.card?.splash || 0, hitsAir: src.hitsAir,
+      speed: spec.speed, dmg: src.dmg * (target.structure && src.card?.structMul ? src.card.structMul : 1), splash: src.card?.splash || 0, hitsAir: src.hitsAir,
     });
   }
 

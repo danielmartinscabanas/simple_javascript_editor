@@ -44,6 +44,7 @@ export class World {
     this.crossings();
     this.supplyDrop();
     this.cover();
+    this.siteMarks();
     this.sands();
     this.perimeter();
     this.outskirts();
@@ -59,7 +60,7 @@ export class World {
     s.fog = new THREE.Fog(0xe2cfa6, 45, 150);
     s.add(new THREE.HemisphereLight(0xcfe3ff, 0xa07848, 1.15));
     s.add(new THREE.AmbientLight(0xfff0dd, 0.35));
-    const sun = new THREE.DirectionalLight(0xfff0d0, 2.7);
+    const sun = new THREE.DirectionalLight(0xfff0d0, 2.3);
     sun.position.set(14, 28, 10);
     sun.castShadow = true;
     sun.shadow.mapSize.set(2048, 2048);
@@ -234,6 +235,32 @@ export class World {
     this.scene.add(g);
   }
 
+  // stencilled site letters on the ground by each outpost
+  siteMarks() {
+    const letter = (ch) => {
+      const c = document.createElement('canvas'); c.width = c.height = 256;
+      const g = c.getContext('2d');
+      g.strokeStyle = 'rgba(240,200,60,0.85)'; g.lineWidth = 14;
+      g.strokeRect(20, 20, 216, 216);
+      g.fillStyle = 'rgba(240,200,60,0.85)';
+      g.font = "bold 190px 'Black Ops One', Impact, 'Arial Black', sans-serif";
+      g.textAlign = 'center'; g.textBaseline = 'middle';
+      g.fillText(ch, 128, 140);
+      // weathering
+      g.globalCompositeOperation = 'destination-out';
+      for (let i = 0; i < 400; i++) { g.fillStyle = `rgba(0,0,0,${Math.random() * 0.5})`; g.fillRect(Math.random() * 256, Math.random() * 256, 2 + Math.random() * 6, 2 + Math.random() * 6); }
+      const t = new THREE.CanvasTexture(c); t.colorSpace = THREE.SRGBColorSpace; t.anisotropy = 4;
+      return t;
+    };
+    const tA = letter('A'), tB = letter('B');
+    for (const s of [1, -1]) for (const [x, t] of [[-5.6, tA], [5.6, tB]]) {
+      const m = new THREE.Mesh(new THREE.PlaneGeometry(1.6, 1.6), new THREE.MeshBasicMaterial({ map: t, transparent: true, depthWrite: false }));
+      m.rotation.x = -Math.PI / 2; m.rotation.z = s > 0 ? 0 : Math.PI;
+      m.position.set(x, 0.02, s * 7.7); m.renderOrder = 2;
+      this.scene.add(m);
+    }
+  }
+
   cover() {
     for (const b of mirrored(BLOCKS)) {
       const rot = b.z < 0 ? Math.PI : 0;
@@ -296,13 +323,17 @@ export class World {
       for (let z = -L + 1; z < L; z += 2.6) {
         if (Math.abs(z) < WALL_HALF + 0.8) continue;
         const w = prop('c_wall', { w: 2.6 });
-        if (w) place(this.scene, w, s * (W + 0.75), z, Math.PI / 2);
+        if (w) { this.dim(w); place(this.scene, w, s * (W + 0.75), z, Math.PI / 2); }
       }
       for (let x = -W + 1.3; x < W; x += 2.6) {
         const w = prop('c_wall', { w: 2.6 });
-        if (w) place(this.scene, w, x, s * (L + 0.75), 0);
+        if (w) { this.dim(w); place(this.scene, w, x, s * (L + 0.75), 0); }
       }
     }
+  }
+
+  dim(obj, k = 0.78) {
+    obj.traverse((o) => { if (o.isMesh) { o.material = o.material.clone(); o.material.color.multiplyScalar(k); } });
   }
 
   outskirts() {
