@@ -33,7 +33,6 @@ export class World {
       wood: std({ color: 0x6a4424, roughness: 0.85 }),
       darkWood: std({ color: 0x3e2614, roughness: 0.9 }),
       metal: std({ color: 0x4a4e52, roughness: 0.45, metalness: 0.7 }),
-      roof: std({ color: 0x9a7a52, roughness: 0.9, transparent: true, opacity: 0.45, side: THREE.DoubleSide, depthWrite: false }),
       shade: std({ color: 0x3a2c1c, roughness: 1 }),
       flame: new THREE.MeshBasicMaterial({ color: new THREE.Color(3, 1.3, 0.4) }),
     };
@@ -156,7 +155,7 @@ export class World {
       this.scene.add(pivot);
     }
 
-    // Tunnels: a roofed corridor, dark inside; units under the roof are concealed
+    // Tunnels: a walled corridor, dark floor; units inside are concealed
     const tc = TUNNEL_COVER;
     for (const s of [-1, 1]) {
       const side = mesh(new THREE.BoxGeometry(0.25, 1.0, tc.hz * 2), m.wall);
@@ -166,17 +165,8 @@ export class World {
     const floor = mesh(new THREE.PlaneGeometry(TUNNEL_HALF * 2, tc.hz * 2), m.shade, false, true);
     floor.rotation.x = -Math.PI / 2; floor.position.set(TUNNEL_X, 0.012, 0);
     this.scene.add(floor);
-    const roof = new THREE.Group();
-    const slab = mesh(new THREE.BoxGeometry(tc.hx * 2 + 0.3, 0.08, tc.hz * 2), m.roof, true, false);
-    slab.position.y = 1.15;
-    roof.add(slab);
-    for (let z = -tc.hz + 0.3; z <= tc.hz; z += 1.5) roof.add(at(mesh(new THREE.BoxGeometry(tc.hx * 2 + 0.35, 0.08, 0.1), m.darkWood), 0, 1.22, z));
-    roof.position.set(TUNNEL_X, 0, 0);
-    this.scene.add(roof);
-    this.tunnelRoof = roof;
-    const bulb = new THREE.PointLight(0xffc070, 6, 5, 2);
-    bulb.position.set(TUNNEL_X, 0.95, 0);
-    this.scene.add(bulb);
+    // open-topped: soldiers are taller than any roof that fits here; the side walls give the cover
+    this.tunnelRoof = new THREE.Group();
     // mines
     this.mines = MINES.map((d) => {
       const g = new THREE.Group();

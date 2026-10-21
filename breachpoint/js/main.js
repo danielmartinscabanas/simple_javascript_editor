@@ -472,7 +472,7 @@ function buildTowerLabels() {
 function buildFeatureLabels() {
   const host = $('labels');
   const defs = [
-    [TUNNEL_COVER.x, 2.8, 0, 'Tunnels', 'units inside are concealed'],
+    [TUNNEL_COVER.x, 1.6, 0, 'Tunnels', 'walls hide units inside'],
     [MINES[2].x, 0.4, MINES[2].z, 'Long Doors', 'mined: watch the light'],
     [SANDS[0].x, 0.4, -SANDS[0].z, 'Deep Sand', 'halves ground speed'],
     [0, 3.4, 0, 'Supply Drop', 'hold it: +40% funds'],
