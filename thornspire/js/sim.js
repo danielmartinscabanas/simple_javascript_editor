@@ -3,7 +3,7 @@ import {
   ARENA, RIFT_HALF, TOWERS, CARDS, SPIKES, SPIKE_WARN, SPIKE_UP, SPIKE_DMG, ALTAR, SOULS, MATCH, FACTION,
 } from './config.js';
 import { F } from './nav.js';
-import { buildModel, bellTower, cathedralKeep, healthBar, teamMats, crow } from './models.js';
+import { buildModel, bellTower, cathedralKeep, healthBar, teamMats, crow, playClip } from './models.js';
 import { runeCircle, rubbleDecal } from './textures.js';
 
 let NEXT_ID = 1;
@@ -643,6 +643,7 @@ export class Sim {
         e.cd = e.hitSpeed;
         e.windup = e.kind === 'tower' ? 0.05 : 0.3;
         e.attackT = 0;
+        e.attackSeq = (e.attackSeq || 0) + 1;
         e.strikeTarget = tg;
         e.revealT = 1.2;
       }
@@ -796,11 +797,20 @@ export class Sim {
     }
     for (const c of this.corpses) {
       c.t += dt;
-      const v = c.e.view.root;
-      const k = Math.min(1, c.t / 0.9);
-      v.rotation.z = k * 1.3 * (c.e.id % 2 ? 1 : -1);
-      v.position.y = (c.e.air ? c.e.y * (1 - k) : 0) - k * k * 0.7;
-      for (const m of c.e.mats) { if (!m.transparent) { m.transparent = true; m.needsUpdate = true; } m.opacity = m.userData.baseOpacity * (1 - k); }
+      const v = c.e.view.root, rig = c.e.view.rig;
+      let k, fade;
+      if (rig.gltf) {
+        if (!c.played) { c.played = true; playClip(rig, 'Death_A', 0.1, true, 1.3); }
+        rig.mixer.update(dt);
+        k = Math.min(1, c.t / 1.8);
+        fade = Math.max(0, (k - 0.55) / 0.45);
+        v.position.y = -fade * fade * 0.5;
+      } else {
+        k = fade = Math.min(1, c.t / 0.9);
+        v.rotation.z = k * 1.3 * (c.e.id % 2 ? 1 : -1);
+        v.position.y = (c.e.air ? c.e.y * (1 - k) : 0) - k * k * 0.7;
+      }
+      for (const m of c.e.mats) { if (!m.transparent) { m.transparent = true; m.needsUpdate = true; } m.opacity = m.userData.baseOpacity * (1 - fade); }
       c.e.ring.visible = false;
       if (k >= 1) { this.scene.remove(v, c.e.bar, c.e.ring); c.done = true; }
     }
@@ -814,7 +824,7 @@ export class Sim {
     const flyer = rig.flyer;
     const hover = flyer ? 1.55 + Math.sin(now * 3 + e.id) * 0.1 : 0;
     e.y = flyer ? hover : 0;
-    const rise = deploying ? (flyer ? (1 - k) * 2.5 : -(1 - k) * (1 - k) * e.height * 0.9) : 0;
+    const rise = deploying && !rig.gltf ? (flyer ? (1 - k) * 2.5 : -(1 - k) * (1 - k) * e.height * 0.9) : 0;
     root.position.set(e.x, e.y + rise, e.z);
     e.ring.position.set(e.x, 0.035, e.z);
     if (e.facingTarget !== undefined && e.kind === 'unit') {
@@ -822,6 +832,7 @@ export class Sim {
       root.rotation.y = e.facing;
     }
     const walking = e.moving && !deploying && e.alive;
+    if (rig.gltf) this.animateRigged(e, rig, deploying, walking, dt);
     e.moving = false;
     if (walking) e.walkPhase += dt * e.speed * 5.5;
     const sw = walking ? Math.sin(e.walkPhase) : 0;
@@ -890,6 +901,27 @@ export class Sim {
       bar.quaternion.copy(cam.quaternion);
       bar.userData.fg.scale.x = Math.max(0.001, e.hp / e.maxHp);
     }
+  }
+
+  animateRigged(e, rig, deploying, walking, dt) {
+    const sp = rig.spec;
+    if (deploying) {
+      if (!e._spawned) { e._spawned = true; playClip(rig, 'Spawn_Ground_Skeletons', 0, true, 2.2 / Math.max(0.4, e.deployMax)); }
+    } else if (e.attackSeq && e.attackSeq !== e._seenSeq) {
+      e._seenSeq = e.attackSeq;
+      const clip = rig.actions[sp.attack]?.getClip();
+      const dur = clip ? clip.duration : 1;
+      playClip(rig, sp.attack, 0.08, true, Math.max(1, dur / Math.max(0.35, e.hitSpeed * 0.85)));
+      e._attackUntil = dur / rig.current.timeScale;
+    } else if ((e._attackUntil -= dt) > 0) {
+      // let the swing finish
+    } else if (walking) {
+      playClip(rig, sp.move, 0.2, false, sp.move === 'Running_A' ? e.speed / 2.2 : e.speed / 1.0);
+    } else {
+      playClip(rig, 'Idle', 0.25);
+    }
+    rig.mixer.update(dt);
+    e.moving = false;
   }
 
   dispose() {

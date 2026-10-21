@@ -11,7 +11,7 @@ import { World } from './world.js';
 import { Sim } from './sim.js';
 import { Bot, rivalDeck } from './bot.js';
 import { Audio } from './audio.js';
-import { buildModel } from './models.js';
+import { buildModel, loadAssets, setRigged } from './models.js';
 
 const $ = (id) => document.getElementById(id);
 const TROPHY_SVG = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 3h12v3h3v3a5 5 0 0 1-5 5 6 6 0 0 1-3 2.6V19h3v2H8v-2h3v-2.4A6 6 0 0 1 8 14a5 5 0 0 1-5-5V6h3zm-1 5v1a3 3 0 0 0 2 2.8V8zm14 0h-2v3.8A3 3 0 0 0 19 9z"/></svg>';
@@ -19,7 +19,7 @@ const TROPHY_SVG = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 3h12
 // ---------- persistence (best-effort) ----------
 const KEY = 'thornspire.v1';
 function load() {
-  const d = { name: 'Pilgrim', trophies: 0, deck: DEFAULT_DECK.slice(), muted: false, quality: 'high', wins: 0, losses: 0 };
+  const d = { name: 'Pilgrim', trophies: 0, deck: DEFAULT_DECK.slice(), muted: false, quality: 'high', models: 'rigged', wins: 0, losses: 0 };
   try { Object.assign(d, JSON.parse(localStorage.getItem(KEY) || '{}')); } catch { /* storage unavailable */ }
   if (!Array.isArray(d.deck) || d.deck.length !== 8 || d.deck.some((k) => !CARDS[k])) d.deck = DEFAULT_DECK.slice();
   return d;
@@ -162,10 +162,15 @@ function refreshMenu() {
   $('prank').textContent = rankFor(store.trophies);
   $('precord').textContent = `${store.wins}W · ${store.losses}L`;
   $('btn-sound').textContent = `Sound: ${store.muted ? 'Off' : 'On'}`;
+  $('btn-models').textContent = `Models: ${store.models === 'rigged' ? 'Animated' : 'Classic'}`;
 }
 
 $('pname').addEventListener('input', (e) => { store.name = e.target.value.trim().slice(0, 18) || 'Pilgrim'; save(); });
 $('btn-sound').onclick = () => { audio.start(); store.muted = !store.muted; audio.setMuted(store.muted); save(); refreshMenu(); };
+$('btn-models').onclick = () => {
+  store.models = store.models === 'rigged' ? 'classic' : 'rigged'; save();
+  setRigged(store.models === 'rigged'); renderThumbs(); refreshMenu();
+};
 $('btn-quality').onclick = () => { store.quality = store.quality === 'high' ? 'low' : 'high'; save(); applyQuality(); };
 $('btn-guide').onclick = () => { audio.start(); show('guide'); };
 $('guide-done').onclick = () => show('menu');
@@ -668,8 +673,11 @@ function grain() {
   c.style.width = '100%'; c.style.height = '100%'; c.style.imageRendering = 'pixelated';
 }
 
-function boot() {
+async function boot() {
   grain();
+  $('loading').textContent = 'Raising the dead…';
+  try { await loadAssets(); } catch (err) { console.warn('Model load failed, using built-in models', err); }
+  setRigged(store.models === 'rigged');
   renderThumbs();
   applyQuality();
   refreshMenu();

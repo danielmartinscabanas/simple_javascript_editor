@@ -24,3 +24,7 @@ Three minutes, souls cap at 10 and regenerate twice as fast in the final minute,
 - `js/bot.js` — rival AI (defence, pushes, spell timing, altar contesting, emotes)
 - `js/audio.js` — procedural WebAudio (bells, drones, impacts)
 - `js/main.js` — renderer, camera framing, UI flow, input, emulated matchmaking
+
+## Credits
+
+Skeleton units (Grave Knight, Ossuary Horde, Witch-Hunters, Bone Colossus, Hemomancer) use the rigged, animated models and weapons from the [KayKit Character Pack: Skeletons](https://github.com/KayKit-Game-Assets/KayKit-Character-Pack-Skeletons-1.0) by Kay Lousberg, released under CC0. Assets in `assets/` were trimmed to the animations the game uses; the license is in `assets/LICENSE-KayKit-Skeletons.txt`.

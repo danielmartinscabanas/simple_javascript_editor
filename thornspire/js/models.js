@@ -1,5 +1,90 @@
 import * as THREE from 'three';
+import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
+import * as SkeletonUtils from 'three/addons/utils/SkeletonUtils.js';
 import { FACTION } from './config.js';
+
+// ---------- rigged CC0 models (KayKit Character Pack: Skeletons, by Kay Lousberg) ----------
+const GLB = {};
+let riggedOn = true;
+export function setRigged(on) { riggedOn = on; }
+const RIGGED = {
+  skeleton: { file: 'skeleton_minion', right: 'weapon_blade', h: 0.95, attack: '1H_Melee_Attack_Chop', move: 'Running_A' },
+  knight: { file: 'skeleton_warrior', right: 'weapon_blade', left: 'weapon_shield_large_a', h: 1.3, attack: '1H_Melee_Attack_Chop', move: 'Walking_D_Skeletons' },
+  colossus: { file: 'skeleton_warrior', right: 'weapon_axe', h: 2.7, attack: '2H_Melee_Attack_Chop', move: 'Walking_D_Skeletons', bone: 0x8f8572 },
+  hunter: { file: 'skeleton_rogue', right: 'weapon_crossbow', h: 1.2, attack: '2H_Ranged_Shoot', move: 'Walking_D_Skeletons' },
+  witch: { file: 'skeleton_mage', right: 'weapon_staff', h: 1.35, attack: 'Spellcast_Shoot', move: 'Walking_D_Skeletons', robe: true },
+};
+
+export async function loadAssets(base = './assets/') {
+  const loader = new GLTFLoader();
+  const files = new Set();
+  for (const r of Object.values(RIGGED)) { files.add(r.file); if (r.right) files.add(r.right); if (r.left) files.add(r.left); }
+  await Promise.allSettled([...files].map(async (f) => {
+    const g = await loader.loadAsync(`${base}${f}.glb`);
+    // drop scale tracks so we can shrink the chibi skull for a grimmer silhouette
+    for (const clip of g.animations) clip.tracks = clip.tracks.filter((t) => !t.name.endsWith('.scale'));
+    const box = new THREE.Box3().setFromObject(g.scene);
+    GLB[f] = { scene: g.scene, animations: g.animations, height: box.max.y - box.min.y };
+  }));
+  return Object.keys(GLB).length;
+}
+
+function rigged(spec, team) {
+  const m = teamMats(team);
+  const src = GLB[spec.file];
+  const body = SkeletonUtils.clone(src.scene);
+  const tint = team === 0 ? new THREE.Color(0.32, 0.4, 0.62) : new THREE.Color(0.62, 0.1, 0.1);
+  const cache = {};
+  const matFor = (orig, kind) => {
+    const key = orig.uuid + kind;
+    if (cache[key]) return cache[key];
+    const c = orig.clone();
+    if (kind === 'cloth') c.color.copy(tint);
+    else c.color.set(spec.bone || 0xb3a891);
+    c.roughness = 0.75; c.metalness = 0.1;
+    return (cache[key] = c);
+  };
+  body.traverse((o) => {
+    if (!o.isMesh) return;
+    o.castShadow = true; o.frustumCulled = false;
+    const n = o.name.toLowerCase();
+    if (n.includes('eyes')) o.material = m.glow;
+    else o.material = matFor(o.material, /cloak|cape|hood|hat|helmet/.test(n) || (spec.robe && n.includes('body')) ? 'cloth' : 'bone');
+  });
+  for (const [side, w] of [['r', spec.right], ['l', spec.left]]) {
+    const slot = body.getObjectByName(`handslot.${side}`) || body.getObjectByName(`handslot${side}`);
+    if (!w || !slot || !GLB[w]) continue;
+    const wp = GLB[w].scene.clone();
+    wp.traverse((o) => { if (o.isMesh) { o.castShadow = true; o.material = o.material.clone(); o.material.color.set(0x9a948c); } });
+    slot.add(wp);
+  }
+  const head = body.getObjectByName('head');
+  if (head) head.scale.setScalar(0.72);
+  const s = spec.h / src.height;
+  body.scale.setScalar(s);
+  const root = new THREE.Group();
+  root.add(body);
+  const mixer = new THREE.AnimationMixer(body);
+  const actions = {};
+  for (const clip of src.animations) actions[clip.name] = mixer.clipAction(clip);
+  const rig = { gltf: true, mixer, actions, spec, current: null, body: root };
+  playClip(rig, 'Idle', 0);
+  mixer.update(0.01);
+  return { root, rig, height: spec.h };
+}
+
+export function playClip(rig, name, fade = 0.15, once = false, speed = 1) {
+  const a = rig.actions[name];
+  if (!a) return;
+  if (rig.current === a && !once) { a.timeScale = speed; return; }
+  a.reset();
+  a.setLoop(once ? THREE.LoopOnce : THREE.LoopRepeat, Infinity);
+  a.clampWhenFinished = once;
+  a.timeScale = speed;
+  a.play();
+  if (rig.current && rig.current !== a) rig.current.crossFadeTo(a, fade, false);
+  rig.current = a;
+}
 
 // ---------- material palette ----------
 const shared = {};
@@ -444,7 +529,8 @@ function sigilGrave(team) {
 const BUILDERS = { knight, skeleton, hunter, gargoyle, colossus, witch, vampire, wraith, lantern, sigilFire, sigilCrow, sigilGrave };
 
 export function buildModel(name, team) {
-  const out = BUILDERS[name](team);
+  const spec = RIGGED[name];
+  const out = riggedOn && spec && GLB[spec.file] ? rigged(spec, team) : BUILDERS[name](team);
   out.root.traverse((o) => { if (o.isMesh) o.userData.baseMat = o.material; });
   return out;
 }
