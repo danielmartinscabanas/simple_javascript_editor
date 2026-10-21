@@ -8,16 +8,16 @@ function sharedMats() {
   const std = (o) => new THREE.MeshStandardMaterial(o);
   Object.assign(shared, {
     ready: true,
-    iron: std({ color: 0x3a3b40, metalness: 0.85, roughness: 0.38 }),
-    darkIron: std({ color: 0x18181b, metalness: 0.8, roughness: 0.5 }),
+    iron: std({ color: 0x6a6c74, metalness: 0.45, roughness: 0.4 }),
+    darkIron: std({ color: 0x38383f, metalness: 0.4, roughness: 0.55 }),
     rust: std({ color: 0x4a3426, metalness: 0.5, roughness: 0.8 }),
     bone: std({ color: 0xc9bfa6, roughness: 0.85 }),
     oldBone: std({ color: 0x8f8572, roughness: 0.9 }),
     leather: std({ color: 0x2a1d16, roughness: 0.9 }),
-    blackCloth: std({ color: 0x111014, roughness: 1, side: THREE.DoubleSide }),
+    blackCloth: std({ color: 0x2c2933, roughness: 1, side: THREE.DoubleSide }),
     skin: std({ color: 0xbdb3ad, roughness: 0.7 }),
     stone: std({ color: 0x55524f, roughness: 0.95, flatShading: true }),
-    darkStone: std({ color: 0x2d2b2b, roughness: 0.95, flatShading: true }),
+    darkStone: std({ color: 0x4e4a48, roughness: 0.95, flatShading: true }),
     slate: std({ color: 0x1c1d24, roughness: 0.7, metalness: 0.2, flatShading: true }),
     wood: std({ color: 0x2b1f17, roughness: 0.95 }),
     gold: std({ color: 0x8f7339, metalness: 0.9, roughness: 0.35 }),
@@ -25,7 +25,7 @@ function sharedMats() {
     blood: std({ color: 0x6a0508, roughness: 0.3, metalness: 0.1, emissive: 0x3a0000, emissiveIntensity: 1 }),
     fire: new THREE.MeshBasicMaterial({ color: new THREE.Color(4, 1.4, 0.35) }),
     window: new THREE.MeshBasicMaterial({ color: new THREE.Color(2.4, 1.1, 0.4) }),
-    wraith: std({ color: 0x0c0d12, roughness: 1, transparent: true, opacity: 0.82, side: THREE.DoubleSide }),
+    wraith: std({ color: 0x2a2f3e, roughness: 1, transparent: true, opacity: 0.82, side: THREE.DoubleSide }),
   });
   return shared;
 }
@@ -402,7 +402,7 @@ function sigilFire(team) {
   for (const sx of [-1, 1]) sockets.add(at(sph(0.075, m.fire, 8, 6), sx * 0.12, 0.0, 0.29));
   const nose = at(cone(0.04, 0.08, 3, m.darkIron), 0, -0.12, 0.33); nose.rotation.x = Math.PI;
   const flames = new THREE.Group();
-  const fmat = new THREE.MeshBasicMaterial({ color: new THREE.Color(1.1, 0.28, 0.04), transparent: true, opacity: 0.7 });
+  const fmat = new THREE.MeshBasicMaterial({ color: new THREE.Color(0.75, 0.16, 0.02) });
   for (let i = 0; i < 9; i++) {
     const a = (i / 9) * Math.PI * 2;
     const f = at(cone(0.09 + (i % 3) * 0.03, 0.45 + (i % 4) * 0.12, 6, fmat), Math.cos(a) * 0.2, 0.34 + (i % 3) * 0.05, Math.sin(a) * 0.2 - 0.05);

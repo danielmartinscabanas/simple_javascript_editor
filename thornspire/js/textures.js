@@ -47,7 +47,7 @@ function tex(c, repeat = 1, srgb = true) {
 export function flagstones(seed, w = 1024, h = 768, unitsW = 18) {
   const rand = rng(seed);
   const [c, ctx] = canvas(w, h);
-  ctx.fillStyle = '#0d0c0d';
+  ctx.fillStyle = '#2c2825';
   ctx.fillRect(0, 0, w, h);
   const px = w / unitsW;               // pixels per world unit
   let y = 0;
@@ -57,7 +57,7 @@ export function flagstones(seed, w = 1024, h = 768, unitsW = 18) {
     while (x < w) {
       const sw = px * (0.8 + rand() * 0.9);
       const inset = 2 + rand() * 2;
-      const base = 52 + rand() * 30;
+      const base = 92 + rand() * 38;
       const warm = rand() * 6;
       ctx.fillStyle = `rgb(${base + warm},${base},${base - 2 + rand() * 4})`;
       ctx.beginPath();

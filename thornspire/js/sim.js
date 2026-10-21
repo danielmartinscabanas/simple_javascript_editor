@@ -152,14 +152,16 @@ export class Sim {
     const card = CARDS[key];
     const model = buildModel(card.model, team);
     const mats = ownMaterials(model.root);
+    // faint self-light so units separate from the stone in low light
+    for (const m of mats) if (m.emissive && m.userData.baseEm && m.userData.baseEm.getHex() === 0) { m.emissive.copy(m.color).multiplyScalar(0.22); m.userData.baseEm.copy(m.emissive); }
     model.root.position.set(x, 0, z);
     model.root.rotation.y = team === 0 ? Math.PI : 0;
     model.root.traverse((o) => { if (o.isMesh) { o.castShadow = true; o.receiveShadow = false; } });
     this.scene.add(model.root);
-    model.root.scale.setScalar(card.type === 'building' ? 1.1 : 1.3);
-    const ring = new THREE.Mesh(this.ringGeo ||= new THREE.RingGeometry(0.78, 1, 28), this.ringMat(team));
+    model.root.scale.setScalar(card.type === 'building' ? 1.2 : 1.6);
+    const ring = new THREE.Mesh(this.ringGeo ||= new THREE.RingGeometry(0.7, 1, 28), this.ringMat(team));
     ring.rotation.x = -Math.PI / 2; ring.renderOrder = 7;
-    const rr = card.radius * 1.35 + 0.08;
+    const rr = card.radius * 1.5 + 0.12;
     ring.scale.set(rr, rr, rr);
     this.scene.add(ring);
     const bar = healthBar(Math.min(1.4, 0.5 + card.hp / 3000), team);
@@ -172,7 +174,7 @@ export class Sim {
       dmg: card.dmg, hitSpeed: card.hitSpeed, range: card.range, sight: card.sight, speed: card.speed || 0,
       air: !!card.air, hitsAir: !!card.hitsAir, buildingsOnly: !!card.buildingsOnly,
       cd: card.hitSpeed * 0.4, alive: true, target: null, retarget: 0, path: null, pathT: 0, pathTarget: null, navV: -1,
-      view: model, mats, bar, ring, height: model.height * (card.type === 'building' ? 1.1 : 1.3), deployT, deployMax: deployT, revealT: 0, inThicket: false,
+      view: model, mats, bar, ring, height: model.height * (card.type === 'building' ? 1.2 : 1.6), deployT, deployMax: deployT, revealT: 0, inThicket: false,
       facing: model.root.rotation.y, walkPhase: Math.random() * 6, attackT: -1, windup: -1, flashT: 0,
       slowT: 0, stuckT: 0, lastX: x, lastZ: z, structure: building, life: card.lifetime || 0, fade: 1,
     };
@@ -183,7 +185,7 @@ export class Sim {
 
   ringMat(team) {
     this._ringMats ||= [0, 1].map((t) => new THREE.MeshBasicMaterial({
-      color: new THREE.Color(FACTION[t].glow).multiplyScalar(t === 0 ? 1.1 : 1.3), transparent: true, opacity: 0.75,
+      color: new THREE.Color(FACTION[t].glow).multiplyScalar(t === 0 ? 1.1 : 1.3), transparent: true, opacity: 1,
       depthWrite: false, blending: THREE.AdditiveBlending, side: THREE.DoubleSide,
     }));
     return this._ringMats[team];

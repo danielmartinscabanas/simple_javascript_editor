@@ -39,8 +39,8 @@ export const SOULS = { max: 10, start: 5, regen: 1 / 2.8 };
 export const MATCH = { regulation: 180, overtime: 60, doubleAt: 60 };
 
 export const FACTION = [
-  { name: 'The Ashen Vigil', glow: 0x9fd6ff, cloth: 0x252c3d, trim: 0x8a96b0, banner: 0x1c2436, css: '#9fd6ff' },
-  { name: 'Crimson Covenant', glow: 0xff3524, cloth: 0x3d0c10, trim: 0x9a2a22, banner: 0x4a0b10, css: '#ff4a3a' },
+  { name: 'The Ashen Vigil', glow: 0x9fd6ff, cloth: 0x3c4d75, trim: 0xa8b4d0, banner: 0x1c2436, css: '#9fd6ff' },
+  { name: 'Crimson Covenant', glow: 0xff3524, cloth: 0x761820, trim: 0xc03a2e, banner: 0x4a0b10, css: '#ff4a3a' },
 ];
 
 // type: unit | spell | building.  speed in tiles/s.  range measured edge-to-edge.

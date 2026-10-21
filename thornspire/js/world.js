@@ -67,10 +67,15 @@ export class World {
   lights() {
     const s = this.scene;
     s.background = new THREE.Color(0x050407);
-    s.fog = new THREE.FogExp2(0x07060a, 0.014);
-    s.add(new THREE.HemisphereLight(0x56618a, 0x22100a, 1.9));
-    const moon = new THREE.DirectionalLight(0xb8c6ff, 3.4);
-    moon.position.set(-12, 30, 12);
+    s.fog = new THREE.FogExp2(0x07060a, 0.008);
+    s.add(new THREE.HemisphereLight(0x8a96c0, 0x3a2618, 3.0));
+    s.add(new THREE.AmbientLight(0x4a5060, 1.0));
+    // front fill from the player's side so units read clearly
+    const fill = new THREE.DirectionalLight(0xfff0dc, 1.6);
+    fill.position.set(0, 20, 34);
+    s.add(fill);
+    const moon = new THREE.DirectionalLight(0xc4d0ff, 4.2);
+    moon.position.set(-8, 36, 10);
     moon.castShadow = true;
     moon.shadow.mapSize.set(2048, 2048);
     const c = moon.shadow.camera;
@@ -120,7 +125,7 @@ export class World {
       this.scene.add(g);
       // arena flagstones
       const ft = flagstones(s > 0 ? 11 : 23, 1024, 768, ARENA.halfW * 2);
-      const fm = std({ map: ft, roughness: 0.92, bumpMap: ft, bumpScale: 1.2, color: 0xe2dbd2 });
+      const fm = std({ map: ft, roughness: 0.92, bumpMap: ft, bumpScale: 1.2, color: 0xffffff });
       const depth = ARENA.halfL - RIFT_HALF + 0.4;
       const slab = mesh(new THREE.PlaneGeometry(ARENA.halfW * 2 + 0.2, depth), fm, false, true);
       slab.rotation.x = -Math.PI / 2;
