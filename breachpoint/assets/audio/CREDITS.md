@@ -49,6 +49,6 @@ Mirrors used (the container could only reach GitHub):
 | wind_loop | desert wind bed | "Mild Wind Background Noise" | Bashar3A |
 | vo_* | announcer | Voiceover Pack | Kenney |
 | fanfare | victory brass fanfare | "Classic fanfare lick" (opengameart.org/content/classic-fanfare-lick), via github.com/FlamingFury00/Cartoon-Hitster | fvcalderan |
-| music_victory | victory song on the result screen (first 2:19) | "Ending Scene (orchestral)" (opengameart.org/content/ending-scene), via github.com/Taan9448/Four | nene |
-| defeat_theme | defeat lament | "Medieval: Defeat Theme" (opengameart.org/content/medieval-defeat-theme), via github.com/Taan9448/Four | RandomMind |
+| music_victory | victory song | "Town Theme RPG" (opengameart.org/content/town-theme-rpg), via github.com/castle-engine/castle-engine `examples/audio/music_collection_player/data/songs/` | cynicmusic |
+| music_defeat | defeat song | "Crystal Cave" (opengameart.org/content/crystal-cave-song18), via the same Castle Engine folder | cynicmusic |
 | music_battle, music_menu | music | see CREDITS-music-battle.md | cynicmusic; congusbongus |

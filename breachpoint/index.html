@@ -96,14 +96,14 @@ button:focus-visible, input:focus-visible { outline: 2px solid var(--soul); outl
 .panel {
   width: min(760px, 100%); background: rgba(14,12,17,0.94); border: 1px solid rgba(168,138,78,0.45);
   box-shadow: inset 0 0 0 4px rgba(0,0,0,0.6), 0 20px 80px rgba(0,0,0,0.7); padding: 22px clamp(14px, 4vw, 30px); box-sizing: border-box;
-  max-height: 100%; overflow-y: auto;
+  max-height: 100%; overflow-y: auto; overscroll-behavior: contain; -webkit-overflow-scrolling: touch; touch-action: pan-y;
 }
 .panel h2 { font-family: var(--display); font-weight: 900; letter-spacing: 0.2em; text-transform: uppercase; font-size: 18px; margin: 0 0 4px; color: var(--vellum); text-wrap: balance; }
 .panel .sub { color: var(--ash); font-style: italic; margin: 0 0 16px; }
 .panel-foot { display: flex; justify-content: space-between; align-items: center; gap: 12px; margin-top: 18px; flex-wrap: wrap; }
 
 .grimoire { display: grid; grid-template-columns: repeat(auto-fill, minmax(98px, 1fr)); gap: 12px; }
-.grimoire .card { width: 100%; }
+.grimoire .card { width: 100%; touch-action: pan-y; }
 .grimoire .card.in { outline: 2px solid var(--soul); outline-offset: 2px; }
 .grimoire .card:not(.in) { filter: saturate(0.4) brightness(0.65); }
 .lore-line { min-height: 2.6em; color: var(--vellum); font-style: italic; margin-top: 14px; }

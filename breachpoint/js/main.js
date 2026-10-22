@@ -405,7 +405,7 @@ function endBattle(r) {
       : r.forfeit ? ['You surrendered. The rival squad takes the round.'] : ['Your towers fell. Regroup and queue again.', 'Outplayed this time. Check your loadout and go again.'];
   $('r-epitaph').textContent = ep[Math.floor(Math.random() * ep.length)];
   showStats();
-  // victory: brass fanfare, then an orchestral song over the result screen; defeat: a short lament
+  // victory: brass fanfare, then cynicmusic's Town Theme; defeat: cynicmusic's Crystal Cave
   audio.play(win ? 'victory' : 'defeat');
   audio.playMusic(null);
   clearTimeout(resultMusicT);
@@ -413,8 +413,7 @@ function endBattle(r) {
     setTimeout(() => audio.play('fanfare'), 900);
     resultMusicT = setTimeout(() => audio.playMusic('victory'), 6500);
   } else if (!draw) {
-    setTimeout(() => audio.play('lament'), 900);
-    resultMusicT = setTimeout(() => audio.playMusic('menu'), 9800);
+    resultMusicT = setTimeout(() => audio.playMusic('defeat'), 1800);
   } else audio.playMusic('menu');
   if (!win && !draw && !r.forfeit) setTimeout(() => bubble('gg', 1), 300);
   show('result');

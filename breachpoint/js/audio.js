@@ -46,7 +46,6 @@ const BANK = {
   vo_final_round: { f: ['vo_final_round'], v: 0.9, j: 0, gap: 1 },
   vo_winner: { f: ['vo_winner'], v: 0.9, j: 0, gap: 1 },
   fanfare: { f: ['fanfare'], v: 0.85, j: 0, gap: 1 },
-  lament: { f: ['defeat_theme'], v: 0.7, j: 0, gap: 1 },
 };
 // recorded loops whose level follows the battle: wind bed, drone rotors, burning molotovs
 const LOOPS = { wind: 'wind_loop', rotor: 'heli_loop', fire: 'fire_loop' };
@@ -67,7 +66,7 @@ export class Audio {
     const files = new Set(Object.values(BANK).flatMap((b) => [...b.f, ...(b.layer ? [b.layer] : [])]));
     for (const f of files) this.load(f);
     for (const [k, f] of Object.entries(LOOPS)) this.load(f).then(() => this.startLoop(k, f));
-    for (const [k, f] of [['menu', 'music_menu'], ['battle', 'music_battle'], ['victory', 'music_victory']]) {
+    for (const [k, f] of [['menu', 'music_menu'], ['battle', 'music_battle'], ['victory', 'music_victory'], ['defeat', 'music_defeat']]) {
       const a = new window.Audio(`${BASE}${f}.ogg`);
       a.loop = true; a.volume = 0; a.preload = 'auto';
       this.music[k] = a;
@@ -113,7 +112,7 @@ export class Audio {
     this.wantMusic = which;
     if (!this.ctx) return;
     for (const [k, a] of Object.entries(this.music)) {
-      const target = k === which && this.musicOn ? (k === 'battle' ? 0.28 : k === 'victory' ? 0.6 : 0.45) : 0;
+      const target = k === which && this.musicOn ? (k === 'battle' ? 0.28 : k === 'victory' ? 0.55 : 0.45) : 0;
       if (target > 0 && a.paused) { a.currentTime = 0; a.play().catch(() => {}); }
       this.fade(a, target);
     }
