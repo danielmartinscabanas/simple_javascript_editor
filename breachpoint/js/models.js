@@ -55,12 +55,12 @@ const UNITS = {
     t: { file: 'z_dog', h: 0.8, idle: 'Idle', move: 'Run', attack: 'Attack', death: 'Death', collar: true },
   },
   drone: {
-    ct: { file: 'k_enemy-ufo-b-weapon', h: 0.7, flyer: true, paint: true },
-    t: { file: 'k_enemy-ufo-b-weapon', h: 0.7, flyer: true, paint: true },
+    ct: { file: 'k_enemy-ufo-b-weapon', h: 0.7, flyer: true, paint: true, yaw: Math.PI },
+    t: { file: 'k_enemy-ufo-b-weapon', h: 0.7, flyer: true, paint: true, yaw: Math.PI },
   },
   kamikaze: {
-    ct: { file: 'k_craft_speederA', h: 0.35, flyer: true, paint: true, w: 0.9 },
-    t: { file: 'k_craft_speederA', h: 0.35, flyer: true, paint: true, w: 0.9 },
+    ct: { file: 'k_craft_speederA', h: 0.35, flyer: true, paint: true, w: 0.9, yaw: Math.PI },
+    t: { file: 'k_craft_speederA', h: 0.35, flyer: true, paint: true, w: 0.9, yaw: Math.PI },
   },
   sentry: {
     ct: { file: 'k_enemy-ufo-d-weapon', h: 1.1, building: true, paint: true },
@@ -196,7 +196,8 @@ function rigged(spec, team) {
   const c = src.box.getCenter(new THREE.Vector3());
   if (spec.flyer || spec.building || spec.paint) body.position.set(-c.x * s, -Math.min(0, src.box.min.y) * s, -c.z * s);
   const root = new THREE.Group();
-  root.add(body);
+  // Kenney craft point their nose down -Z; units face +Z
+  if (spec.yaw) { const pivot = new THREE.Group(); pivot.rotation.y = spec.yaw; pivot.add(body); root.add(pivot); } else root.add(body);
   const gun = attachWeapon(body, spec, root);
   const m = teamMats(team);
   if (spec.carry) {
