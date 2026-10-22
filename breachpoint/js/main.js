@@ -4,7 +4,7 @@ import { RenderPass } from 'three/addons/postprocessing/RenderPass.js';
 import { UnrealBloomPass } from 'three/addons/postprocessing/UnrealBloomPass.js';
 import { OutputPass } from 'three/addons/postprocessing/OutputPass.js';
 import {
-  ARENA, CARDS, DEFAULT_DECK, RIVAL_NAMES, RIVAL_HOUSES, rankFor, EMOTES, FACTION, MATCH, SOULS, setSides, TUNNEL_COVER, MINES, SANDS, LONG_X,
+  ARENA, CARDS, DEFAULT_DECK, RIVAL_NAMES, RIVAL_HOUSES, rankFor, EMOTES, FACTION, MATCH, SOULS, setSides,
 } from './config.js';
 import { NavGrid } from './nav.js';
 import { World } from './world.js';
@@ -322,7 +322,9 @@ function revealRival() {
 // ---------- battle ----------
 let sim = null, bot = null, nav = null;
 let selected = -1, dragging = false, ghost = null, ghostKey = null, pointer = { x: 0, y: 0, over: false };
-let handEls = [], towerLabels = [], featureLabels = [], featureT = 0, pingT = 0;
+let handEls = [], towerLabels = [], pingT = 0;
+// round intro (countdown + camera sweep), match stats and combat feedback state
+let intro = 0, introStep = -1, stats = null, streak = { n: 0, t: 0 }, alertT = 0, uchipT = 0, lastTick = -1, lastSouls = 0;
 let lastHand = [];
 
 function startBattle() {
@@ -333,16 +335,22 @@ function startBattle() {
     decks: [store.deck.slice(), rivalDeck()],
     hooks: {
       onMessage: (text, team) => banner(text, team),
-      onKill: (k, v) => killFeed(k, v),
+      onKill: (k, v) => { killFeed(k, v); onKill(k, v); },
+      onPlay: (team, key) => { if (team === 0) { stats.deployed++; stats.spent += CARDS[key].cost; } },
+      onTowerHit: (t, amount, src) => onTowerHit(t, amount, src),
       onEnd: (r) => setTimeout(() => endBattle(r), 1800),
       onTowerDown: (t) => {
         if (selected >= 0) paintZone();
         if (t.team === 0 && Math.random() < 0.5) setTimeout(() => bot?.emote('Push now!'), 900);
         if (t.team === 1 && Math.random() < 0.4) setTimeout(() => bot?.emote('Nice shot!'), 1200);
-        crowns();
+        crowns(true);
+        slam(t.team === 1 ? (t.sub === 'keep' ? 'Command Post down' : 'Outpost destroyed') : (t.sub === 'keep' ? 'Command Post lost' : 'Outpost lost'),
+          t.team === 1 ? '+1 crown' : 'Hold the line', t.team === 1 ? 0 : 1);
       },
     },
   });
+  stats = { kills: 0, lost: 0, deployed: 0, spent: 0, towerDmg: 0, byCard: {} };
+  streak = { n: 0, t: 0 }; lastTick = -1;
   bot = new Bot(sim, rival.skill, { onEmote: (t) => bubble(t, 1) });
   view.mode = 'battle';
   show('hud');
@@ -351,15 +359,13 @@ function startBattle() {
   buildHand(true);
   buildSoulsBar();
   buildTowerLabels();
-  buildFeatureLabels();
+  $('h-tag0').textContent = FACTION[0].short; $('h-tag1').textContent = FACTION[1].short;
   crowns();
   resize();
   selected = -1;
+  intro = 3.6; introStep = -1;
   audio.play('vo_prepare');
-  setTimeout(() => { if (sim && !sim.over) { audio.play('vo_fight'); banner('Fight!', null, true); } }, 1700);
-  banner('Defend your towers', null, true);
   clearTimeout(resultMusicT); audio.playMusic('battle');
-  setTimeout(() => bot?.emote('glhf'), 1800);
 }
 
 function endBattleScene() {
@@ -368,7 +374,10 @@ function endBattleScene() {
   world.zone.visible = false;
   $('labels').innerHTML = '';
   $('killfeed').innerHTML = '';
-  towerLabels = []; featureLabels = [];
+  $('pops').innerHTML = '';
+  $('count').innerHTML = '';
+  intro = 0;
+  towerLabels = [];
   document.querySelectorAll('.bubble').forEach((b) => b.remove());
 }
 
@@ -395,6 +404,7 @@ function endBattle(r) {
     : draw ? ['Neither squad broke through. Call it a draw.']
       : r.forfeit ? ['You surrendered. The rival squad takes the round.'] : ['Your towers fell. Regroup and queue again.', 'Outplayed this time. Check your loadout and go again.'];
   $('r-epitaph').textContent = ep[Math.floor(Math.random() * ep.length)];
+  showStats();
   // victory: brass fanfare, then an orchestral song over the result screen; defeat: a short lament
   audio.play(win ? 'victory' : 'defeat');
   audio.playMusic(null);
@@ -469,28 +479,117 @@ function buildTowerLabels() {
   });
 }
 
-function buildFeatureLabels() {
-  const host = $('labels');
-  const defs = [
-    [TUNNEL_COVER.x, 1.6, 0, 'Tunnels', 'walls hide units inside'],
-    [MINES[2].x, 0.4, MINES[2].z, 'Long Doors', 'mined: watch the light'],
-    [SANDS[0].x, 0.4, -SANDS[0].z, 'Deep Sand', 'halves ground speed'],
-    [0, 3.4, 0, 'Supply Drop', 'hold it: +40% funds'],
-  ];
-  featureLabels = defs.map(([x, y, z, a, b]) => {
-    const el = document.createElement('div');
-    el.className = 'flabel';
-    el.innerHTML = `${a}<em>${b}</em>`;
-    host.appendChild(el);
-    return { el, p: new THREE.Vector3(x, y, z) };
-  });
-  featureT = 7;
+function crowns(bump) {
+  if (!sim) return;
+  for (const i of [0, 1]) {
+    const el = $(`h-c${i}`), v = String(sim.players[i].crowns);
+    if (el.textContent !== v && bump) { el.classList.remove('bump'); void el.offsetWidth; el.classList.add('bump'); }
+    el.textContent = v;
+  }
 }
 
-function crowns() {
-  if (!sim) return;
-  $('h-c0').textContent = sim.players[0].crowns;
-  $('h-c1').textContent = sim.players[1].crowns;
+// ---------- combat feedback ----------
+function retrigger(el, cls) { el.classList.remove(cls); void el.offsetWidth; el.classList.add(cls); }
+
+function slam(big, small, team) {
+  $('slam-big').textContent = big;
+  $('slam-small').textContent = small;
+  $('slam').style.color = team === 0 ? 'var(--soul)' : 'var(--blood)';
+  retrigger($('slam'), 'on');
+  retrigger($('flash'), 'on');
+  requestAnimationFrame(() => $('flash').classList.remove('on'));
+}
+
+const STREAKS = ['', '', 'Double kill', 'Triple kill', 'Multi kill', 'Rampage', 'Unstoppable'];
+function onKill(k, v) {
+  if (!stats || !v || v.kind === 'tower') return;
+  if (v.team === 0) { stats.lost++; return; }
+  if (!k || k.team !== 0) return;
+  stats.kills++;
+  const now = sim.time;
+  streak.n = now - streak.t < 2.2 ? streak.n + 1 : 1;
+  streak.t = now;
+  if (streak.n >= 2) {
+    $('streak').textContent = STREAKS[Math.min(streak.n, STREAKS.length - 1)];
+    retrigger($('streak'), 'on');
+    audio.play('streak');
+  }
+}
+
+// tower damage: numbers accumulate per tower and pop a few times a second
+const pending = new Map();
+function onTowerHit(t, amount, src) {
+  if (!stats) return;
+  if (src && src.team === 0 && t.team === 1) {
+    stats.towerDmg += amount;
+    if (src.key) stats.byCard[src.key] = (stats.byCard[src.key] || 0) + amount;
+  }
+  pending.set(t, (pending.get(t) || 0) + amount);
+  if (t.team === 0 && amount >= 1) {
+    alertT = 0.35;
+    if (uchipT <= 0) {
+      uchipT = 5;
+      const c = $('uchip');
+      c.textContent = t.sub === 'keep' ? 'Command Post under fire' : 'Outpost under fire';
+      c.style.top = `${$('bottom').getBoundingClientRect().top - 30}px`;
+      retrigger(c, 'on');
+      setTimeout(() => c.classList.remove('on'), 2200);
+    }
+  }
+}
+let popT = 0;
+function flushPops(dt) {
+  popT -= dt;
+  if (popT > 0 || !pending.size) return;
+  popT = 0.22;
+  const host = $('pops'), w = window.innerWidth, h = window.innerHeight;
+  for (const [t, amt] of pending) {
+    if (amt < 1) continue;
+    tmp.set(t.x + (Math.random() - 0.5) * 0.8, t.view.height * 0.75, t.z).project(camera);
+    const el = document.createElement('div');
+    el.className = `dmg${t.team === 0 ? ' mine' : ''}${amt >= 300 ? ' big' : ''}`;
+    el.textContent = `-${Math.round(amt)}`;
+    el.style.left = `${((tmp.x + 1) / 2) * w}px`; el.style.top = `${((1 - tmp.y) / 2) * h}px`;
+    host.appendChild(el);
+    setTimeout(() => el.remove(), 950);
+  }
+  pending.clear();
+}
+
+function updateIntro(dt) {
+  intro -= dt;
+  const step = intro > 2.6 ? 3 : intro > 1.6 ? 2 : intro > 0.6 ? 1 : 0;
+  if (step !== introStep) {
+    introStep = step;
+    const el = document.createElement('span');
+    el.textContent = step ? String(step) : 'Breach!';
+    if (!step) el.className = 'go';
+    $('count').replaceChildren(el);
+    if (step) audio.play('tick'); else { audio.play('vo_fight'); audio.play('go'); setTimeout(() => bot?.emote('glhf'), 900); }
+  }
+  if (intro <= 0) setTimeout(() => $('count').replaceChildren(), 600);
+}
+
+function showStats() {
+  const box = $('r-stats');
+  const items = [['Kills', stats.kills], ['Units lost', stats.lost], ['Deployed', stats.deployed], ['Tower dmg', Math.round(stats.towerDmg)]];
+  box.innerHTML = items.map(([l], i) => `<div style="animation-delay:${0.15 + i * 0.08}s"><b data-v="${items[i][1]}">0</b><span>${l}</span></div>`).join('');
+  const t0 = performance.now();
+  const tick = () => {
+    const k = Math.min(1, (performance.now() - t0) / 1100);
+    box.querySelectorAll('b').forEach((b) => { b.textContent = Math.round(Number(b.dataset.v) * (1 - (1 - k) ** 3)); });
+    if (k < 1) requestAnimationFrame(tick);
+  };
+  requestAnimationFrame(tick);
+  const best = Object.entries(stats.byCard).sort((a, b) => b[1] - a[1])[0];
+  const mvp = $('r-mvp');
+  mvp.hidden = !best;
+  if (best) {
+    const [key, dmg] = best;
+    mvp.innerHTML = '';
+    mvp.appendChild(cardEl(key, ''));
+    mvp.insertAdjacentHTML('beforeend', `<div><small>MVP card</small><strong>${CARDS[key].name}</strong><em>${Math.round(dmg)} damage to towers</em></div>`);
+  }
 }
 
 const WEAPON = { rifle: 'rifle', smg: 'smg', sniper: 'scope', heavy: 'shotgun', mech: 'cannon', k9: 'bite', breacher: 'C4', drone: 'laser', swarm: 'boom', sentry: 'turret' };
@@ -646,6 +745,7 @@ function updateGhost() {
 
 function tryDeploy(cx, cy) {
   if (selected < 0 || !sim) return false;
+  if (intro > 0) { audio.play('deny'); return false; }
   const p = groundAt(cx, cy);
   if (!p) return false;
   const key = sim.players[0].hand[selected];
@@ -690,15 +790,25 @@ function updateHud(dt) {
     const el = handEls[i];
     const cost = CARDS[p.hand[i]].cost;
     const k = Math.min(1, p.souls / cost);
+    if (k >= 1 && el.classList.contains('poor')) retrigger(el, 'ready');
     el.classList.toggle('poor', k < 1);
     el.querySelector('.veil').style.transform = `scaleY(${1 - k})`;
   }
-  $('souls-n').textContent = Math.floor(p.souls);
+  const whole = Math.floor(p.souls);
+  if (whole !== lastSouls) { if (whole > lastSouls) retrigger($('souls-n').parentElement, 'pop'); lastSouls = whole; }
+  $('souls-n').textContent = whole;
+  $('souls-bar').classList.toggle('full', p.souls >= SOULS.max - 0.01);
   const segs = $('souls-bar').children;
   for (let i = 0; i < segs.length; i++) segs[i].style.setProperty('--f', Math.max(0, Math.min(1, p.souls - i)).toFixed(3));
   const left = Math.max(0, sim.timeLeft());
   $('h-time').textContent = `${Math.floor(left / 60)}:${String(Math.floor(left % 60)).padStart(2, '0')}`;
   $('h-time').classList.toggle('ot', sim.phase === 'overtime');
+  $('h-time').classList.toggle('hot', sim.phase !== 'overtime' && left <= 30 && left > 10);
+  const sec = Math.ceil(left);
+  if (left <= 10 && left > 0 && sec !== lastTick && !sim.over) { lastTick = sec; audio.play('tick'); retrigger($('h-time'), 'tickpop'); }
+  alertT -= dt; uchipT -= dt;
+  $('alert').classList.toggle('on', alertT > 0.2);
+  flushPops(dt);
   $('h-lbl').textContent = sim.phase === 'overtime' ? 'Sudden death' : 'Time left';
   $('h-x2').hidden = !sim.doubleSouls();
   const a = sim.altar;
@@ -720,18 +830,8 @@ function updateHud(dt) {
     L.el.style.left = `${((tmp.x + 1) / 2) * w}px`;
     L.el.style.top = `${((1 - tmp.y) / 2) * h}px`;
     const hp = Math.ceil(t.hp);
-    if (hp !== L.last) { L.last = hp; L.hp.textContent = hp; L.bar.style.width = `${(t.hp / t.maxHp) * 100}%`; }
+    if (hp !== L.last) { L.last = hp; L.hp.textContent = hp; L.bar.style.width = `${(t.hp / t.maxHp) * 100}%`; L.el.classList.toggle('low', t.hp / t.maxHp < 0.3); }
     L.zz.textContent = t.sub === 'keep' && !t.active && t.team === 0 ? 'Standby' : '';
-  }
-  if (featureT > 0) {
-    featureT -= dt;
-    for (const f of featureLabels) {
-      tmp.copy(f.p).project(camera);
-      f.el.style.left = `${((tmp.x + 1) / 2) * w}px`;
-      f.el.style.top = `${((1 - tmp.y) / 2) * h}px`;
-      f.el.style.opacity = Math.min(1, featureT / 1.5);
-    }
-    if (featureT <= 0) featureLabels.forEach((f) => f.el.remove());
   }
 }
 
@@ -742,12 +842,19 @@ function frame() {
   requestAnimationFrame(frame);
   const dt = Math.min(0.05, clock.getDelta());
   if (view.mode === 'battle' && sim) {
-    sim.update(dt);
-    bot?.update(dt);
+    if (intro > 0) { updateIntro(dt); sim.updateViews(dt); sim.updateEffects(dt); } else { sim.update(dt); bot?.update(dt); }
     world.update(dt, sim);
     updateGhost();
     updateHud(dt);
     camera.position.set(0, 0, view.lookZ).addScaledVector(BATTLE_DIR, view.dist);
+    if (intro > 0) {
+      // swoop in from a low, wide orbit to the battle framing
+      const k = Math.min(1, Math.max(0, intro / 3.6)), e = k * k * (3 - 2 * k);
+      const yaw = e * 0.55, d = view.dist * (1 + e * 0.3);
+      const dir = BATTLE_DIR.clone().applyAxisAngle(new THREE.Vector3(0, 1, 0), yaw);
+      dir.y *= 1 - e * 0.45;
+      camera.position.set(0, 0, view.lookZ).addScaledVector(dir.normalize(), d);
+    }
     camera.lookAt(0, 0, view.lookZ);
     if (sim.shake > 0) {
       const s = sim.shake * 0.25;

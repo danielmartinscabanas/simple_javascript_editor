@@ -379,6 +379,7 @@ export class Sim {
     if (!e.alive) return;
     e.hp -= amount;
     e.flashT = 0.1;
+    if (e.kind === 'tower') this.hooks.onTowerHit?.(e, Math.min(amount, e.hp + amount), src);
     if (e.kind === 'tower' && e.sub === 'keep' && !e.active) this.activateKeep(e);
     if (src && src.card?.lifesteal && src.alive) src.hp = Math.min(src.maxHp, src.hp + amount * src.card.lifesteal);
     if (e.hp <= 0) { this.hooks.onKill?.(src, e); this.kill(e); }
