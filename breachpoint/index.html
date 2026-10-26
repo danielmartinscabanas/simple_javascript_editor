@@ -130,6 +130,11 @@ button:focus-visible, input:focus-visible { outline: 2px solid var(--soul); outl
   font-size: 10px; letter-spacing: 0.06em; line-height: 1.1; color: var(--vellum); text-shadow: 0 1px 2px #000; text-wrap: balance;
 }
 .card .tp { position: absolute; top: 4px; right: 5px; font-family: var(--display); font-size: 8px; letter-spacing: 0.12em; color: var(--gilt); text-transform: uppercase; }
+.card .rank { position: absolute; top: 3px; right: 3px; font-family: var(--display); font-size: 9px; letter-spacing: 0.06em; color: #15130f; background: var(--gilt); padding: 0 4px; line-height: 14px; pointer-events: none; }
+.card .rank:empty { display: none; }
+.card .rank.pop { animation: tickpop .5s ease-out; }
+.card .xpbar { position: absolute; left: 3px; right: 3px; bottom: 2px; height: 3px; background: rgba(0,0,0,0.6); pointer-events: none; }
+.card .xpbar i { display: block; height: 100%; width: 0; background: linear-gradient(90deg, #f6d36a, #ffef9a); transition: width .3s; }
 .card .veil { position: absolute; inset: 0; background: rgba(5,4,7,0.72); transform-origin: top; pointer-events: none; transition: transform .1s linear; }
 
 /* ---------- matchmaking ---------- */
@@ -152,7 +157,7 @@ button:focus-visible, input:focus-visible { outline: 2px solid var(--soul); outl
 /* ---------- battle HUD ---------- */
 #hud { position: fixed; inset: 0; pointer-events: none; }
 .topbar {
-  position: absolute; top: 0; left: 0; right: 0; display: grid; grid-template-columns: 1fr auto 1fr; align-items: start; gap: 8px;
+  position: absolute; top: 0; left: 0; right: 0; display: grid; grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr); align-items: start; gap: 8px;
   padding: max(10px, env(safe-area-inset-top, 0px)) max(16px, env(safe-area-inset-right, 0px)) 0 max(16px, env(safe-area-inset-left, 0px));
   background: linear-gradient(180deg, rgba(5,4,7,0.85), transparent); padding-bottom: 18px;
 }
@@ -179,7 +184,7 @@ button:focus-visible, input:focus-visible { outline: 2px solid var(--soul); outl
 .x2 { font-family: var(--display); font-size: 10px; letter-spacing: 0.14em; color: #120c02; background: var(--gilt); padding: 2px 6px; animation: hot 1.2s steps(2) infinite; }
 .ping { font-size: 12px; color: var(--ash); font-variant-numeric: tabular-nums; display: flex; gap: 5px; align-items: center; white-space: nowrap; }
 .ping i { display: inline-block; width: 3px; background: #6fd08a; margin-right: 1px; }
-.altar-chip { font-family: var(--display); font-size: 9px; letter-spacing: 0.16em; text-transform: uppercase; color: var(--ash); }
+.altar-chip { font-family: var(--display); font-size: 9px; letter-spacing: 0.14em; text-transform: uppercase; color: var(--ash); white-space: nowrap; }
 
 .bottom {
   position: absolute; left: 0; right: 0; bottom: 0; pointer-events: auto;
@@ -243,6 +248,7 @@ button:focus-visible, input:focus-visible { outline: 2px solid var(--soul); outl
 .tlabel.t1 .hp { color: #ffc2bb; } .tlabel.t1 .hb i { background: var(--blood); }
 .tlabel.low .hb { animation: hot .6s steps(2) infinite; border-color: #ff3a1a; }
 .tlabel.low .hp { color: #ff6a4a !important; }
+.tlabel .zz:empty { display: none; }
 .tlabel .zz { font-family: var(--display); font-size: 8px; letter-spacing: 0.2em; color: var(--ash); text-transform: uppercase; }
 .pause-btn { pointer-events: auto; background: none; border: 1px solid rgba(168,138,78,0.35); color: var(--ash); font-family: var(--display); font-size: 9px; letter-spacing: 0.16em; padding: 4px 8px; cursor: pointer; text-transform: uppercase; }
 
@@ -254,6 +260,12 @@ button:focus-visible, input:focus-visible { outline: 2px solid var(--soul); outl
 #pops { position: absolute; inset: 0; pointer-events: none; overflow: hidden; }
 .dmg { position: absolute; transform: translate(-50%, -50%); font-family: var(--display); font-size: 15px; color: #fff; text-shadow: 0 2px 0 #000, 0 0 6px #000; animation: dmg .9s ease-out forwards; white-space: nowrap; }
 .dmg.mine { color: #ff7a5c; }
+.dmg.lvl { font-size: 16px; color: #ffd24a; letter-spacing: 0.06em; animation-duration: 1.3s; }
+.dmg.lvl.foe { color: #ff9a7a; font-size: 13px; }
+#minimap { position: absolute; right: max(12px, env(safe-area-inset-right, 0px)); pointer-events: auto; touch-action: none; cursor: crosshair;
+  border: 1px solid rgba(168,138,78,0.7); box-shadow: 0 6px 18px rgba(0,0,0,0.6), inset 0 0 0 1px #000; background: #1b160f; opacity: 0.92; }
+.uchip { pointer-events: auto; cursor: pointer; }
+.tlabel.shielded .hb { border-color: rgba(255,255,255,0.8); box-shadow: 0 0 6px rgba(200,230,255,0.8); }
 .dmg.big { font-size: 20px; color: #ffe27a; }
 @keyframes dmg { 0% { transform: translate(-50%, -20%) scale(1.5); opacity: 0; } 15% { opacity: 1; transform: translate(-50%, -50%) scale(1); } 100% { transform: translate(-50%, -190%); opacity: 0; } }
 #count { position: absolute; inset: 0; display: grid; place-items: center; pointer-events: none; }
@@ -277,7 +289,7 @@ button:focus-visible, input:focus-visible { outline: 2px solid var(--soul); outl
 .result .verdict { font-family: var(--black); font-size: clamp(64px, 16vw, 140px); line-height: 0.9; margin: 0; animation: vslam .7s cubic-bezier(.2,.9,.3,1) both; }
 @keyframes vslam { 0% { transform: scale(2.2); opacity: 0; filter: blur(6px); } 100% { transform: scale(1); opacity: 1; filter: none; } }
 .result .stripe { width: min(560px, 92vw); height: 10px; background: repeating-linear-gradient(-45deg, var(--gilt) 0 12px, #15130f 12px 24px); opacity: 0.85; }
-.stats { display: grid; grid-template-columns: repeat(4, 1fr); gap: 1px; width: min(560px, 92vw); background: rgba(168,138,78,0.35); border: 1px solid rgba(168,138,78,0.45); margin: 6px 0; }
+.stats { display: grid; grid-template-columns: repeat(5, 1fr); gap: 1px; width: min(560px, 92vw); background: rgba(168,138,78,0.35); border: 1px solid rgba(168,138,78,0.45); margin: 6px 0; }
 .stats div { background: rgba(10,9,7,0.92); padding: 10px 6px 8px; display: flex; flex-direction: column; align-items: center; gap: 2px; animation: reveal .5s both; }
 .stats b { font-family: var(--display); font-size: clamp(20px, 6vw, 28px); font-weight: 400; color: var(--vellum); font-variant-numeric: tabular-nums; }
 .stats span { font-family: var(--display); font-size: 9px; letter-spacing: 0.2em; text-transform: uppercase; color: var(--ash); }
@@ -298,6 +310,15 @@ button:focus-visible, input:focus-visible { outline: 2px solid var(--soul); outl
 #loading { position: fixed; inset: 0; display: grid; place-items: center; background: var(--night); font-family: var(--display); letter-spacing: 0.3em; text-transform: uppercase; font-size: 12px; color: var(--gilt); transition: opacity .6s; }
 #err { position: fixed; left: 16px; right: 16px; bottom: 16px; color: #ffb4a8; font-family: monospace; font-size: 12px; white-space: pre-wrap; pointer-events: none; }
 @media (prefers-reduced-motion: reduce) { .sigil, .logo { animation: none; } .reveal, .bubble, .hand .card.enter, .result .verdict, #count span, .dmg { animation: none; } }
+@media (max-width: 480px) {
+  .topbar { gap: 4px; padding-left: max(10px, env(safe-area-inset-left, 0px)); padding-right: max(10px, env(safe-area-inset-right, 0px)); }
+  .plate .tm { font-size: 20px; padding: 0 7px; gap: 4px; }
+  .plate .tag { font-size: 9px; }
+  .plate .clk { min-width: 56px; padding: 3px 6px 4px; }
+  .plate .clk .t { font-size: 18px; }
+  .altar-chip { white-space: normal; text-align: right; letter-spacing: 0.08em; line-height: 1.3; }
+  .rival .house { display: none; }
+}
 @media (max-height: 560px) and (orientation: landscape) {
   .logo { font-size: 56px; } .tagline { margin: 6px 0 12px; } .menu-stack { gap: 8px; } .btn { padding: 10px 14px; } .btn.primary { padding: 12px; }
 }
@@ -329,7 +350,7 @@ button:focus-visible, input:focus-visible { outline: 2px solid var(--soul); outl
       
     </div>
   </div>
-  <p class="foot">Ranked matches against rival squads, matched to your trophies.</p>
+  <p class="foot">Three-lane ranked matches against rival squads, matched to your trophies.</p>
   <p class="foot" style="margin-top:6px;font-size:13px">Models: Quaternius &amp; Kenney · Audio: Free Firearm Sound Library, OpenGameArt artists, Kenney · all CC0</p>
 </section>
 
@@ -351,16 +372,16 @@ button:focus-visible, input:focus-visible { outline: 2px solid var(--soul); outl
 <section id="guide" class="screen dim" hidden>
   <div class="panel">
     <h2>Briefing · Dustline</h2>
-    <p class="sub">A sandstone wall splits the map. Three ways through, each with its own trade-off.</p>
+    <p class="sub">Three lanes, a jungle of alleys between them and a dry riverbed across the middle. Eight minutes to break the rival Command Post.</p>
     <div class="guide">
-      <div><h3>Long Doors</h3><p>The wide left gate. Easy to push through, but a proximity mine sits in the doorway and deep sand slows troops on the far side.</p></div>
-      <div><h3>Mid Doors</h3><p>The short road through the centre. Narrow, mined at both ends, and it runs straight over the supply drop.</p></div>
-      <div><h3>Tunnels</h3><p>The walled right passage. Ground troops inside are concealed: enemies and towers cannot target them unless they get close. Shooting gives them away.</p></div>
-      <div><h3>Mines</h3><p>A blinking red light means armed. The first ground unit to step on one triggers 190 damage around it, friend or foe. It re-arms after 9 seconds.</p></div>
-      <div><h3>Supply Drop</h3><p>Hold the pad in Mid with troops alone for a few seconds and your funds flow 40% faster until the rival takes it back.</p></div>
-      <div><h3>Smoke</h3><p>Smoke grenades conceal everything inside the cloud for 7 seconds. Use them to walk a push past a tower.</p></div>
-      <div><h3>Towers &amp; Crowns</h3><p>Destroy an Outpost for a crown and ground to deploy on. Destroy the Command Post for all three. Three minutes, then sudden death.</p></div>
-      <div><h3>Funds</h3><p>Ten at most, one every 2.8 seconds, twice as fast in the final minute. Drag a card onto the field, or tap a card then the ground. Keys 1–4 also work.</p></div>
+      <div><h3>Lanes &amp; outposts</h3><p>Long (left), Mid and Tunnels (right) each have an outer and an inner outpost. An inner outpost is shielded until the outer one in its lane falls; the Command Post is shielded until any inner outpost falls. Destroy the Command Post to win.</p></div>
+      <div><h3>Recruit waves</h3><p>Every 30 seconds both bases send a squad of recruits down every lane. Your cards march the nearest lane when they have nothing to shoot.</p></div>
+      <div><h3>River objectives</h3><p>Hold a pad with troops alone to capture it. Supply Drop: funds +40%. Armory: your troops deal +15% damage. Med Station: your troops heal 1.5% per second.</p></div>
+      <div><h3>Veterancy</h3><p>Troops earn XP while fighting, for damage and for kills, and rank up to level 4 (chevrons over their heads): more health, damage and fire rate. XP a card's troops earn also promotes the card, so later deployments arrive at a higher level.</p></div>
+      <div><h3>Deploying</h3><p>Anywhere on your side of the river, plus a forward zone around every rival outpost you destroy. Each outpost you take also pays $2.</p></div>
+      <div><h3>Tunnels &amp; mines</h3><p>The walled stretch of Tunnels at the river hides troops inside. Proximity mines blink red when armed and hit everything on the ground nearby.</p></div>
+      <div><h3>Camera</h3><p>Drag the map to pan, pinch or scroll to zoom, tap the minimap to jump. Keyboard: WASD or arrows, +/- to zoom, Space to return to base, 1–4 for cards.</p></div>
+      <div><h3>Time</h3><p>Eight minutes, funds twice as fast in the last two. If no Command Post falls, more outposts destroyed wins; level after two minutes of sudden death goes to the healthier side.</p></div>
     </div>
     <div class="panel-foot"><span></span><button class="btn" id="guide-done">Return</button></div>
   </div>
@@ -396,7 +417,7 @@ button:focus-visible, input:focus-visible { outline: 2px solid var(--soul); outl
     </div>
     <div class="clock">
       <span class="x2" id="h-x2" hidden>×2 funds</span>
-      <span class="altar-chip" id="h-altar">Supply drop · open</span>
+      <span class="altar-chip" id="h-altar"></span>
       <button class="pause-btn" id="h-forfeit">Surrender</button>
     </div>
   </div>
@@ -410,6 +431,7 @@ button:focus-visible, input:focus-visible { outline: 2px solid var(--soul); outl
   <div id="slam"><div class="bar"><div class="big" id="slam-big"></div><div class="small" id="slam-small"></div></div></div>
   <div id="count"></div>
   <div class="banner" id="banner" style="opacity:0"></div>
+  <canvas id="minimap" aria-label="Minimap: tap to move the camera"></canvas>
   <div class="bottom" id="bottom">
     <div class="handrow">
       <div class="nextbox"><span>Next</span><div class="card" id="nextcard"></div></div>

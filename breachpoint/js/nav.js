@@ -1,5 +1,5 @@
 import {
-  ARENA, WALL_HALF, LONG_X, LONG_HALF, MID_HALF, TUNNEL_X, TUNNEL_HALF, TUNNEL_COVER, BLOCKS, SANDS, MINES, MINE,
+  ARENA, RIVER, LANES, TUNNEL_COVER, BLOCKS, SANDS, MINES, MINE, OBJECTIVES,
 } from './config.js';
 
 export const F = { BLOCK: 1, MIRE: 2, SPIKE: 4, THICKET: 8, RIFT: 16, STRUCT: 32 };
@@ -7,17 +7,19 @@ export const F = { BLOCK: 1, MIRE: 2, SPIKE: 4, THICKET: 8, RIFT: 16, STRUCT: 32
 const COLS = Math.round((ARENA.halfW * 2) / ARENA.cell);
 const ROWS = Math.round((ARENA.halfL * 2) / ARENA.cell);
 
-// Every side feature is listed for the player half; the rival half mirrors z.
+// Features are listed for the player half; the rival half mirrors z.
 export const mirrored = (list) => list.flatMap((f) => [f, { ...f, z: -f.z }]);
+// Blocks and hazards are authored for the left player quadrant; mirror x too (unless marked or centred).
+export const quad = (list) => mirrored(list.flatMap((f) => (f.noMirrorX || Math.abs(f.x) < 0.01 ? [f] : [f, { ...f, x: -f.x }])));
 
-export function isWallAt(x, z) {
-  if (Math.abs(z) >= WALL_HALF) return false;
-  if (Math.abs(x) < MID_HALF) return false;
-  if (Math.abs(x - LONG_X) < LONG_HALF) return false;
-  if (Math.abs(x - TUNNEL_X) < TUNNEL_HALF) return false;
-  return true;
-}
-export const isRiftAt = isWallAt;
+export const ALL_BLOCKS = quad(BLOCKS);
+export const ALL_SANDS = quad(SANDS);
+export const ALL_MINES = quad(MINES);
+
+export const onBridge = (x) => Object.values(LANES).some((l) => Math.abs(x - l.x) < l.half);
+export const nearObjective = (x, z) => OBJECTIVES.some((o) => Math.hypot(x - o.x, z - o.z) < o.r + 0.4);
+export const isRiverAt = (x, z) => Math.abs(z) < RIVER.half && !onBridge(x) && !nearObjective(x, z);
+export const isRiftAt = () => false;
 
 export class NavGrid {
   constructor() {
@@ -37,18 +39,15 @@ export class NavGrid {
   inBounds(c, r) { return c >= 0 && r >= 0 && c < this.cols && r < this.rows; }
 
   build() {
-    const bl = mirrored(BLOCKS), sa = mirrored(SANDS);
     for (let r = 0; r < this.rows; r++) {
       for (let c = 0; c < this.cols; c++) {
         const [x, z] = this.center(c, r);
         let f = 0;
-        if (isWallAt(x, z)) f |= F.RIFT | F.BLOCK;
-        // tunnel side walls keep units inside the covered passage
-        if (Math.abs(z) < TUNNEL_COVER.hz && Math.abs(z) >= WALL_HALF && Math.abs(Math.abs(x - TUNNEL_X) - (TUNNEL_HALF + 0.15)) < 0.2) f |= F.BLOCK;
-        for (const m of bl) if (Math.abs(x - m.x) < m.hx && Math.abs(z - m.z) < m.hz) f |= F.BLOCK;
+        for (const m of ALL_BLOCKS) if (Math.abs(x - m.x) < m.hx && Math.abs(z - m.z) < m.hz) f |= F.BLOCK;
         if (Math.abs(x - TUNNEL_COVER.x) < TUNNEL_COVER.hx && Math.abs(z - TUNNEL_COVER.z) < TUNNEL_COVER.hz) f |= F.THICKET;
-        for (const m of sa) if (Math.hypot(x - m.x, z - m.z) < m.r) f |= F.MIRE;
-        for (const m of MINES) if (Math.hypot(x - m.x, z - m.z) < MINE.radius) f |= F.SPIKE;
+        if (isRiverAt(x, z)) f |= F.MIRE;
+        for (const m of ALL_SANDS) if (Math.hypot(x - m.x, z - m.z) < m.r) f |= F.MIRE;
+        for (const m of ALL_MINES) if (Math.hypot(x - m.x, z - m.z) < MINE.radius) f |= F.SPIKE;
         this.flags[this.idx(c, r)] = f;
       }
     }
@@ -111,7 +110,7 @@ export class NavGrid {
     const h = (c, r) => { const [x, z] = this.center(c, r); return Math.max(0, Math.hypot(x - tx, z - tz) - reach); };
     heap.push(start, h(sc, sr));
     let goal = -1, best = start, bestH = Infinity, iter = 0;
-    while (heap.size && iter++ < 4000) {
+    while (heap.size && iter++ < 16000) {
       const cur = heap.pop();
       if (closed[cur] === stamp) continue;
       closed[cur] = stamp;

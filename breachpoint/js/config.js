@@ -1,37 +1,91 @@
 // Arena + card definitions. World units ≈ tiles. Player side is +z, rival side is -z.
 
-export const ARENA = { halfW: 9, halfL: 16, cell: 0.5 };
-export const WALL_HALF = 0.7;                  // |z| < WALL_HALF is the low central wall
-export const LONG_X = -6.2, LONG_HALF = 1.5;   // Long Doors (wide, left)
-export const MID_HALF = 1.0;                   // Mid Doors (centre)
-export const TUNNEL_X = 6.2, TUNNEL_HALF = 1.0;// Tunnels (covered, right)
-export const TUNNEL_COVER = { x: TUNNEL_X, z: 0, hx: 1.2, hz: 2.3 }; // roofed section: units inside are concealed
+// Map "Dustline": three lanes (Long on the left, Mid, Tunnels on the right) split by a dry riverbed.
+// World units ≈ metres. The player's base is +z, the rival's -z. Features are authored for the player half
+// (and, where marked, the left side); helpers in nav.js mirror them.
+export const ARENA = { halfW: 20, halfL: 34, cell: 0.5 };
+export const RIVER = { half: 1.7 };            // |z| < half is the riverbed: deep sand everywhere except bridges
+export const LANES = {
+  L: { x: -17, half: 2.9 },                   // Long: open and mined
+  M: { x: 0, half: 2.6 },                     // Mid: short and straight over the supply drop
+  R: { x: 17, half: 2.9 },                    // Tunnels: a walled stretch hides troops at the river
+};
+export const BASE = { z: 30.5, hx: 8, z0: 24.6 };    // plaza from z0 to the back edge
+export const LEG = { z0: 25.9, z1: 30.3 };            // side lanes turn into the base along this band
+export const TUNNEL_COVER = { x: 17, z: 0, hx: 2.9, hz: 4.2 }; // units inside are concealed
+
+// Lane waypoints from the player's base to the rival's (rival team: negate z and reverse).
+export const ROUTES = {
+  L: [[-9, 28.1], [-17, 28.1], [-17, 0], [-17, -28.1], [-9, -28.1], [0, -30.5]],
+  M: [[0, 25], [0, 0], [0, -25], [0, -30.5]],
+  R: [[9, 28.1], [17, 28.1], [17, 0], [17, -28.1], [9, -28.1], [0, -30.5]],
+};
 
 export const TEAM = { PLAYER: 0, RIVAL: 1 };
 
+// Per lane an outer (tier 1) and inner (tier 2) outpost, then the Command Post. Inner outposts are shielded
+// until their lane's outer one falls; the Command Post is shielded until any inner outpost falls.
 export const TOWERS = [
-  { kind: 'keep', x: 0, z: 13.2, half: 1.5, hp: 4200, dmg: 105, hitSpeed: 0.8, range: 7.0 },
-  { kind: 'bell', x: -5.6, z: 9.8, half: 1.1, hp: 2600, dmg: 82, hitSpeed: 0.7, range: 7.5 },
-  { kind: 'bell', x: 5.6, z: 9.8, half: 1.1, hp: 2600, dmg: 82, hitSpeed: 0.7, range: 7.5 },
+  { kind: 'keep', lane: 'M', tier: 3, x: 0, z: 30.6, half: 1.5, hp: 7800, dmg: 150, hitSpeed: 0.8, range: 7.5 },
+  { kind: 'bell', lane: 'L', tier: 1, x: -17, z: 12, half: 1.1, hp: 3800, dmg: 115, hitSpeed: 0.75, range: 7.5 },
+  { kind: 'bell', lane: 'L', tier: 2, x: -13, z: 28.1, half: 1.1, hp: 4800, dmg: 130, hitSpeed: 0.75, range: 7.5 },
+  { kind: 'bell', lane: 'M', tier: 1, x: 0, z: 10, half: 1.1, hp: 3800, dmg: 115, hitSpeed: 0.75, range: 7.5 },
+  { kind: 'bell', lane: 'M', tier: 2, x: 0, z: 19.5, half: 1.1, hp: 4800, dmg: 130, hitSpeed: 0.75, range: 7.5 },
+  { kind: 'bell', lane: 'R', tier: 1, x: 17, z: 12, half: 1.1, hp: 3800, dmg: 115, hitSpeed: 0.75, range: 7.5 },
+  { kind: 'bell', lane: 'R', tier: 2, x: 13, z: 28.1, half: 1.1, hp: 4800, dmg: 130, hitSpeed: 0.75, range: 7.5 },
 ];
 
-// Hard cover. Listed for the player half; the rival half mirrors z.
+// Hard cover, left-side player quadrant (x < 0, z > 0); mirrored to all four quadrants unless `noMirrorX`.
+// kind: wall (low plaster wall), house (flat-roofed block), container, crates, barrels, barrier
 export const BLOCKS = [
-  { x: 0, z: 6.4, hx: 1.1, hz: 0.3, kind: 'barrierX' },
-  { x: -2.9, z: 4.6, hx: 1.1, hz: 0.45, kind: 'container' },
-  { x: 2.8, z: 4.4, hx: 0.4, hz: 0.4, kind: 'crates' },
-  { x: 3.6, z: 8.0, hx: 0.4, hz: 0.4, kind: 'barrels' },
-  { x: 8.0, z: 4.2, hx: 0.3, hz: 0.6, kind: 'barrier' },
+  // lane edges with gaps into the jungle
+  { x: -14.1, z: 6.6, hx: 0.25, hz: 2.6, kind: 'wall' },
+  { x: -14.1, z: 17.6, hx: 0.25, hz: 5.0, kind: 'wall' },
+  { x: -2.85, z: 6.6, hx: 0.25, hz: 2.4, kind: 'wall' },
+  { x: -2.85, z: 15.2, hx: 0.25, hz: 3.0, kind: 'wall' },
+  // base perimeter
+  { x: -5.4, z: 24.6, hx: 2.6, hz: 0.25, kind: 'wall' },
+  { x: -11.1, z: 24.6, hx: 3.0, hz: 0.25, kind: 'wall' },
+  { x: -8.25, z: 32.2, hx: 0.25, hz: 1.8, kind: 'wall' },
+  // jungle blocks
+  { x: -10.3, z: 5.6, hx: 2.0, hz: 1.4, kind: 'house' },
+  { x: -6.0, z: 12.6, hx: 1.4, hz: 2.0, kind: 'house' },
+  { x: -10.6, z: 18.4, hx: 1.8, hz: 1.6, kind: 'house' },
+  { x: -5.9, z: 5.4, hx: 1.1, hz: 0.45, kind: 'container' },
+  { x: -6.4, z: 21.4, hx: 1.1, hz: 0.45, kind: 'container' },
+  { x: -9.0, z: 10.4, hx: 0.4, hz: 0.4, kind: 'crates' },
+  { x: -12.6, z: 13.2, hx: 0.4, hz: 0.4, kind: 'barrels' },
+  // lane cover
+  { x: -15.6, z: 20.2, hx: 0.3, hz: 0.6, kind: 'barrier' },
+  { x: 1.4, z: 15.0, hx: 0.4, hz: 0.4, kind: 'crates', noMirrorX: true },
+  { x: -1.3, z: 6.0, hx: 0.6, hz: 0.3, kind: 'barrier', noMirrorX: true },
+  // Tunnels: side walls of the covered stretch (right lane only)
+  { x: 14.1, z: 2.1, hx: 0.25, hz: 2.1, kind: 'wall', noMirrorX: true },
 ];
-export const SANDS = [{ x: -6.2, z: 3.6, r: 1.2 }];            // deep sand: halves ground speed
-export const MINES = [                                         // proximity mines, re-arm after a delay
-  { x: 0, z: 2.4 }, { x: 0, z: -2.4 }, { x: LONG_X, z: 0 },
-];
+export const SANDS = [{ x: -12.0, z: 10.6, r: 1.1 }, { x: -17, z: 21.5, r: 1.0 }]; // deep sand: halves ground speed (mirrored)
+export const MINES = [{ x: -17, z: 3.4 }, { x: 0, z: 4.6 }, { x: -8.4, z: 15.2 }];  // proximity mines (mirrored)
 export const MINE = { radius: 0.55, splash: 1.2, dmg: 190, rearm: 9 };
 
-export const ALTAR = { x: 0, z: 0, r: 1.9, captureTime: 4.5, bonus: 0.4 }; // supply drop in Mid
-export const SOULS = { max: 10, start: 5, regen: 1 / 2.8 };
-export const MATCH = { regulation: 180, overtime: 60, doubleAt: 60 };
+// River objectives. Troops alone on a pad capture it; the effect lasts until the rival takes it back.
+export const OBJECTIVES = [
+  { id: 'drop', name: 'Supply Drop', x: 0, z: 0, r: 1.9, captureTime: 4.5, effect: 'funds', bonus: 0.4, blurb: 'funds +40%' },
+  { id: 'armory', name: 'Armory', x: -8.8, z: 0, r: 1.8, captureTime: 6, effect: 'damage', bonus: 0.15, blurb: 'troops +15% damage' },
+  { id: 'medic', name: 'Med Station', x: 8.8, z: 0, r: 1.8, captureTime: 6, effect: 'heal', bonus: 0.015, blurb: 'troops heal 1.5%/s' },
+];
+export const ALTAR = OBJECTIVES[0];
+export const SOULS = { max: 10, start: 6, regen: 1 / 2.6 };
+export const MATCH = { regulation: 480, overtime: 120, doubleAt: 120 };
+export const WAVES = { first: 18, every: 30, count: 3 };   // recruit squads per lane
+export const BOUNTY = { tower: 2 };                         // funds for destroying an outpost
+
+// Veterancy. Units earn XP in combat; levels add HP, damage and attack speed. XP a card's units earn also
+// ranks the card up, so later deployments of it arrive at a higher level.
+export const XP = {
+  combatPerSec: 1.0, perDamage: 1 / 45, kill: 6, killRecruit: 2, killTower: 25,
+  maxLevel: 4, hpPerLevel: 0.18, dmgPerLevel: 0.15, hastePerLevel: 0.05,
+  curve: (card) => { const a = 10 + card.cost * 4; return [a, a * 2.2, a * 3.8]; },     // unit level 2, 3, 4
+  rankAt: (card) => { const a = 10 + card.cost * 4; return [a * 2.5, a * 6]; },         // card rank 2, 3
+};
 
 // Factions. Which one each team plays is chosen in the menu (team 0 = player).
 export const SIDES = {
@@ -97,6 +151,11 @@ export const CARDS = {
     name: 'Sentry Gun', cost: 4, type: 'building', count: 1, model: 'sentry',
     hp: 1150, dmg: 52, hitSpeed: 0.32, range: 6.5, sight: 6.5, radius: 0.7, lifetime: 32,
     air: false, hitsAir: true, projectile: 'tracer', sfx: 'sentry', lore: 'Automated turret. Rapid fire at ground and air for 32 seconds.',
+  },
+  recruit: {
+    name: 'Recruit', cost: 0, type: 'unit', count: 1, model: 'recruit', minion: true,
+    hp: 260, dmg: 34, hitSpeed: 1.0, range: 4.0, sight: 6, speed: 1.15, radius: 0.32, mass: 2,
+    air: false, hitsAir: true, projectile: 'tracer', sfx: 'recruit', lore: 'Squads that march every lane on a timer.',
   },
   frag: {
     name: 'Frag Grenade', cost: 3, type: 'spell', model: 'grenade',

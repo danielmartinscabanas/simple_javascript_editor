@@ -1,8 +1,8 @@
 import * as THREE from 'three';
 import {
-  ARENA, WALL_HALF as RIFT_HALF, TOWERS, CARDS, MINES, MINE, ALTAR, SOULS, MATCH, FACTION,
+  ARENA, RIVER, TOWERS, CARDS, MINE, OBJECTIVES, SOULS, MATCH, FACTION, ROUTES, WAVES, BOUNTY, XP,
 } from './config.js';
-import { F } from './nav.js';
+import { F, ALL_MINES } from './nav.js';
 import { buildModel, bellTower, cathedralKeep, healthBar, teamMats, crow, playClip, syncWeapon } from './models.js';
 import { runeCircle, rubbleDecal } from './textures.js';
 
@@ -39,9 +39,13 @@ export class Sim {
     this.camera = camera;
     this.time = 0; this.phase = 'regulation'; this.over = false;
     this.entities = []; this.projectiles = []; this.effects = []; this.corpses = [];
-    this.altar = { owner: null, progress: 0 };
+    this.objectives = OBJECTIVES.map((def) => ({ def, owner: null, progress: 0 }));
+    this.altar = this.objectives[0];
     this.junk = [];
-    this.mineT = MINES.map(() => 0);
+    this.mineT = ALL_MINES.map(() => 0);
+    this.waveT = WAVES.first; this.waves = 0;
+    this.cardXp = [{}, {}];
+    this.winner = undefined;
     this.smokes = []; this.fires = [];
     this.shake = 0;
     this.runeTex = runeCircle(11);
@@ -61,23 +65,47 @@ export class Sim {
   }
   doubleSouls() { return this.phase === 'overtime' || this.timeLeft() <= MATCH.doubleAt; }
 
-  mineArmed(def) { return this.mineT[MINES.indexOf(def)] <= 0; }
+  mineArmed(def) { return this.mineT[ALL_MINES.indexOf(def)] <= 0; }
+  objOwner(id) { return this.objectives.find((o) => o.def.id === id)?.owner ?? null; }
 
-  towerAlive(team, kind, side) {
-    return this.towers.some((t) => t.alive && t.team === team && t.sub === kind && (side === undefined || Math.sign(t.x) === side));
+  // Inner outposts are shielded while their lane's outer one stands; the Command Post while all inner ones do.
+  isProtected(t) {
+    if (t.kind !== 'tower' || !t.alive) return false;
+    if (t.sub === 'keep') return this.towers.filter((o) => o.team === t.team && o.tier === 2).every((o) => o.alive);
+    if (t.tier === 2) return this.towers.some((o) => o.team === t.team && o.lane === t.lane && o.tier === 1 && o.alive);
+    return false;
   }
 
+  // Own side of the river, plus a forward zone around each enemy outpost you have destroyed.
   inZone(team, x, z) {
-    const own = team === 0 ? z >= RIFT_HALF + 0.15 : z <= -(RIFT_HALF + 0.15);
-    if (own) return true;
-    const enemy = this.enemyOf(team);
-    for (const side of [-1, 1]) {
-      if (Math.sign(x) !== side) continue;
-      if (!this.towerAlive(enemy, 'bell', side)) {
-        if (team === 0 ? z > -10.6 : z < 10.6) return true;
+    if (team === 0 ? z >= RIVER.half + 0.2 : z <= -(RIVER.half + 0.2)) return true;
+    return this.towers.some((t) => !t.alive && t.team !== team && Math.hypot(x - t.x, z - t.z) < 6.5);
+  }
+
+  // waypoints for a lane, from this team's base to the enemy's
+  route(team, lane) {
+    return (this._routes ||= {})[team + lane] ||= ROUTES[lane].map(([x, z]) => ({ x, z: team === 0 ? z : -z, radius: 0, isWp: true }));
+  }
+
+  assignLane(e) {
+    let best = null;
+    for (const lane of Object.keys(ROUTES)) {
+      const r = this.route(e.team, lane);
+      for (let i = 0; i < r.length - 1; i++) {
+        const a = r[i], b = r[i + 1];
+        const vx = b.x - a.x, vz = b.z - a.z, L2 = vx * vx + vz * vz || 1;
+        const k = Math.max(0, Math.min(1, ((e.x - a.x) * vx + (e.z - a.z) * vz) / L2));
+        const d = Math.hypot(e.x - (a.x + vx * k), e.z - (a.z + vz * k));
+        if (!best || d < best.d) best = { d, lane, i: i + 1 };
       }
     }
-    return false;
+    e.lane = best.lane; e.wpi = best.i;
+  }
+
+  // positional sound: quieter the further it is from where the camera looks
+  snd(name, x, z, g = 1) {
+    const k = this.hooks.ear ? this.hooks.ear(x, z) : 1;
+    if (k > 0.04) this.audio.play(name, g * k);
   }
 
   canDeploy(team, key, x, z) {
@@ -113,15 +141,22 @@ export class Sim {
   createTower(team, t) {
     const x = t.x, z = this.sideZ(team, t.z);
     const model = t.kind === 'keep' ? cathedralKeep(team) : bellTower(team);
+    if (model.rig.statueEyes) model.rig.statueEyes.visible = true;
+    const shield = new THREE.Mesh(this.domeGeo ||= new THREE.SphereGeometry(1, 28, 12, 0, Math.PI * 2, 0, Math.PI / 2), new THREE.MeshBasicMaterial({
+      color: new THREE.Color(FACTION[team].glow).multiplyScalar(0.9), transparent: true, opacity: 0.16, depthWrite: false, blending: THREE.AdditiveBlending, side: THREE.DoubleSide,
+    }));
+    shield.scale.set(t.half * 2.1, t.half * 2.6 + (t.kind === 'keep' ? 1.2 : 0.8), t.half * 2.1);
+    shield.position.set(x, 0, z); shield.visible = false;
+    this.scene.add(shield);
     model.root.position.set(x, 0, z);
     model.root.traverse((o) => { if (o.isMesh) { o.castShadow = true; o.receiveShadow = true; } });
     this.scene.add(model.root);
     this.nav.setStructure(x, z, t.half, true);
     const e = {
-      id: NEXT_ID++, team, kind: 'tower', sub: t.kind, x, z, y: 0,
+      id: NEXT_ID++, team, kind: 'tower', sub: t.kind, lane: t.lane, tier: t.tier, shield, x, z, y: 0,
       hp: t.hp, maxHp: t.hp, radius: t.half + 0.1, half: t.half,
       dmg: t.dmg, hitSpeed: t.hitSpeed, range: t.range, sight: t.range, cd: 0,
-      hitsAir: true, air: false, alive: true, active: t.kind !== 'keep', target: null,
+      hitsAir: true, air: false, alive: true, active: true, target: null,
       view: model, muzzleY: model.rig.muzzleY, structure: true, deployT: 0, revealT: 0, windup: 0, attackT: -1,
     };
     this.entities.push(e);
@@ -142,8 +177,8 @@ export class Sim {
       this.createUnit(team, key, px, pz, 1.0);
     }
     this.portal(team, x, z, Math.max(0.9, spread + 0.6));
-    this.audio.play('deploy');
-    if (!card.air && card.type === 'unit' && card.model !== 'dog' && Math.random() < 0.45) this.audio.play('charge');
+    this.snd('deploy', x, z);
+    if (!card.air && card.type === 'unit' && card.model !== 'dog' && Math.random() < 0.45) this.snd('charge', x, z);
   }
 
   createUnit(team, key, x, z, deployT = 1.0) {
@@ -156,7 +191,8 @@ export class Sim {
     model.root.rotation.y = team === 0 ? Math.PI : 0;
     model.root.traverse((o) => { if (o.isMesh) { o.castShadow = true; o.receiveShadow = false; } });
     this.scene.add(model.root);
-    model.root.scale.setScalar(card.type === 'building' ? 1.3 : 2.0);
+    const baseScale = card.type === 'building' ? 1.3 : card.minion ? 1.75 : 2.0;
+    model.root.scale.setScalar(baseScale);
     const ring = new THREE.Mesh(this.ringGeo ||= new THREE.RingGeometry(0.7, 1, 28), this.ringMat(team));
     ring.rotation.x = -Math.PI / 2; ring.renderOrder = 7;
     const rr = card.radius * 1.5 + 0.12;
@@ -175,10 +211,79 @@ export class Sim {
       view: model, mats, bar, ring, height: model.height * (card.type === 'building' ? 1.3 : 2.0), deployT, deployMax: deployT, revealT: 0, inThicket: false,
       facing: model.root.rotation.y, walkPhase: Math.random() * 6, attackT: -1, windup: -1, flashT: 0,
       slowT: 0, stuckT: 0, lastX: x, lastZ: z, structure: building, life: card.lifetime || 0, fade: 1,
+      baseScale, level: 1, xp: 0, hurtT: -9, minion: !!card.minion,
     };
     if (building) { e.half = 0.5; this.nav.setStructure(x, z, 0.5, true); bar.visible = true; }
+    if (!building) this.assignLane(e);
+    if (!card.minion) {
+      const rank = this.cardRank(team, key);
+      if (rank > 1) { e.xp = XP.curve(card)[rank - 2]; this.applyLevel(e, rank); }
+    }
     this.entities.push(e);
     return e;
+  }
+
+  // ---------- veterancy ----------
+  cardRank(team, key) {
+    const xp = this.cardXp[team][key] || 0;
+    return 1 + XP.rankAt(CARDS[key]).filter((t) => xp >= t).length;
+  }
+
+  applyLevel(e, lvl) {
+    const c = e.card, k = lvl - 1;
+    e.level = lvl;
+    const max = c.hp * (1 + XP.hpPerLevel * k);
+    e.hp = Math.min(max, e.hp + (max - e.maxHp));
+    e.maxHp = max;
+    e.dmg = c.dmg * (1 + XP.dmgPerLevel * k);
+    e.hitSpeed = c.hitSpeed * (1 - XP.hastePerLevel * k);
+    e.view.root.scale.setScalar(e.baseScale * (1 + 0.05 * k));
+    e.height = e.height / (e.lvlScale || 1) * (1 + 0.05 * k); e.lvlScale = 1 + 0.05 * k;
+    if (!e.badge) { e.badge = new THREE.Sprite(); e.badge.renderOrder = 997; this.scene.add(e.badge); }
+    e.badge.material = badgeMat(e.team, lvl);
+    e.badge.scale.set(0.62, 0.42, 1);
+  }
+
+  gainXp(e, amount) {
+    if (!e || !e.alive || !e.card || e.minion || e.kind === 'tower' || amount <= 0) return;
+    e.xp += amount;
+    const cx = this.cardXp[e.team];
+    const before = this.cardRank(e.team, e.key);
+    cx[e.key] = (cx[e.key] || 0) + amount;
+    const after = this.cardRank(e.team, e.key);
+    if (after > before) this.hooks.onCardRank?.(e.team, e.key, after);
+    const curve = XP.curve(e.card);
+    if (e.level < XP.maxLevel && e.xp >= curve[e.level - 1]) {
+      this.applyLevel(e, e.level + 1);
+      e.hp = Math.min(e.maxHp, e.hp + e.maxHp * 0.25);
+      const c = FACTION[e.team].glow;
+      this.world.fx.emit({ x: e.x, y: 0.2, z: e.z, count: 30, spread: 0.3, vel: [0, 2.6, 0], velRand: 0.6, radial: 1.4, life: 0.9, size: 0.16, color: [2.4, 2.0, 0.8, 1] });
+      this.world.fx.emit({ x: e.x, y: 0.6, z: e.z, count: 12, spread: 0.4, vel: [0, 1.2, 0], life: 0.8, size: 0.2, color: [((c >> 16) & 255) / 90, ((c >> 8) & 255) / 90, (c & 255) / 90, 1] });
+      this.snd('levelup', e.x, e.z);
+      this.hooks.onLevel?.(e);
+    }
+  }
+
+  // ---------- recruit waves ----------
+  spawnWaves() {
+    this.waves++;
+    for (const team of [0, 1]) for (const lane of Object.keys(ROUTES)) {
+      const r = this.route(team, lane);
+      for (let i = 0; i < WAVES.count; i++) {
+        const sx = r[0].x + (i - 1) * 0.7, sz = r[0].z + (team === 0 ? 1 : -1) * (i % 2) * 0.6;
+        const u = this.createUnit(team, 'recruit', sx, sz, 0.6);
+        u.lane = lane; u.wpi = 1;
+      }
+    }
+    this.hooks.onWave?.(this.waves);
+  }
+
+  march(e, dt) {
+    if (!e.lane) this.assignLane(e);
+    const r = this.route(e.team, e.lane);
+    let wp = r[Math.min(e.wpi, r.length - 1)];
+    if (Math.hypot(wp.x - e.x, wp.z - e.z) < 1.1 && e.wpi < r.length - 1) { e.wpi++; wp = r[e.wpi]; e.path = null; }
+    if (Math.hypot(wp.x - e.x, wp.z - e.z) > 0.6) this.move(e, wp, dt);
   }
 
   ringMat(team) {
@@ -216,14 +321,14 @@ export class Sim {
       else if (key === 'flash') this.flashbang(team, card, x, z);
       else if (key === 'molotov') this.ignite(team, card, x, z);
     });
-    this.audio.play('throw');
+    this.snd('throw', x, z);
   }
 
   // A grenade-like object lobbed from the caster's side of the field.
   throwItem(team, model, x, z, dur, land) {
     const obj = buildModel(model, team).root;
     obj.scale.setScalar(0.7);
-    const sx = x * 0.4, sz = team === 0 ? Math.min(15, z + 9) : Math.max(-15, z - 9);
+    const sx = x * 0.7, sz = team === 0 ? Math.min(ARENA.halfL - 1, z + 9) : Math.max(-ARENA.halfL + 1, z - 9);
     this.scene.add(obj);
     this.effects.push({ t: 0, dur, update: (f) => {
       const k = Math.min(1, f.t / dur);
@@ -266,8 +371,9 @@ export class Sim {
     const light = new THREE.PointLight(0xffa040, 40, r * 5, 1.4);
     light.position.set(x, 1.5, z);
     this.scene.add(ring, scorch, light);
-    this.shake = Math.max(this.shake, 0.35 * big);
-    this.audio.play('boom');
+    const ear = this.hooks.ear ? this.hooks.ear(x, z) : 1;
+    this.shake = Math.max(this.shake, 0.35 * big * ear);
+    this.snd('boom', x, z);
     this.effects.push({ t: 0, dur: 6, update: (f) => {
       const k = f.t, rr = Math.min(1, k / 0.3);
       ring.scale.setScalar(1 + rr * r * 2.2);
@@ -281,7 +387,7 @@ export class Sim {
   popSmoke(team, card, x, z) {
     const zone = { x, z, r: card.radius, until: this.time + card.duration };
     this.smokes.push(zone);
-    this.audio.play('smoke');
+    this.snd('smoke', x, z);
     this.world.smoke.emit({ x, y: 0.6, z, count: 90, spread: card.radius * 0.5, spreadY: 0.4, vel: [0, 0.4, 0], velRand: 0.5, radial: 1.2, drag: 1.2, life: 3, size: 1.6, sizeEnd: 3.4, color: [0.78, 0.8, 0.82, 0.85] });
     this.effects.push({ t: 0, dur: card.duration, update: (f, dt) => {
       const left = 1 - f.t / f.dur;
@@ -305,7 +411,7 @@ export class Sim {
     light.position.set(x, 1.4, z);
     this.scene.add(light);
     this.world.fx.emit({ x, y: 0.8, z, count: 80, spread: 0.2, velRand: 4, drag: 2.5, life: 0.5, size: 0.5, color: [3, 3, 3, 1] });
-    this.audio.play('flash');
+    this.snd('flash', x, z);
     this.hooks.onFlash?.(x, z);
     this.effects.push({ t: 0, dur: 0.6, update: (f) => { light.intensity = 140 * (1 - f.t / f.dur); return f.t < f.dur; }, dispose: () => this.scene.remove(light) });
   }
@@ -318,7 +424,7 @@ export class Sim {
     const light = new THREE.PointLight(0xff7a20, 25, card.radius * 4, 1.5);
     light.position.set(x, 1, z);
     this.scene.add(glow, light);
-    this.audio.play('fire');
+    this.snd('fire', x, z);
     this.effects.push({ t: 0, dur: card.duration, update: (f, dt) => {
       const left = 1 - f.t / f.dur;
       glow.material.opacity = 0.45 * Math.min(1, left * 3);
@@ -348,6 +454,7 @@ export class Sim {
     if (b.air && !a.hitsAir) return false;
     if (a.buildingsOnly && !b.structure) return false;
     if (this.isHidden(b) && Math.hypot(a.x - b.x, a.z - b.z) > 1.6 + a.radius) return false;
+    if (b.kind === 'tower' && this.isProtected(b)) return false;
     return true;
   }
 
@@ -364,25 +471,24 @@ export class Sim {
       const bias = o.structure && e.kind === 'unit' && !e.buildingsOnly ? 1.5 : 0;
       if (d + bias < bestD) { bestD = d + bias; best = o; }
     }
-    if (!best && e.kind === 'unit') {
-      for (const o of this.entities) {
-        if (!o.alive || o.team === e.team || !o.structure) continue;
-        if (o.kind === 'building' && !e.buildingsOnly) continue;
-        const d = Math.hypot(o.x - e.x, o.z - e.z) + (o.sub === 'keep' ? 3 : 0);
-        if (d < bestD) { bestD = d; best = o; }
-      }
-    }
     return best;
   }
 
   damage(e, amount, src) {
     if (!e.alive) return;
+    if (e.kind === 'tower' && this.isProtected(e)) return;
+    if (src && src.kind !== 'tower' && this.objOwner('armory') === src.team) amount *= 1 + OBJECTIVES[1].bonus;
+    const dealt = Math.min(amount, Math.max(0, e.hp));
     e.hp -= amount;
     e.flashT = 0.1;
-    if (e.kind === 'tower') this.hooks.onTowerHit?.(e, Math.min(amount, e.hp + amount), src);
-    if (e.kind === 'tower' && e.sub === 'keep' && !e.active) this.activateKeep(e);
+    e.hurtT = this.time;
+    if (src) { src.hurtT = this.time; this.gainXp(src, dealt * XP.perDamage); }
+    if (e.kind === 'tower') this.hooks.onTowerHit?.(e, dealt, src);
     if (src && src.card?.lifesteal && src.alive) src.hp = Math.min(src.maxHp, src.hp + amount * src.card.lifesteal);
-    if (e.hp <= 0) { this.hooks.onKill?.(src, e); this.kill(e); }
+    if (e.hp <= 0) {
+      if (src) this.gainXp(src, e.kind === 'tower' ? XP.killTower : e.minion ? XP.killRecruit : XP.kill);
+      this.hooks.onKill?.(src, e); this.kill(e);
+    }
   }
 
   activateKeep(k) {
@@ -401,7 +507,8 @@ export class Sim {
     if (e.structure) this.nav.setStructure(e.x, e.z, e.half, false);
     this.world.fx.emit({ x: e.x, y: e.y + 0.5, z: e.z, count: 18, spread: 0.25, vel: [0, 1.6, 0], velRand: 0.5, life: 1.4, size: 0.18, color: col });
     this.world.smoke.emit({ x: e.x, y: e.y + 0.3, z: e.z, count: 6, spread: 0.3, vel: [0, 0.4, 0], velRand: 0.3, life: 1.2, size: 0.4, sizeEnd: 1.6, color: [0.08, 0.07, 0.07, 0.6] });
-    this.audio.play(e.air ? 'droneDown' : e.card?.model === 'mech' ? 'boom' : 'death');
+    this.snd(e.air ? 'droneDown' : e.card?.model === 'mech' ? 'boom' : 'death', e.x, e.z, e.minion ? 0.6 : 1);
+    if (e.badge) e.badge.visible = false;
     if (e.card?.model === 'mech') this.boomFx(e.x, e.z, 1.2, 1);
     e.bar.visible = false;
     this.corpses.push({ e, t: 0 });
@@ -419,9 +526,12 @@ export class Sim {
   destroyTower(t) {
     this.nav.setStructure(t.x, t.z, t.half, false);
     const scorer = this.players[this.enemyOf(t.team)];
-    scorer.crowns = t.sub === 'keep' ? 3 : Math.min(3, scorer.crowns + 1);
-    this.shake = 1.0;
-    this.audio.play('collapse');
+    scorer.crowns++;
+    if (t.sub === 'keep') this.winner = scorer.team;
+    else scorer.souls = Math.min(SOULS.max, scorer.souls + BOUNTY.tower);
+    t.shield.visible = false;
+    this.shake = Math.max(this.shake, (this.hooks.ear ? this.hooks.ear(t.x, t.z) : 1) * 1.0);
+    this.audio.play('collapse', Math.max(0.35, this.hooks.ear ? this.hooks.ear(t.x, t.z) : 1));
     this.world.smoke.emit({ x: t.x, y: 1.5, z: t.z, count: 80, spread: 1.2, vel: [0, 1.4, 0], velRand: 1.4, radial: 1.5, drag: 0.6, life: 3.5, size: 1.0, sizeEnd: 3.5, color: [0.16, 0.14, 0.13, 0.75] });
     this.world.fx.emit({ x: t.x, y: 3, z: t.z, count: 60, spread: 0.6, vel: [0, 3, 0], velRand: 2.5, gravity: 5, life: 1.3, size: 0.2, color: [2, 0.7, 0.25, 1] });
     const v = t.view.root;
@@ -444,9 +554,12 @@ export class Sim {
       v.rotation.z = tilt * k; v.rotation.x = tilt * 0.5 * k;
       return k < 1;
     }, dispose: () => { this.scene.remove(v); } });
-    if (t.sub === 'bell') {
-      const keep = this.towers.find((k) => k.team === t.team && k.sub === 'keep');
-      if (keep) this.activateKeep(keep);
+    const own = t.team === 0;
+    const laneName = { L: 'Long', M: 'Mid', R: 'Tunnels' }[t.lane];
+    if (t.tier === 1) this.hooks.onMessage?.(own ? `${laneName}: your inner outpost is exposed` : `${laneName}: rival inner outpost exposed`, 1 - t.team);
+    if (t.tier === 2 && this.towers.filter((o) => o.team === t.team && o.tier === 2 && !o.alive).length === 1) {
+      this.hooks.onMessage?.(own ? 'Your Command Post shield is down' : 'Rival Command Post shield is down', 1 - t.team);
+      this.audio.play('alarm');
     }
     this.hooks.onTowerDown?.(t);
     this.checkEnd();
@@ -454,7 +567,7 @@ export class Sim {
 
   checkEnd() {
     const [a, b] = this.players;
-    if (a.crowns >= 3 || b.crowns >= 3) return this.finish();
+    if (this.winner !== undefined) return this.finish();
     if (this.phase === 'overtime' && a.crowns !== b.crowns) return this.finish();
   }
 
@@ -463,7 +576,7 @@ export class Sim {
     this.over = true;
     this.audio.setLoops({ wind: 0.6 });
     const [a, b] = this.players;
-    let winner = a.crowns > b.crowns ? 0 : b.crowns > a.crowns ? 1 : null;
+    let winner = this.winner !== undefined ? this.winner : a.crowns > b.crowns ? 0 : b.crowns > a.crowns ? 1 : null;
     if (winner === null && tiebreak) {
       const low = (team) => Math.min(...this.towers.filter((t) => t.team === team && t.alive).map((t) => t.hp / t.maxHp), 1);
       const la = low(0), lb = low(1);
@@ -504,13 +617,13 @@ export class Sim {
       }
       fx.emit({ x: p.x, y: p.y, z: p.z, count: 18, spread: 0.1, velRand: 2.4, gravity: 5, life: 0.4, size: 0.14, color: [2, 1.3, 0.5, 1] });
       this.world.smoke.emit({ x: p.x, y: p.y, z: p.z, count: 5, spread: 0.2, vel: [0, 0.6, 0], velRand: 0.4, life: 1, size: 0.5, sizeEnd: 1.4, color: [0.5, 0.42, 0.32, 0.6] });
-      this.audio.play(p.kind === 'shell' ? 'shellHit' : 'hit');
+      this.snd(p.kind === 'shell' ? 'shellHit' : 'hit', p.x, p.z);
     } else if (p.target.alive) {
       this.damage(p.target, p.dmg, p.src);
       const tower = p.target.structure;
       fx.emit({ x: p.x, y: p.y, z: p.z, count: tower ? 6 : 4, spread: 0.05, velRand: 1.8, gravity: 6, life: 0.25, size: 0.08, color: tower ? [2.4, 2, 1.2, 1] : [1.6, 0.25, 0.15, 1] });
       if (tower) this.world.smoke.emit({ x: p.x, y: p.y, z: p.z, count: 2, spread: 0.1, vel: [0, 0.4, 0], life: 0.7, size: 0.25, sizeEnd: 0.8, color: [0.75, 0.62, 0.45, 0.6] });
-      this.audio.play(tower ? 'hitMetal' : 'hit');
+      this.snd(tower ? 'hitMetal' : 'hit', p.x, p.z);
     }
   }
 
@@ -523,12 +636,12 @@ export class Sim {
       const [a, b] = this.players;
       if (a.crowns !== b.crowns) return this.finish();
       this.phase = 'overtime';
-      this.hooks.onMessage?.('Sudden death — the next tower to fall decides it', null);
+      this.hooks.onMessage?.('Sudden death — the next outpost to fall decides it', null);
       this.audio.play('vo_sudden_death');
     } else if (this.phase === 'overtime' && this.time >= MATCH.regulation + MATCH.overtime) {
       return this.finish(true);
     }
-    if (!this._doubled && this.doubleSouls()) { this._doubled = true; this.hooks.onMessage?.('Final minute — funds flow twice as fast', null); this.audio.play('vo_final_round'); }
+    if (!this._doubled && this.doubleSouls()) { this._doubled = true; this.hooks.onMessage?.('Final two minutes — funds flow twice as fast', null); this.audio.play('vo_final_round'); }
     this.smokes = this.smokes.filter((sm) => sm.until > this.time);
     this.fires = this.fires.filter((f) => f.until > this.time);
     let flyers = 0, choking = false;
@@ -542,12 +655,15 @@ export class Sim {
       }
     }
 
-    // souls
+    // funds
     for (const p of this.players) {
       let rate = SOULS.regen * (this.doubleSouls() ? 2 : 1);
-      if (this.altar.owner === p.team) rate *= 1 + ALTAR.bonus;
+      if (this.objOwner('drop') === p.team) rate *= 1 + OBJECTIVES[0].bonus;
       p.souls = Math.min(SOULS.max, p.souls + rate * dt);
     }
+    this.waveT -= dt;
+    if (this.waveT <= 0) { this.waveT = WAVES.every; this.spawnWaves(); }
+    const medic = this.objOwner('medic');
 
     this.updateHazards(dt);
     this.updateAltar(dt);
@@ -567,6 +683,8 @@ export class Sim {
         if (e.hp <= 0) { this.kill(e); continue; }
       }
       if (e.kind === 'tower' && !e.active) continue;
+      if (medic === e.team && e.kind === 'unit' && e.hp < e.maxHp) e.hp = Math.min(e.maxHp, e.hp + e.maxHp * OBJECTIVES[2].bonus * dt);
+      if (e.kind !== 'tower' && this.time - e.hurtT < 1.5) this.gainXp(e, XP.combatPerSec * dt);
       if (e.kind === 'unit' && !e.air) {
         const inT = !!(this.nav.flagAt(e.x, e.z) & F.THICKET);
         if (inT && !e.inThicket) this.rustle(e);
@@ -582,7 +700,7 @@ export class Sim {
   }
 
   updateHazards(dt) {
-    MINES.forEach((m, i) => {
+    ALL_MINES.forEach((m, i) => {
       if (this.mineT[i] > 0) { this.mineT[i] -= dt; return; }
       const trip = this.entities.find((e) => e.alive && e.kind === 'unit' && !e.air && e.deployT <= 0 && Math.hypot(e.x - m.x, e.z - m.z) < MINE.radius + e.radius);
       if (!trip) return;
@@ -596,23 +714,22 @@ export class Sim {
   }
 
   updateAltar(dt) {
-    const c = [0, 0];
-    for (const e of this.entities) {
-      if (!e.alive || e.kind !== 'unit' || e.deployT > 0) continue;
-      if (Math.hypot(e.x - ALTAR.x, e.z - ALTAR.z) <= ALTAR.r) c[e.team]++;
-    }
-    const a = this.altar;
-    const rate = dt / ALTAR.captureTime;
-    if (c[0] && !c[1]) a.progress = Math.min(1, a.progress + rate);
-    else if (c[1] && !c[0]) a.progress = Math.max(-1, a.progress - rate);
-    const prev = a.owner;
-    if (a.progress >= 1) a.owner = 0;
-    else if (a.progress <= -1) a.owner = 1;
-    else if (a.owner === 0 && a.progress <= 0) a.owner = null;
-    else if (a.owner === 1 && a.progress >= 0) a.owner = null;
-    if (prev !== a.owner) {
-      if (a.owner !== null) {
-        this.hooks.onMessage?.(a.owner === 0 ? 'Supply drop secured — funds +40%' : 'Rival secured the supply drop', a.owner);
+    for (const ob of this.objectives) {
+      const d = ob.def, c = [0, 0];
+      for (const e of this.entities) {
+        if (!e.alive || e.kind !== 'unit' || e.deployT > 0) continue;
+        if (Math.hypot(e.x - d.x, e.z - d.z) <= d.r) c[e.team]++;
+      }
+      const rate = dt / d.captureTime;
+      if (c[0] && !c[1]) ob.progress = Math.min(1, ob.progress + rate);
+      else if (c[1] && !c[0]) ob.progress = Math.max(-1, ob.progress - rate);
+      const prev = ob.owner;
+      if (ob.progress >= 1) ob.owner = 0;
+      else if (ob.progress <= -1) ob.owner = 1;
+      else if (ob.owner === 0 && ob.progress <= 0) ob.owner = null;
+      else if (ob.owner === 1 && ob.progress >= 0) ob.owner = null;
+      if (prev !== ob.owner && ob.owner !== null) {
+        this.hooks.onMessage?.(ob.owner === 0 ? `${d.name} secured — ${d.blurb}` : `Rival secured the ${d.name}`, ob.owner);
         this.audio.play('capture');
       }
     }
@@ -635,7 +752,7 @@ export class Sim {
       e.windup -= dt;
       if (e.windup <= 0) this.strike(e);
     }
-    if (!tg) return;
+    if (!tg) { if (e.kind === 'unit') this.march(e, dt); return; }
     const d = this.edgeDist(e, tg);
     if (d <= e.range) {
       if (e.kind === 'unit') e.facingTarget = Math.atan2(tg.x - e.x, tg.z - e.z);
@@ -658,7 +775,7 @@ export class Sim {
     if (!tg || !tg.alive) return;
     if (this.edgeDist(e, tg) > e.range + 0.8) return;
     const proj = e.kind === 'tower' ? 'tracer' : e.card?.projectile;
-    this.audio.play(e.kind === 'tower' ? (e.sub === 'keep' ? 'smg' : 'rifle') : e.card?.sfx || 'rifle');
+    this.snd(e.kind === 'tower' ? (e.sub === 'keep' ? 'smg' : 'rifle') : e.card?.sfx || 'rifle', e.x, e.z);
     if (e.card?.breach) {
       const b = e.card.breach;
       this.damage(tg, e.dmg, e);
@@ -714,7 +831,7 @@ export class Sim {
     if (!e.air && !this.nav.lineClear(e.x, e.z, tg.x, tg.z)) {
       e.pathT -= dt;
       if (!e.path || e.pathTarget !== tg || e.pathT <= 0 || e.navV !== this.nav.version) {
-        const reach = Math.max(0.5, e.range + e.radius + tg.radius - 0.15);
+        const reach = tg.isWp ? 0.5 : Math.max(0.5, e.range + e.radius + tg.radius - 0.15);
         e.path = this.nav.findPath(e.x, e.z, tg.x, tg.z, reach);
         e.pathTarget = tg; e.pathT = 0.7 + Math.random() * 0.4; e.navV = this.nav.version;
       }
@@ -816,6 +933,10 @@ export class Sim {
     for (const e of this.entities) {
       if (e.kind === 'tower') {
         if (!e.alive) continue;
+        const prot = this.isProtected(e);
+        e.shield.visible = prot;
+        if (prot) e.shield.material.opacity = 0.12 + Math.sin(now * 2 + e.id) * 0.04 + (e.flashT > 0 ? 0.25 : 0);
+        if (e.flashT > 0) e.flashT -= dt;
         const rig = e.view.rig;
         if (rig.gunner) {
           const g = rig.gunner;
@@ -853,7 +974,7 @@ export class Sim {
       }
       for (const m of c.e.mats) { if (!m.transparent) { m.transparent = true; m.needsUpdate = true; } m.opacity = m.userData.baseOpacity * (1 - fade); }
       c.e.ring.visible = false;
-      if (k >= 1) { this.scene.remove(v, c.e.bar, c.e.ring); c.done = true; }
+      if (k >= 1) { this.scene.remove(v, c.e.bar, c.e.ring); if (c.e.badge) this.scene.remove(c.e.badge); c.done = true; }
     }
     this.corpses = this.corpses.filter((c) => !c.done);
   }
@@ -876,7 +997,7 @@ export class Sim {
     if (walking && !e.air && (e.stepT = (e.stepT ?? Math.random() * 0.4) - dt) <= 0) {
       const mech = e.card?.model === 'mech';
       e.stepT = mech ? 0.62 : 0.34 + Math.random() * 0.1;
-      this.audio.play(mech ? 'mechStep' : 'step');
+      this.snd(mech ? 'mechStep' : 'step', e.x, e.z);
     }
     if (rig.gltf) this.animateRigged(e, rig, deploying, walking, dt);
     e.moving = false;
@@ -945,6 +1066,10 @@ export class Sim {
     const bar = e.bar;
     const showBar = e.alive && root.visible && (e.hp < e.maxHp - 1 || e.kind === 'building');
     bar.visible = showBar;
+    if (e.badge) {
+      e.badge.visible = e.alive && root.visible;
+      e.badge.position.set(e.x, e.y + rise + e.height + (showBar ? 0.55 : 0.3), e.z);
+    }
     if (showBar) {
       bar.position.set(e.x, e.y + rise + e.height + 0.25, e.z);
       bar.quaternion.copy(cam.quaternion);
@@ -980,12 +1105,31 @@ export class Sim {
   }
 
   dispose() {
-    for (const e of this.entities) { this.scene.remove(e.view.root); if (e.bar) this.scene.remove(e.bar, e.ring); }
-    for (const c of this.corpses) this.scene.remove(c.e.view.root, c.e.bar, c.e.ring);
+    for (const e of this.entities) { this.scene.remove(e.view.root); if (e.bar) this.scene.remove(e.bar, e.ring); if (e.badge) this.scene.remove(e.badge); if (e.shield) this.scene.remove(e.shield); }
+    for (const c of this.corpses) { this.scene.remove(c.e.view.root, c.e.bar, c.e.ring); if (c.e.badge) this.scene.remove(c.e.badge); }
     for (const p of this.projectiles) this.scene.remove(p.mesh);
     for (const fx of this.effects) fx.dispose?.();
     for (const j of this.junk) this.scene.remove(j);
   }
+}
+
+// rank chevrons above veteran units: one per level beyond the first, in the team colour
+const BADGES = {};
+function badgeMat(team, lvl) {
+  const k = `${team}:${lvl}:${FACTION[team].id}`;
+  if (BADGES[k]) return BADGES[k];
+  const c = document.createElement('canvas'); c.width = 96; c.height = 64;
+  const g = c.getContext('2d');
+  const col = `#${new THREE.Color(FACTION[team].glow).getHexString()}`;
+  const n = lvl - 1;
+  for (let i = 0; i < n; i++) {
+    const y = 40 - i * 14 + (n - 1) * 7;
+    g.beginPath(); g.moveTo(14, y - 10); g.lineTo(48, y + 6); g.lineTo(82, y - 10); g.lineTo(82, y - 1); g.lineTo(48, y + 15); g.lineTo(14, y - 1); g.closePath();
+    g.fillStyle = lvl >= XP.maxLevel ? '#ffd24a' : col; g.fill();
+    g.lineWidth = 3; g.strokeStyle = '#000'; g.stroke();
+  }
+  const t = new THREE.CanvasTexture(c); t.colorSpace = THREE.SRGBColorSpace;
+  return (BADGES[k] = new THREE.SpriteMaterial({ map: t, depthTest: false, transparent: true }));
 }
 
 function angDiff(a, b) {

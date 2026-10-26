@@ -47,6 +47,8 @@ Mirrors used (the container could only reach GitHub):
 | heli_loop | rotor hum while drones fly | "Helicopter SFX"; "Low rumbling" | WuxiaScrub; Musheran |
 | fire_loop | burning molotov | "Fire Crackling" | AntumDeluge |
 | wind_loop | desert wind bed | "Mild Wind Background Noise" | Bashar3A |
+| levelup | unit level-up bell | "Bell dings/chimes" (opengameart.org/content/bell-dingschimes), via GodotFall `level_up.ogg` | pwl |
+| rankup | card rank-up (rack clack + bell) | "68 Workshop Sounds" (opengameart.org/content/68-workshop-sounds), via GodotFall `upgrade_gun.ogg` | bart |
 | vo_* | announcer | Voiceover Pack | Kenney |
 | fanfare | victory brass fanfare | "Classic fanfare lick" (opengameart.org/content/classic-fanfare-lick), via github.com/FlamingFury00/Cartoon-Hitster | fvcalderan |
 | music_victory | victory song | "Town Theme RPG" (opengameart.org/content/town-theme-rpg), via github.com/castle-engine/castle-engine `examples/audio/music_collection_player/data/songs/` | cynicmusic |

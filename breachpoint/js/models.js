@@ -30,6 +30,10 @@ const UNITS = {
     ct: { file: 'u_BlueSoldier_Male', h: 1.25, weapon: RIFLE, ...SOLDIER },
     t: { file: 'u_Ninja_Sand', h: 1.25, weapon: RIFLE, ...SOLDIER },
   },
+  recruit: {
+    ct: { file: 'u_BlueSoldier_Male', h: 1.1, weapon: SMG, ...SOLDIER, tint: 0xb4c0cc },
+    t: { file: 'u_Ninja_Sand', h: 1.1, weapon: SMG, ...SOLDIER, tint: 0xd8c8aa },
+  },
   smg: {
     ct: { file: 'u_BlueSoldier_Female', h: 1.15, weapon: SMG, ...SOLDIER, move: 'Run' },
     t: { file: 'u_Ninja_Sand_Female', h: 1.15, weapon: SMG, ...SOLDIER, move: 'Run' },

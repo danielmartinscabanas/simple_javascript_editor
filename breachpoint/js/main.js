@@ -5,8 +5,9 @@ import { UnrealBloomPass } from 'three/addons/postprocessing/UnrealBloomPass.js'
 import { OutputPass } from 'three/addons/postprocessing/OutputPass.js';
 import {
   ARENA, CARDS, DEFAULT_DECK, RIVAL_NAMES, RIVAL_HOUSES, rankFor, EMOTES, FACTION, MATCH, SOULS, setSides,
+  LANES, RIVER, BASE, LEG, XP,
 } from './config.js';
-import { NavGrid } from './nav.js';
+import { NavGrid, F } from './nav.js';
 import { World } from './world.js';
 import { Sim } from './sim.js';
 import { Bot, rivalDeck } from './bot.js';
@@ -64,20 +65,19 @@ function applyQuality() {
   resize();
 }
 
-// ---------- camera framing ----------
-let view = { mode: 'menu', lookZ: 0.6, dist: 34 };
-const BATTLE_DIR = new THREE.Vector3(0, Math.sin(THREE.MathUtils.degToRad(63)), Math.cos(THREE.MathUtils.degToRad(63)));
+// ---------- camera: a pannable, zoomable view of the battlefield ----------
+let view = { mode: 'menu', fx: 0, fz: 17, dist: 26, minDist: 11, maxDist: 60, defDist: 26, overDist: 60, overZ: 0 };
+const BATTLE_DIR = new THREE.Vector3(0, Math.sin(THREE.MathUtils.degToRad(60)), Math.cos(THREE.MathUtils.degToRad(60)));
 function fitBattleCamera() {
   const w = window.innerWidth, h = window.innerHeight;
   camera.aspect = w / h;
-  camera.fov = w / h < 0.8 ? 46 : 38;
+  camera.fov = w / h < 0.8 ? 50 : 40;
   camera.updateProjectionMatrix();
-  const bottomPx = ($('bottom')?.offsetHeight || 170) + 4;
-  const topPx = 64;
+  // distance that frames the whole map (used for the intro and as the zoom-out limit)
+  const bottomPx = ($('bottom')?.offsetHeight || 170) + 4, topPx = 64;
   const yLow = -1 + (2 * bottomPx) / h, yHigh = 1 - (2 * topPx) / h;
-  const pts = [[-ARENA.halfW - 0.3, 0, ARENA.halfL + 0.3], [ARENA.halfW + 0.3, 0, ARENA.halfL + 0.3],
-    [-ARENA.halfW - 0.3, 0, -ARENA.halfL - 0.3], [ARENA.halfW + 0.3, 0, -ARENA.halfL - 0.3], [0, 3.6, -13.2]].map((p) => new THREE.Vector3(...p));
-  let dist = 34, lookZ = 1;
+  const pts = [[-ARENA.halfW, 0, ARENA.halfL], [ARENA.halfW, 0, ARENA.halfL], [-ARENA.halfW, 0, -ARENA.halfL], [ARENA.halfW, 0, -ARENA.halfL]].map((p) => new THREE.Vector3(...p));
+  let dist = 60, lookZ = 0;
   const v = new THREE.Vector3();
   for (let i = 0; i < 60; i++) {
     camera.position.set(0, 0, lookZ).addScaledVector(BATTLE_DIR, dist);
@@ -85,13 +85,35 @@ function fitBattleCamera() {
     camera.updateMatrixWorld();
     let minX = 1, maxX = -1, minY = 1, maxY = -1;
     for (const p of pts) { v.copy(p).project(camera); minX = Math.min(minX, v.x); maxX = Math.max(maxX, v.x); minY = Math.min(minY, v.y); maxY = Math.max(maxY, v.y); }
-    const sy = (maxY - minY) / (yHigh - yLow), sx = (maxX - minX) / 2;
-    const s = Math.max(sx, sy);
+    const s = Math.max((maxX - minX) / 2, (maxY - minY) / (yHigh - yLow));
     dist *= 1 + (s - 1) * 0.5;
-    const off = (minY + maxY) / 2 - (yLow + yHigh) / 2;
-    lookZ -= off * dist * 0.25;
+    lookZ -= ((minY + maxY) / 2 - (yLow + yHigh) / 2) * dist * 0.25;
   }
-  view.dist = dist; view.lookZ = lookZ;
+  view.overDist = dist; view.overZ = lookZ;
+  view.maxDist = dist * 1.05;
+  // default zoom shows about one lane-to-lane span across the screen
+  const tanH = Math.tan(THREE.MathUtils.degToRad(camera.fov / 2)) * camera.aspect;
+  view.defDist = Math.max(view.minDist, Math.min(view.maxDist, (w / h < 0.8 ? 12.5 : 17) / tanH));
+  view.dist = Math.max(view.minDist, Math.min(view.maxDist, view.dist));
+}
+function clampView() {
+  view.dist = Math.max(view.minDist, Math.min(view.maxDist, view.dist));
+  const k = (view.dist - view.minDist) / Math.max(1, view.maxDist - view.minDist); // zoomed out: less room to pan
+  const mx = ARENA.halfW - 2 - k * 12, mz = ARENA.halfL - 2 - k * 20;
+  view.fx = Math.max(-mx, Math.min(mx, view.fx));
+  view.fz = Math.max(-mz - 1, Math.min(mz + 3, view.fz));
+}
+function applyCamera() {
+  camera.position.set(view.fx, 0, view.fz).addScaledVector(BATTLE_DIR, view.dist);
+  camera.lookAt(view.fx, 0, view.fz);
+  camera.updateMatrixWorld();
+}
+function focusOn(x, z) { view.fx = x; view.fz = z + 2; clampView(); applyCamera(); }
+// how loud a sound at (x,z) is, given where the camera looks and how far out it is zoomed
+function ear(x, z) {
+  const d = Math.hypot(x - view.fx, z - view.fz);
+  const r = 8 + view.dist * 0.75;
+  return Math.max(0, Math.min(1, 1.25 - d / r)) ** 1.4;
 }
 
 function resize() {
@@ -102,7 +124,8 @@ function resize() {
   bloom.resolution.set(w / 2, h / 2);
   camera.aspect = w / h;
   camera.updateProjectionMatrix();
-  if (view.mode === 'battle') fitBattleCamera();
+  if (view.mode === 'battle') { fitBattleCamera(); clampView(); }
+  sizeMinimap();
   if (world) for (const p of [world.fx, world.smoke]) p.uniforms.uScale.value = (h * renderer.getPixelRatio()) / (2 * Math.tan(THREE.MathUtils.degToRad(camera.fov / 2)));
 }
 window.addEventListener('resize', resize);
@@ -249,7 +272,7 @@ $('deck-done').onclick = () => { if (store.deck.length === 8) { save(); show('me
 function buildGrimoire() {
   const g = $('grimoire');
   g.innerHTML = '';
-  for (const k of Object.keys(CARDS)) {
+  for (const k of Object.keys(CARDS).filter((c) => !CARDS[c].minion)) {
     const el = cardEl(k, store.deck.includes(k) ? 'in' : '');
     el.tabIndex = 0;
     el.onclick = () => {
@@ -338,6 +361,15 @@ function startBattle() {
       onKill: (k, v) => { killFeed(k, v); onKill(k, v); },
       onPlay: (team, key) => { if (team === 0) { stats.deployed++; stats.spent += CARDS[key].cost; } },
       onTowerHit: (t, amount, src) => onTowerHit(t, amount, src),
+      ear,
+      onLevel: (e) => onLevel(e),
+      onCardRank: (team, key, rank) => {
+        if (team !== 0) return;
+        stats.promotions++;
+        banner(`${CARDS[key].name} promoted — new ones deploy at Lv ${rank}`, 0);
+        audio.play('rankup');
+      },
+      onWave: (n) => { if (n === 1) banner('Recruit squads are marching every lane', null); audio.play('wave', 0.6); },
       onEnd: (r) => setTimeout(() => endBattle(r), 1800),
       onTowerDown: (t) => {
         if (selected >= 0) paintZone();
@@ -345,11 +377,12 @@ function startBattle() {
         if (t.team === 1 && Math.random() < 0.4) setTimeout(() => bot?.emote('Nice shot!'), 1200);
         crowns(true);
         slam(t.team === 1 ? (t.sub === 'keep' ? 'Command Post down' : 'Outpost destroyed') : (t.sub === 'keep' ? 'Command Post lost' : 'Outpost lost'),
-          t.team === 1 ? '+1 crown' : 'Hold the line', t.team === 1 ? 0 : 1);
+          t.team === 1 ? `+1 tower · +$2 · forward deploy` : 'Hold the line', t.team === 1 ? 0 : 1);
+        pings.push({ x: t.x, z: t.z, t: 0, col: '#fff' });
       },
     },
   });
-  stats = { kills: 0, lost: 0, deployed: 0, spent: 0, towerDmg: 0, byCard: {} };
+  stats = { kills: 0, lost: 0, deployed: 0, spent: 0, towerDmg: 0, byCard: {}, promotions: 0, levelUps: 0 };
   streak = { n: 0, t: 0 }; lastTick = -1;
   bot = new Bot(sim, rival.skill, { onEmote: (t) => bubble(t, 1) });
   view.mode = 'battle';
@@ -361,7 +394,9 @@ function startBattle() {
   buildTowerLabels();
   $('h-tag0').textContent = FACTION[0].short; $('h-tag1').textContent = FACTION[1].short;
   crowns();
+  buildMinimap();
   resize();
+  view.fx = 0; view.fz = 17; view.dist = view.defDist; clampView();
   selected = -1;
   intro = 3.6; introStep = -1;
   audio.play('vo_prepare');
@@ -435,7 +470,7 @@ function buildHand(initial) {
   hand.innerHTML = '';
   handEls = p.hand.map((k, i) => {
     const el = cardEl(k, initial ? 'enter' : '');
-    el.innerHTML += '<div class="veil"></div>';
+    el.innerHTML += '<div class="veil"></div><div class="rank"></div><div class="xpbar"><i></i></div>';
     el.addEventListener('pointerdown', (e) => onCardDown(e, i));
     hand.appendChild(el);
     return el;
@@ -451,7 +486,7 @@ function refreshHandSlot(i) {
   const p = sim.players[0];
   const old = handEls[i];
   const el = cardEl(p.hand[i], 'enter');
-  el.innerHTML += '<div class="veil"></div>';
+  el.innerHTML += '<div class="veil"></div><div class="rank"></div><div class="xpbar"><i></i></div>';
   el.addEventListener('pointerdown', (e) => onCardDown(e, i));
   old.replaceWith(el);
   handEls[i] = el;
@@ -526,6 +561,8 @@ function onTowerHit(t, amount, src) {
   pending.set(t, (pending.get(t) || 0) + amount);
   if (t.team === 0 && amount >= 1) {
     alertT = 0.35;
+    lastHit = t;
+    if (!t._pingT || sim.time - t._pingT > 1.5) { t._pingT = sim.time; pings.push({ x: t.x, z: t.z, t: 0, col: '#ff4a2a' }); }
     if (uchipT <= 0) {
       uchipT = 5;
       const c = $('uchip');
@@ -536,6 +573,22 @@ function onTowerHit(t, amount, src) {
     }
   }
 }
+let lastHit = null;
+$('uchip').addEventListener('pointerdown', (e) => { e.stopPropagation(); if (lastHit) focusOn(lastHit.x, lastHit.z); });
+
+function onLevel(e) {
+  if (!stats) return;
+  if (e.team === 0) stats.levelUps++;
+  tmp.set(e.x, (e.y || 0) + e.height + 0.4, e.z).project(camera);
+  if (tmp.z > 1 || Math.abs(tmp.x) > 1 || Math.abs(tmp.y) > 1) return;
+  const el = document.createElement('div');
+  el.className = `dmg lvl${e.team ? ' foe' : ''}`;
+  el.textContent = `Lv ${e.level}`;
+  el.style.left = `${((tmp.x + 1) / 2) * window.innerWidth}px`; el.style.top = `${((1 - tmp.y) / 2) * window.innerHeight}px`;
+  $('pops').appendChild(el);
+  setTimeout(() => el.remove(), 1300);
+}
+
 let popT = 0;
 function flushPops(dt) {
   popT -= dt;
@@ -545,6 +598,7 @@ function flushPops(dt) {
   for (const [t, amt] of pending) {
     if (amt < 1) continue;
     tmp.set(t.x + (Math.random() - 0.5) * 0.8, t.view.height * 0.75, t.z).project(camera);
+    if (tmp.z > 1 || Math.abs(tmp.x) > 1 || Math.abs(tmp.y) > 1) continue;
     const el = document.createElement('div');
     el.className = `dmg${t.team === 0 ? ' mine' : ''}${amt >= 300 ? ' big' : ''}`;
     el.textContent = `-${Math.round(amt)}`;
@@ -571,7 +625,7 @@ function updateIntro(dt) {
 
 function showStats() {
   const box = $('r-stats');
-  const items = [['Kills', stats.kills], ['Units lost', stats.lost], ['Deployed', stats.deployed], ['Tower dmg', Math.round(stats.towerDmg)]];
+  const items = [['Kills', stats.kills], ['Units lost', stats.lost], ['Level-ups', stats.levelUps], ['Deployed', stats.deployed], ['Tower dmg', Math.round(stats.towerDmg)]];
   box.innerHTML = items.map(([l], i) => `<div style="animation-delay:${0.15 + i * 0.08}s"><b data-v="${items[i][1]}">0</b><span>${l}</span></div>`).join('');
   const t0 = performance.now();
   const tick = () => {
@@ -657,6 +711,8 @@ function groundAt(cx, cy) {
 }
 function overField(cx, cy) {
   const b = $('bottom').getBoundingClientRect();
+  const m = $('minimap').getBoundingClientRect();
+  if (cx >= m.left && cx <= m.right && cy >= m.top && cy <= m.bottom) return false;
   return cy < b.top + 6;
 }
 
@@ -767,18 +823,185 @@ window.addEventListener('pointermove', (e) => {
 window.addEventListener('pointerup', (e) => {
   if (!dragging) return;
   dragging = false;
-  if (overField(e.clientX, e.clientY)) { if (!tryDeploy(e.clientX, e.clientY) && ghost) { /* keep selected for a retry */ } }
+  if (overField(e.clientX, e.clientY)) tryDeploy(e.clientX, e.clientY);
 });
-renderer.domElement.addEventListener('pointerdown', (e) => {
-  if (view.mode !== 'battle' || selected < 0 || dragging) return;
-  pointer.x = e.clientX; pointer.y = e.clientY; pointer.over = true;
-  tryDeploy(e.clientX, e.clientY);
+
+// field gestures: drag to pan, pinch or wheel to zoom, tap to deploy the selected card
+const touches = new Map();
+let pan = null, pinch = null;
+const canvasEl = renderer.domElement;
+function panBy(x0, y0, x1, y1) {
+  const a = groundAt(x0, y0), b = groundAt(x1, y1);
+  if (!a || !b) return;
+  view.fx += a.x - b.x; view.fz += a.z - b.z;
+  clampView(); applyCamera();
+}
+function pinchSpan() { const [a, b] = [...touches.values()]; return Math.hypot(a.x - b.x, a.y - b.y); }
+canvasEl.addEventListener('pointerdown', (e) => {
+  if (view.mode !== 'battle' || !sim || dragging) return;
+  canvasEl.setPointerCapture?.(e.pointerId);
+  touches.set(e.pointerId, { x: e.clientX, y: e.clientY });
+  if (touches.size === 1) pan = { id: e.pointerId, sx: e.clientX, sy: e.clientY, lx: e.clientX, ly: e.clientY, moved: false };
+  else if (touches.size === 2) { pinch = { span: pinchSpan(), dist: view.dist }; if (pan) pan.moved = true; }
+  pointer.x = e.clientX; pointer.y = e.clientY;
 });
+canvasEl.addEventListener('pointermove', (e) => {
+  if (!touches.has(e.pointerId)) return;
+  touches.set(e.pointerId, { x: e.clientX, y: e.clientY });
+  if (pinch && touches.size >= 2) { view.dist = pinch.dist * pinch.span / Math.max(20, pinchSpan()); clampView(); applyCamera(); return; }
+  if (pan && pan.id === e.pointerId) {
+    if (!pan.moved && Math.hypot(e.clientX - pan.sx, e.clientY - pan.sy) > 9) pan.moved = true;
+    if (pan.moved && intro <= 0) panBy(pan.lx, pan.ly, e.clientX, e.clientY);
+    pan.lx = e.clientX; pan.ly = e.clientY;
+  }
+});
+function endTouch(e) {
+  if (!touches.has(e.pointerId)) return;
+  touches.delete(e.pointerId);
+  if (touches.size < 2) pinch = null;
+  if (pan && pan.id === e.pointerId) {
+    if (!pan.moved && selected >= 0 && e.type === 'pointerup') { pointer.over = true; tryDeploy(e.clientX, e.clientY); }
+    pan = null;
+  }
+}
+canvasEl.addEventListener('pointerup', endTouch);
+canvasEl.addEventListener('pointercancel', endTouch);
+canvasEl.addEventListener('wheel', (e) => {
+  if (view.mode !== 'battle') return;
+  e.preventDefault();
+  const before = groundAt(e.clientX, e.clientY);
+  view.dist *= Math.exp(e.deltaY * 0.0012);
+  clampView(); applyCamera();
+  const after = groundAt(e.clientX, e.clientY);
+  if (before && after) { view.fx += before.x - after.x; view.fz += before.z - after.z; clampView(); applyCamera(); }
+}, { passive: false });
+
+const held = new Set();
 window.addEventListener('keydown', (e) => {
   if (view.mode !== 'battle' || !sim) return;
   if (e.key >= '1' && e.key <= '4') { audio.start(); select(Number(e.key) - 1); pointer.over = overField(pointer.x, pointer.y); }
   if (e.key === 'Escape') select(-1);
+  if (e.key === ' ') { focusOn(0, 17); e.preventDefault(); }
+  if (e.key === '+' || e.key === '=') { view.dist *= 0.88; clampView(); }
+  if (e.key === '-') { view.dist *= 1.12; clampView(); }
+  held.add(e.key.toLowerCase());
 });
+window.addEventListener('keyup', (e) => held.delete(e.key.toLowerCase()));
+window.addEventListener('blur', () => held.clear());
+function panKeys(dt) {
+  if (intro > 0) return;
+  let dx = 0, dz = 0;
+  if (held.has('a') || held.has('arrowleft')) dx--;
+  if (held.has('d') || held.has('arrowright')) dx++;
+  if (held.has('w') || held.has('arrowup')) dz--;
+  if (held.has('s') || held.has('arrowdown')) dz++;
+  // dragging a card to a screen edge scrolls the map
+  if (dragging && pointer.over) {
+    const w = window.innerWidth;
+    if (pointer.y < 80) dz--;
+    if (pointer.x < 28) dx--; else if (pointer.x > w - 28) dx++;
+  }
+  if (!dx && !dz) return;
+  const v = view.dist * 0.9 * dt;
+  view.fx += dx * v; view.fz += dz * v;
+  clampView();
+}
+
+// ---------- minimap ----------
+const mini = $('minimap'), mctx = mini.getContext('2d');
+let miniBg = null, miniT = 0;
+const pings = [];
+function sizeMinimap() {
+  const h = window.innerHeight, w = window.innerWidth;
+  const ch = Math.round(Math.min(190, Math.max(120, h * (w / h < 0.8 ? 0.17 : 0.28))));
+  const cw = Math.round(ch * ARENA.halfW / ARENA.halfL);
+  mini.style.width = `${cw}px`; mini.style.height = `${ch}px`;
+  const dpr = Math.min(2, window.devicePixelRatio || 1);
+  mini.width = cw * dpr; mini.height = ch * dpr;
+  mini.style.bottom = `${($('bottom')?.offsetHeight || 170) + 10}px`;
+  miniBg = null;
+}
+function mm(x, z) { return [((x + ARENA.halfW) / (ARENA.halfW * 2)) * mini.width, ((z + ARENA.halfL) / (ARENA.halfL * 2)) * mini.height]; }
+function buildMinimap() {
+  if (!nav) return;
+  const c = document.createElement('canvas'); c.width = mini.width; c.height = mini.height;
+  const g = c.getContext('2d');
+  const img = g.createImageData(c.width, c.height);
+  const onLane = (x, z) => {
+    const az = Math.abs(z);
+    if (az > BASE.z0 && Math.abs(x) < BASE.hx) return true;
+    if (az > LEG.z0 && az < LEG.z1) return true;
+    return Object.values(LANES).some((l) => Math.abs(x - l.x) < l.half && az < (l.x === 0 ? BASE.z0 : LEG.z1));
+  };
+  for (let py = 0; py < c.height; py++) for (let px = 0; px < c.width; px++) {
+    const x = (px / c.width) * ARENA.halfW * 2 - ARENA.halfW, z = (py / c.height) * ARENA.halfL * 2 - ARENA.halfL;
+    const f = nav.flagAt(x, z);
+    let col = [92, 74, 50];
+    if (onLane(x, z)) col = [176, 150, 108];
+    if (Math.abs(z) < RIVER.half && f & F.MIRE) col = [74, 60, 44];
+    if (f & F.THICKET) col = [col[0] * 0.65, col[1] * 0.7, col[2] * 0.6];
+    if (f & F.BLOCK) col = [34, 26, 18];
+    const i = (py * c.width + px) * 4;
+    img.data[i] = col[0]; img.data[i + 1] = col[1]; img.data[i + 2] = col[2]; img.data[i + 3] = 235;
+  }
+  g.putImageData(img, 0, 0);
+  miniBg = c;
+}
+function drawMinimap(dt) {
+  if (!sim) return;
+  for (const p of pings) p.t += dt;
+  while (pings.length && pings[0].t > 1.6) pings.shift();
+  miniT -= dt;
+  if (miniT > 0) return;
+  miniT = 1 / 20;
+  if (!miniBg) buildMinimap();
+  const W = mini.width, H = mini.height, k = W / (ARENA.halfW * 2);
+  mctx.clearRect(0, 0, W, H);
+  if (miniBg) mctx.drawImage(miniBg, 0, 0);
+  const css = (t) => `#${new THREE.Color(FACTION[t].glow).getHexString()}`;
+  for (const o of sim.objectives) {
+    const [x, y] = mm(o.def.x, o.def.z);
+    mctx.beginPath(); mctx.arc(x, y, o.def.r * k, 0, Math.PI * 2);
+    mctx.fillStyle = o.owner === null ? 'rgba(240,210,90,0.55)' : css(o.owner); mctx.fill();
+  }
+  for (const t of sim.towers) {
+    const [x, y] = mm(t.x, t.z), s = (t.sub === 'keep' ? 2.0 : 1.5) * k;
+    mctx.fillStyle = t.alive ? css(t.team) : 'rgba(30,24,18,0.8)';
+    mctx.fillRect(x - s, y - s, s * 2, s * 2);
+    mctx.lineWidth = Math.max(1, k * 0.35); mctx.strokeStyle = sim.isProtected(t) ? '#fff' : '#000';
+    mctx.strokeRect(x - s, y - s, s * 2, s * 2);
+  }
+  for (const e of sim.entities) {
+    if (!e.alive || e.kind === 'tower') continue;
+    if (e.team === 1 && sim.isHidden(e)) continue;
+    const [x, y] = mm(e.x, e.z);
+    mctx.fillStyle = css(e.team);
+    const r = (e.minion ? 0.32 : 0.5) * k + 0.6;
+    mctx.beginPath(); mctx.arc(x, y, r, 0, Math.PI * 2); mctx.fill();
+    if (!e.minion) { mctx.lineWidth = 1; mctx.strokeStyle = '#000'; mctx.stroke(); }
+  }
+  for (const p of pings) {
+    const [x, y] = mm(p.x, p.z);
+    mctx.beginPath(); mctx.arc(x, y, (1 + p.t * 3) * k * 1.4, 0, Math.PI * 2);
+    mctx.lineWidth = 2; mctx.strokeStyle = p.col; mctx.globalAlpha = Math.max(0, 1 - p.t / 1.6); mctx.stroke(); mctx.globalAlpha = 1;
+  }
+  // camera footprint
+  const corners = [[0, 0], [window.innerWidth, 0], [window.innerWidth, $('bottom').getBoundingClientRect().top], [0, $('bottom').getBoundingClientRect().top]].map(([cx, cy]) => groundAt(cx, cy));
+  if (corners.every(Boolean)) {
+    mctx.beginPath();
+    corners.forEach((p, i) => { const [x, y] = mm(p.x, p.z); if (i) mctx.lineTo(x, y); else mctx.moveTo(x, y); });
+    mctx.closePath(); mctx.lineWidth = Math.max(1.5, k * 0.4); mctx.strokeStyle = 'rgba(255,255,255,0.85)'; mctx.stroke();
+  }
+}
+function miniPoint(e) {
+  const r = mini.getBoundingClientRect();
+  const x = ((e.clientX - r.left) / r.width) * ARENA.halfW * 2 - ARENA.halfW, z = ((e.clientY - r.top) / r.height) * ARENA.halfL * 2 - ARENA.halfL;
+  focusOn(x, z);
+}
+mini.addEventListener('pointerdown', (e) => { if (intro > 0) return; e.stopPropagation(); mini.setPointerCapture?.(e.pointerId); mini._drag = true; miniPoint(e); });
+mini.addEventListener('pointermove', (e) => { if (mini._drag) miniPoint(e); });
+mini.addEventListener('pointerup', () => { mini._drag = false; });
+mini.addEventListener('pointercancel', () => { mini._drag = false; });
 
 // ---------- per-frame HUD ----------
 const tmp = new THREE.Vector3();
@@ -791,6 +1014,15 @@ function updateHud(dt) {
     const k = Math.min(1, p.souls / cost);
     if (k >= 1 && el.classList.contains('poor')) retrigger(el, 'ready');
     el.classList.toggle('poor', k < 1);
+    const key = p.hand[i], card = CARDS[key];
+    if (card.type !== 'spell') {
+      const rank = sim.cardRank(0, key), xp = sim.cardXp[0][key] || 0, at = XP.rankAt(card);
+      const lo = rank > 1 ? at[rank - 2] : 0, hi = at[rank - 1];
+      el.querySelector('.xpbar i').style.width = `${hi ? Math.min(100, ((xp - lo) / (hi - lo)) * 100) : 100}%`;
+      const r = el.querySelector('.rank');
+      const txt = rank > 1 ? `Lv ${rank}` : '';
+      if (r.textContent !== txt) { r.textContent = txt; if (txt) retrigger(r, 'pop'); }
+    }
     el.querySelector('.veil').style.transform = `scaleY(${1 - k})`;
   }
   const whole = Math.floor(p.souls);
@@ -810,9 +1042,8 @@ function updateHud(dt) {
   flushPops(dt);
   $('h-lbl').textContent = sim.phase === 'overtime' ? 'Sudden death' : 'Time left';
   $('h-x2').hidden = !sim.doubleSouls();
-  const a = sim.altar;
-  $('h-altar').textContent = a.owner === null ? 'Supply drop · open' : a.owner === 0 ? 'Supply drop · yours (+40%)' : 'Supply drop · rival (+40%)';
-  $('h-altar').style.color = a.owner === null ? '' : a.owner === 0 ? 'var(--soul)' : 'var(--blood)';
+  const chips = sim.objectives.map((o) => `<span title="${o.def.name}: ${o.def.blurb}" style="color:${o.owner === null ? 'var(--ash)' : o.owner === 0 ? 'var(--soul)' : 'var(--blood)'}">${{ drop: 'Drop', armory: 'Arm', medic: 'Med' }[o.def.id]}</span>`).join(' · ');
+  if ($('h-altar').innerHTML !== chips) $('h-altar').innerHTML = chips;
   pingT -= dt;
   if (pingT <= 0) {
     pingT = 1;
@@ -826,11 +1057,15 @@ function updateHud(dt) {
     const t = L.t;
     if (!t.alive) { L.el.style.display = 'none'; continue; }
     tmp.set(t.x, t.view.height + 0.2, t.z).project(camera);
+    const off = tmp.z > 1 || Math.abs(tmp.x) > 1.1 || Math.abs(tmp.y) > 1.1;
+    L.el.style.display = off ? 'none' : '';
+    if (off) continue;
     L.el.style.left = `${((tmp.x + 1) / 2) * w}px`;
     L.el.style.top = `${((1 - tmp.y) / 2) * h}px`;
     const hp = Math.ceil(t.hp);
     if (hp !== L.last) { L.last = hp; L.hp.textContent = hp; L.bar.style.width = `${(t.hp / t.maxHp) * 100}%`; L.el.classList.toggle('low', t.hp / t.maxHp < 0.3); }
-    L.zz.textContent = t.sub === 'keep' && !t.active && t.team === 0 ? 'Standby' : '';
+    const sh = sim.isProtected(t);
+    if (L.sh !== sh) { L.sh = sh; L.zz.textContent = sh ? 'Shielded' : ''; L.el.classList.toggle('shielded', sh); }
   }
 }
 
@@ -845,18 +1080,19 @@ function frame() {
     world.update(dt, sim);
     updateGhost();
     updateHud(dt);
-    camera.position.set(0, 0, view.lookZ).addScaledVector(BATTLE_DIR, view.dist);
+    panKeys(dt);
     if (intro > 0) {
-      // swoop in from a low, wide orbit to the battle framing
-      const k = Math.min(1, Math.max(0, intro / 3.6)), e = k * k * (3 - 2 * k);
-      const yaw = e * 0.55, d = view.dist * (1 + e * 0.3);
-      const dir = BATTLE_DIR.clone().applyAxisAngle(new THREE.Vector3(0, 1, 0), yaw);
-      dir.y *= 1 - e * 0.45;
-      camera.position.set(0, 0, view.lookZ).addScaledVector(dir.normalize(), d);
-    }
-    camera.lookAt(0, 0, view.lookZ);
+      // open on the whole map, then swoop down to your base
+      const k = Math.min(1, Math.max(0, (intro - 0.4) / 3.2)), e = k * k * (3 - 2 * k);
+      const fz = 17 + (view.overZ - 17) * e, d = view.defDist + (view.overDist - view.defDist) * e;
+      const dir = BATTLE_DIR.clone().applyAxisAngle(new THREE.Vector3(0, 1, 0), e * 0.12).normalize();
+      camera.position.set(0, 0, fz).addScaledVector(dir, d);
+      camera.lookAt(0, 0, fz);
+      view.fx = 0; view.fz = 17; view.dist = view.defDist;
+    } else applyCamera();
+    drawMinimap(dt);
     if (sim.shake > 0) {
-      const s = sim.shake * 0.25;
+      const s = sim.shake * 0.25 * (view.dist / 26);
       camera.position.x += (Math.random() - 0.5) * s; camera.position.y += (Math.random() - 0.5) * s;
       sim.shake = Math.max(0, sim.shake - dt * 2.2);
     }
@@ -899,7 +1135,7 @@ async function boot() {
 boot();
 
 // test hook (harmless in play)
-window.__breach = { get sim() { return sim; }, get bot() { return bot; }, audio, startBattle: () => { rival = rival || { name: 'Test', house: 'Test', trophies: 0, skill: 0.5, ping: 40 }; startBattle(); }, select, tryDeploy, store };
+window.__breach = { get sim() { return sim; }, get bot() { return bot; }, audio, startBattle: () => { rival = rival || { name: 'Test', house: 'Test', trophies: 0, skill: 0.5, ping: 40 }; startBattle(); }, select, tryDeploy, store, focusOn, skipIntro: () => { intro = 0; $('count').replaceChildren(); } };
 window.__cards = CARDS;
 window.__Bot = Bot;
 window.__view = view;

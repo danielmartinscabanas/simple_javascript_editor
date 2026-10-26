@@ -1,14 +1,16 @@
-import { CARDS, WALL_HALF as RIFT_HALF, ALTAR, EMOTES } from './config.js';
+import { CARDS, RIVER, LANES, EMOTES } from './config.js';
+
+const EDGE = -(RIVER.half + 0.6); // our side of the river, in the bot's frame
 
 // Rival AI. Plays the rival team (1, -z side). Ignores units it cannot see (hidden in thickets).
 const ROLE = {
-  rifle: ['ranged', 'antiAir'], smg: ['swarm', 'antiAir', 'dps'], sniper: ['ranged', 'antiAir'], heavy: ['tank', 'splash'],
+  recruit: ['ranged'], rifle: ['ranged', 'antiAir'], smg: ['swarm', 'antiAir', 'dps'], sniper: ['ranged', 'antiAir'], heavy: ['tank', 'splash'],
   mech: ['tank', 'win'], k9: ['melee', 'dps'], breacher: ['win', 'melee'], drone: ['air', 'antiAir'], swarm: ['air', 'antiAir', 'swarm'],
   sentry: ['building', 'antiAir'], frag: ['spell'], smoke: ['support'], flash: ['spell'], molotov: ['spell'],
 };
 
 export function rivalDeck() {
-  const keys = Object.keys(CARDS);
+  const keys = Object.keys(CARDS).filter((k) => !CARDS[k].minion);
   for (let tries = 0; tries < 200; tries++) {
     const d = keys.slice().sort(() => Math.random() - 0.5).slice(0, 8);
     const has = (f) => d.filter((k) => f(k)).length;
@@ -53,32 +55,36 @@ export class Bot {
     if (this.thinkT > 0) return;
     const sk = this.skill;
     this.thinkT = (1.1 - sk * 0.75) * (0.7 + Math.random() * 0.6);
-
-    const threats = this.visibleEnemies().filter((e) => e.z < 4.5);
     const souls = this.me.souls;
 
-    if (threats.length) { if (this.defend(threats)) return; }
+    // threats: enemy troops on our side of the river or closing on one of our outposts
+    const mine = sim.towers.filter((t) => t.alive && t.team === this.team).map((t) => ({ t, x: t.x, z: this.Z(t.z) }));
+    const threats = this.visibleEnemies().filter((e) => !e.ref.minion || e.z < -8)
+      .filter((e) => e.z < 2.5 || mine.some((t) => Math.hypot(t.x - e.x, t.z - e.z) < t.t.range + 2.5));
+    if (threats.length) { if (this.defend(threats, mine)) return; }
 
-    // spell finisher
+    // spell finisher on an exposed outpost
     for (const t of sim.towers) {
-      if (!t.alive || t.team === this.team) continue;
+      if (!t.alive || t.team === this.team || sim.isProtected(t)) continue;
       const hand = this.me.hand;
       if (hand.includes('frag') && t.hp <= CARDS.frag.dmg * CARDS.frag.towerMul && souls >= CARDS.frag.cost) {
         return this.queue('frag', t.x, this.Z(t.z), 0.3);
       }
     }
     // opportunistic spell on clustered enemies anywhere
-    const cluster = this.cluster(this.visibleEnemies(), 2.4);
+    const cluster = this.cluster(this.visibleEnemies().filter((e) => !e.ref.minion), 2.4);
     if (cluster && cluster.count >= 4 && Math.random() < 0.3 + sk * 0.5) {
       const k = this.pickSpell(cluster);
       if (k) return this.queue(k, cluster.x, cluster.z + 0.6, 0.2);
     }
 
-    // altar: if the player holds it and we have cheap units, contest it
-    const altarFoe = sim.altar.owner === 1 - this.team, altarFree = sim.altar.owner === null;
-    if ((altarFoe && souls >= 5 && Math.random() < 0.25 + sk * 0.3) || (altarFree && souls >= 7 && Math.random() < 0.15 + sk * 0.2)) {
-      const cheap = this.me.hand.find((k) => ['smg', 'k9', 'rifle'].includes(k) && CARDS[k].cost <= souls);
-      if (cheap) return this.queue(cheap, (Math.random() - 0.5) * 1.2, -(RIFT_HALF + 0.6), 0.2);
+    // river objectives: contest whatever the rival holds, or grab free ones when flush
+    for (const ob of sim.objectives) {
+      const foe = ob.owner === 1 - this.team, free = ob.owner === null;
+      if ((foe && souls >= 5 && Math.random() < 0.2 + sk * 0.25) || (free && souls >= 7 && Math.random() < 0.12 + sk * 0.15)) {
+        const cheap = this.me.hand.find((k) => ['smg', 'k9', 'rifle', 'heavy'].includes(k) && CARDS[k].cost <= souls);
+        if (cheap) return this.queue(cheap, ob.def.x + (Math.random() - 0.5), EDGE - 0.4, 0.2);
+      }
     }
 
     // build a push
@@ -111,14 +117,14 @@ export class Bot {
     const T = this.team;
     let px = x, pz = z;
     if (CARDS[key].type !== 'spell') {
-      pz = Math.min(pz, -(RIFT_HALF + 0.3));
-      const ok = (zz) => sim.canDeploy(T, key, px, this.Z(zz));
-      if (!ok(pz)) {
+      const ok = (xx, zz) => sim.canDeploy(T, key, xx, this.Z(zz));
+      if (!ok(px, pz)) {
+        pz = Math.min(pz, EDGE);
         const n = sim.nav.nearestWalkable(px, this.Z(pz), 3);
         if (!n) return false;
         px = n[0]; pz = this.Z(n[1]);
-        // walk back toward our keep until valid
-        for (let s = 0; s < 12 && !ok(pz); s++) pz -= 0.5;
+        for (let s = 0; s < 16 && !ok(px, pz); s++) pz -= 0.5;
+        if (!ok(px, pz)) return false;
       }
     }
     return sim.play(T, idx, px, this.Z(pz));
@@ -142,15 +148,14 @@ export class Bot {
     return null;
   }
 
-  defend(threats) {
-    const sim = this.sim;
+  defend(threats, mine) {
     const me = this.me;
     const c = this.cluster(threats, 2.6);
     const main = threats.reduce((a, b) => (b.hp > a.hp ? b : a));
     const anyAir = threats.some((t) => t.air);
     const allAir = threats.every((t) => t.air);
     const swarm = c.count >= 3;
-    const urgent = threats.some((t) => t.z < -2);
+    const urgent = threats.some((t) => mine.some((m) => Math.hypot(m.x - t.x, m.z - t.z) < m.t.range + 1));
     const score = (k) => {
       const card = CARDS[k], r = ROLE[k];
       if (card.cost > me.souls) return -1;
@@ -173,48 +178,61 @@ export class Bot {
     let best = null, bs = 0;
     for (const k of me.hand) { const s = score(k); if (s > bs) { bs = s; best = k; } }
     if (!best) return false;
-    // wait for the threat to come closer unless it's already hurting us
-    if (!urgent && main.z > 1 && Math.random() < 0.6) return false;
+    // let a lone push come under our outposts unless it's already hurting us
+    if (!urgent && main.z > -4 && Math.random() < 0.6) return false;
     const card = CARDS[best];
     let x, z;
     if (card.type === 'spell') { x = c.x; z = c.z - 0.4; }
-    else if (card.type === 'building') { x = Math.sign(main.x) * 1.2 || 0.8; z = -8.4; }
-    else if (card.range > 2) {
-      // ranged: behind the nearest friendly tower, away from the threat
-      const tw = sim.towers.filter((t) => t.alive && t.team === this.team).sort((a, b) => Math.hypot(a.x - main.x, this.Z(a.z) - main.z) - Math.hypot(b.x - main.x, this.Z(b.z) - main.z))[0];
-      x = tw ? tw.x * 0.85 : main.x; z = tw ? this.Z(tw.z) - 1.8 : -10;
-    } else {
-      x = main.x; z = Math.min(main.z - 1.4, -(RIFT_HALF + 0.5));
+    else {
+      // between the threat and the outpost it is heading for
+      const guard = mine.slice().sort((a, b) => Math.hypot(a.x - main.x, a.z - main.z) - Math.hypot(b.x - main.x, b.z - main.z))[0];
+      const gx = guard ? guard.x : main.x, gz = guard ? guard.z : -20;
+      const back = card.type === 'building' ? 2.6 : card.range > 2 ? 2.4 : 1.0;
+      const dx = main.x - gx, dz = main.z - gz, d = Math.hypot(dx, dz) || 1;
+      const k = Math.max(0, Math.min(1, (d - back - 1.5) / d));
+      x = gx + dx * k; z = Math.min(EDGE, gz + dz * k);
     }
     this.queue(best, x, z, 0.1);
     if (main.card.cost >= 5 && Math.random() < 0.3) this.emote('Hold the line.');
     return true;
   }
 
+  // lane to push: the one whose next exposed enemy outpost is weakest
+  pickLane() {
+    const sim = this.sim;
+    let best = null;
+    for (const [id, lane] of Object.entries(LANES)) {
+      const t = sim.towers.filter((o) => o.alive && o.team !== this.team && o.lane === id && !sim.isProtected(o) && o.sub !== 'keep')
+        .sort((a, b) => a.tier - b.tier)[0];
+      const keepOpen = sim.towers.find((o) => o.alive && o.team !== this.team && o.sub === 'keep' && !sim.isProtected(o));
+      const target = t || (id === 'M' ? keepOpen : null);
+      const score = (target ? 1 - target.hp / target.maxHp + (target.sub === 'keep' ? 1 : 0) : -0.5) + Math.random() * 0.6;
+      if (!best || score > best.score) best = { id, lane, target, score };
+    }
+    return best;
+  }
+
   attack() {
     const sim = this.sim, me = this.me;
-    // pick lane: weakest enemy tower side, or the altar causeway
-    const towers = sim.towers.filter((t) => t.alive && t.team !== this.team && t.sub === 'bell');
-    let lane;
-    const r = Math.random();
-    if (r < 0.22) lane = 0;
-    else if (towers.length) lane = towers.reduce((a, b) => (b.hp < a.hp ? b : a)).x > 0 ? 6.2 : -6.2;
-    else lane = Math.random() < 0.5 ? -4 : 4;
+    const pick = this.pickLane();
+    const lx = pick.lane.x;
+    // forward base: our deploy zone around the enemy outpost we already took in this lane
+    const taken = sim.towers.filter((o) => !o.alive && o.team !== this.team && o.lane === pick.id).sort((a, b) => b.tier - a.tier)[0];
+    const frontZ = taken ? this.Z(taken.z) - 1.5 : EDGE - 0.3;
     const tank = me.hand.find((k) => ROLE[k].includes('tank') && CARDS[k].cost <= me.souls);
     if (tank) {
-      const tz = CARDS[tank].speed < 1 ? -13.2 : -4.0;
-      const tx = CARDS[tank].speed < 1 ? Math.sign(lane || 1) * 2.4 : lane * 0.95;
+      const slow = CARDS[tank].speed < 1;
+      const tz = slow && !taken ? -12 : frontZ, tx = slow && !taken && lx !== 0 ? lx : lx * 0.98;
       this.queue(tank, tx, tz, 0.1);
       const support = me.hand.find((k) => k !== tank && CARDS[k].type === 'unit' && !ROLE[k].includes('tank'));
-      if (support) this.pending.push({ key: support, x: tx * 0.9, z: tz - 1.2, t: CARDS[tank].speed < 1 ? 4.5 : 1.6 });
-      if (me.hand.includes('smoke') && Math.random() < 0.5) this.pending.push({ key: 'smoke', x: tx, z: 6.5, t: CARDS[tank].speed < 1 ? 14 : 6 });
+      if (support) this.pending.push({ key: support, x: tx, z: tz - 1.4, t: slow ? 4 : 1.6 });
+      if (me.hand.includes('smoke') && Math.random() < 0.5 && pick.target) this.pending.push({ key: 'smoke', x: pick.target.x, z: this.Z(pick.target.z) - 1.5, t: slow ? 16 : 7 });
       return;
     }
-    if (me.hand.includes('breacher') && me.souls >= 4 && Math.random() < 0.5 && towers.length) {
-      const t = towers[Math.floor(Math.random() * towers.length)];
-      return this.queue('breacher', t.x * 0.9, -(RIFT_HALF + 0.6), 0.1);
+    if (me.hand.includes('breacher') && me.souls >= 4 && Math.random() < 0.5 && pick.target) {
+      return this.queue('breacher', lx, frontZ, 0.1);
     }
     const unit = me.hand.filter((k) => CARDS[k].type === 'unit' && CARDS[k].cost <= me.souls).sort((a, b) => CARDS[b].cost - CARDS[a].cost)[0];
-    if (unit) this.queue(unit, lane * 0.95, -(RIFT_HALF + 0.5), 0.1);
+    if (unit) this.queue(unit, lx, frontZ, 0.1);
   }
 }
