@@ -4,16 +4,20 @@ A 3D lane-battler (Three.js) where Counter-Terrorists face Insurgents across a d
 
 Serve the folder over HTTP (`python3 -m http.server`); ES modules don't load from `file://`.
 
-## Map: Dustline
+## Maps
 
-A three-lane map (40 × 68 m) in the spirit of a MOBA, played with cards:
+Pick a map in the menu. Every map is mirrored across its centre line, so both sides play exactly the same ground (`js/maps.js` holds the definitions; the player half is authored and the rival half is generated).
 
-- **Lanes:** Long (left, open and mined), Mid (straight over the river), Tunnels (right; a walled stretch at the river hides troops). Each lane has an outer and an inner outpost; the Command Post sits in the base.
-- **Shields:** an inner outpost can't be damaged while its lane's outer outpost stands; the Command Post can't be damaged until any inner outpost falls. Destroying the Command Post wins.
-- **River objectives:** Supply Drop (funds +40%), Armory (troops +15% damage), Med Station (troops heal 1.5%/s). Capture by holding the pad with troops alone.
-- **Jungle:** flat-roofed blocks, containers and walls between the lanes, with deep-sand patches and mines.
-- **Recruit waves:** every 30 s each base sends three recruits down every lane. Card units march the nearest lane when nothing is in sight.
-- **Deploying:** your side of the river, plus a forward zone around each enemy outpost you destroy (+$2 each).
+- **Dustline** (desert): three lanes (Long, Mid, Tunnels) split by a dry riverbed with bridges; jungle blocks between the lanes; Supply Drop, Armory and Med Station in the river.
+- **Overpass** (urban): an octagonal city block. A canal cuts off the B side and is crossed only by footbridges and the highway overpass. Two outpost lanes (A past the park, B through the Monster tunnel) plus the Connector, a walled passage from each base to the central plaza. Objectives: Supply Drop, Construction Site, Pharmacy.
+- **Citadel** (medieval): each side holds a walled castle behind a moat; the wall opens only at two gatehouses with drawbridges. A village lies between the castles with the Market, the Smithy and the Chapel; orchards on the flanks hide troops.
+
+## Rules
+
+- **Shields:** an inner outpost can't be damaged while its lane's outer outpost stands; the Command Post can't be damaged until any inner outpost falls. Destroying the Command Post wins. Two-lane maps have tougher outposts.
+- **Objectives:** funds +40%, troops +15% damage, troops heal 1.5%/s. Capture by holding the pad with troops alone.
+- **Recruit waves:** every 30 s each base sends three recruits down every route. Card units march the nearest route when nothing is in sight.
+- **Deploying:** your half of the map, plus a forward zone around each enemy outpost you destroy (+$2 each).
 - **Veterancy:** units earn XP in combat (time fighting, damage, kills) and level up to 4 (+HP, +damage, faster fire; chevrons overhead). XP a card's units earn also ranks the card up, so later deployments start at a higher level.
 - **Match:** 8 minutes (double funds in the last 2), then 2 minutes of sudden death; without a Command Post kill, more outposts destroyed wins.
 - **Camera:** drag to pan, pinch/scroll to zoom, tap the minimap; WASD/arrows, +/-, Space for base.
@@ -40,6 +44,9 @@ A three-lane map (40 × 68 m) in the spirit of a MOBA, played with cards:
 | Rocket launcher, airstrike jet | Kenney, Space Kit (weapon rifle, racer craft) |
 | Knife | KayKit, Fantasy Weapons Bits (dagger) |
 | Riot shield, engineer's hammer | Kenney, Survival Kit (metal panel, hammer) |
+| Overpass city blocks, cars, park trees, road furniture | Kenney, City Kit Commercial / Suburban / Industrial / Roads; Car Kit |
+| Citadel walls, gatehouses, drawbridges, siege engines | Kenney, Castle Kit |
+| Citadel houses, market stalls, fountain, hedges, trees | Kenney, Fantasy Town Kit |
 | Towers and walls | Kenney, Castle Kit |
 | Drones, sentry turret | Kenney, Tower Defense Kit and Space Kit |
 | Crates, grenade | Kenney, Blaster Kit; Survival Kit; Retro Urban Kit |
@@ -49,4 +56,4 @@ A three-lane map (40 × 68 m) in the spirit of a MOBA, played with cards:
 | Victory fanfare, victory and defeat songs | "Classic fanfare lick" by fvcalderan; "Town Theme RPG" and "Crystal Cave" by cynicmusic (OpenGameArt, CC0) |
 | Music | "Battle Theme A" by cynicmusic; "Head in the Sand" by congusbongus (OpenGameArt, CC0) |
 
-License files are in `assets/licenses/` and `assets/audio/`. `js/assets-data.js` is `assets/models/*.glb` base64-packed (some hosts won't serve `.glb`).
+License files are in `assets/licenses/` and `assets/audio/`. `js/assets-data.js` packs the shared models; `js/assets-urban.js` and `js/assets-castle.js` pack each map's props and load only when that map is chosen (some hosts won't serve `.glb`).

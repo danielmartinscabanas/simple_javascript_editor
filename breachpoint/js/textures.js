@@ -325,3 +325,80 @@ export function plaster(seed) {
   for (let y = 32; y < 256; y += 32) { ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(256, y); ctx.stroke(); }
   return tex(c, 1);
 }
+
+// ---------- grass, asphalt and concrete for the urban and castle maps ----------
+export function grass(seed, tint = [0.42, 0.62, 0.28]) {
+  const rand = rng(seed);
+  const [c, ctx] = canvas(512, 512);
+  ctx.fillStyle = `rgb(${tint[0] * 200},${tint[1] * 200},${tint[2] * 200})`;
+  ctx.fillRect(0, 0, 512, 512);
+  noiseLayer(ctx, 512, 512, rand, 6, 0.4, [tint[0] * 1.2, tint[1] * 1.2, tint[2] * 1.2]);
+  for (let i = 0; i < 2600; i++) {
+    const x = rand() * 512, y = rand() * 512, l = 3 + rand() * 6;
+    const g = 90 + rand() * 90;
+    ctx.strokeStyle = `rgba(${g * tint[0] * 1.6},${g * tint[1] * 1.5},${g * tint[2] * 1.2},${0.25 + rand() * 0.35})`;
+    ctx.lineWidth = 1;
+    ctx.beginPath(); ctx.moveTo(x, y); ctx.lineTo(x + (rand() - 0.5) * 3, y - l); ctx.stroke();
+  }
+  return tex(c, 1);
+}
+
+export function asphalt(seed, lines = true) {
+  const rand = rng(seed);
+  const [c, ctx] = canvas(512, 512);
+  ctx.fillStyle = '#4a4a4c';
+  ctx.fillRect(0, 0, 512, 512);
+  noiseLayer(ctx, 512, 512, rand, 6, 0.35, [0.55, 0.55, 0.57]);
+  for (let i = 0; i < 4000; i++) {
+    const v = 40 + rand() * 120;
+    ctx.fillStyle = `rgba(${v},${v},${v + 4},${0.25 + rand() * 0.4})`;
+    ctx.fillRect(rand() * 512, rand() * 512, 1 + rand() * 2, 1 + rand() * 2);
+  }
+  // patches and cracks
+  for (let i = 0; i < 14; i++) {
+    ctx.fillStyle = `rgba(20,20,22,${0.15 + rand() * 0.15})`;
+    ctx.fillRect(rand() * 512, rand() * 512, 30 + rand() * 90, 20 + rand() * 60);
+  }
+  ctx.strokeStyle = 'rgba(15,15,15,0.45)';
+  for (let i = 0; i < 10; i++) {
+    ctx.beginPath(); let x = rand() * 512, y = rand() * 512; ctx.moveTo(x, y);
+    for (let k = 0; k < 6; k++) { x += (rand() - 0.5) * 40; y += (rand() - 0.5) * 40; ctx.lineTo(x, y); }
+    ctx.stroke();
+  }
+  if (lines) {
+    ctx.fillStyle = 'rgba(235,205,90,0.75)';
+    for (let y = 10; y < 512; y += 64) ctx.fillRect(250, y, 10, 36);
+  }
+  return tex(c, 1);
+}
+
+export function concrete(seed) {
+  const rand = rng(seed);
+  const [c, ctx] = canvas(512, 512);
+  ctx.fillStyle = '#a7a39b';
+  ctx.fillRect(0, 0, 512, 512);
+  noiseLayer(ctx, 512, 512, rand, 5, 0.25, [0.75, 0.74, 0.7]);
+  ctx.strokeStyle = 'rgba(70,66,60,0.55)'; ctx.lineWidth = 2;
+  for (let p = 0; p <= 512; p += 128) { ctx.beginPath(); ctx.moveTo(p, 0); ctx.lineTo(p, 512); ctx.stroke(); ctx.beginPath(); ctx.moveTo(0, p); ctx.lineTo(512, p); ctx.stroke(); }
+  for (let i = 0; i < 30; i++) {
+    const x = rand() * 512, y = rand() * 512, r = 10 + rand() * 40;
+    const g = ctx.createRadialGradient(x, y, 0, x, y, r);
+    g.addColorStop(0, 'rgba(60,55,50,0.18)'); g.addColorStop(1, 'rgba(0,0,0,0)');
+    ctx.fillStyle = g; ctx.fillRect(x - r, y - r, r * 2, r * 2);
+  }
+  return tex(c, 1);
+}
+
+export function water(seed) {
+  const rand = rng(seed);
+  const [c, ctx] = canvas(256, 256);
+  ctx.fillStyle = '#2f5d73';
+  ctx.fillRect(0, 0, 256, 256);
+  noiseLayer(ctx, 256, 256, rand, 5, 0.4, [0.35, 0.6, 0.75]);
+  ctx.strokeStyle = 'rgba(200,230,240,0.18)';
+  for (let i = 0; i < 60; i++) {
+    const x = rand() * 256, y = rand() * 256;
+    ctx.beginPath(); ctx.moveTo(x, y); ctx.quadraticCurveTo(x + 8, y - 3, x + 16 + rand() * 10, y); ctx.stroke();
+  }
+  return tex(c, 1);
+}

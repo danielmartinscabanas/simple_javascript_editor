@@ -1,6 +1,6 @@
 import * as THREE from 'three';
 import {
-  ARENA, RIVER, TOWERS, CARDS, MINE, OBJECTIVES, SOULS, MATCH, FACTION, ROUTES, WAVES, BOUNTY, XP,
+  ARENA, MAP, TOWERS, CARDS, MINE, OBJECTIVES, SOULS, MATCH, FACTION, ROUTES, WAVES, BOUNTY, XP,
 } from './config.js';
 import { F, ALL_MINES } from './nav.js';
 import { buildModel, bellTower, cathedralKeep, healthBar, teamMats, crow, playClip, syncWeapon } from './models.js';
@@ -67,6 +67,7 @@ export class Sim {
 
   mineArmed(def) { return this.mineT[ALL_MINES.indexOf(def)] <= 0; }
   objOwner(id) { return this.objectives.find((o) => o.def.id === id)?.owner ?? null; }
+  objBonus(id) { return this.objectives.find((o) => o.def.id === id)?.def.bonus || 0; }
 
   // Inner outposts are shielded while their lane's outer one stands; the Command Post while all inner ones do.
   isProtected(t) {
@@ -78,7 +79,7 @@ export class Sim {
 
   // Own side of the river, plus a forward zone around each enemy outpost you have destroyed.
   inZone(team, x, z) {
-    if (team === 0 ? z >= RIVER.half + 0.2 : z <= -(RIVER.half + 0.2)) return true;
+    if (team === 0 ? z >= MAP.deployEdge : z <= -MAP.deployEdge) return true;
     return this.towers.some((t) => !t.alive && t.team !== team && Math.hypot(x - t.x, z - t.z) < 6.5);
   }
 
@@ -590,7 +591,7 @@ export class Sim {
   damage(e, amount, src) {
     if (!e.alive) return;
     if (e.kind === 'tower' && this.isProtected(e)) return;
-    if (src && src.kind !== 'tower' && this.objOwner('armory') === src.team) amount *= 1 + OBJECTIVES[1].bonus;
+    if (src && src.kind !== 'tower' && this.objOwner('armory') === src.team) amount *= 1 + this.objBonus('armory');
     if (src && src.buffDmg) amount *= src.buffDmg;
     if (e.card?.shield && src && (src.kind === 'tower' || (src.range || 0) > 1.5)) {
       // the riot shield blocks fire from the front
@@ -678,7 +679,7 @@ export class Sim {
       return k < 1;
     }, dispose: () => { this.scene.remove(v); } });
     const own = t.team === 0;
-    const laneName = { L: 'Long', M: 'Mid', R: 'Tunnels' }[t.lane];
+    const laneName = MAP.laneNames[t.lane] || t.lane;
     if (t.tier === 1) this.hooks.onMessage?.(own ? `${laneName}: your inner outpost is exposed` : `${laneName}: rival inner outpost exposed`, 1 - t.team);
     if (t.tier === 2 && this.towers.filter((o) => o.team === t.team && o.tier === 2 && !o.alive).length === 1) {
       this.hooks.onMessage?.(own ? 'Your Command Post shield is down' : 'Rival Command Post shield is down', 1 - t.team);
@@ -788,7 +789,7 @@ export class Sim {
     // funds
     for (const p of this.players) {
       let rate = SOULS.regen * (this.doubleSouls() ? 2 : 1);
-      if (this.objOwner('drop') === p.team) rate *= 1 + OBJECTIVES[0].bonus;
+      if (this.objOwner('drop') === p.team) rate *= 1 + this.objBonus('drop');
       p.souls = Math.min(SOULS.max, p.souls + rate * dt);
     }
     this.waveT -= dt;
@@ -815,7 +816,7 @@ export class Sim {
       }
       if (e.card?.heal || e.card?.repair) this.supportPulse(e, dt);
       if (e.kind === 'tower' && !e.active) continue;
-      if (medic === e.team && e.kind === 'unit' && e.hp < e.maxHp) e.hp = Math.min(e.maxHp, e.hp + e.maxHp * OBJECTIVES[2].bonus * dt);
+      if (medic === e.team && e.kind === 'unit' && e.hp < e.maxHp) e.hp = Math.min(e.maxHp, e.hp + e.maxHp * this.objBonus('medic') * dt);
       if (e.kind !== 'tower' && this.time - e.hurtT < 1.5) this.gainXp(e, XP.combatPerSec * dt);
       if (e.kind === 'unit' && !e.air) {
         const inT = !!(this.nav.flagAt(e.x, e.z) & F.THICKET);

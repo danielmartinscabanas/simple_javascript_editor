@@ -1,6 +1,7 @@
-import { CARDS, RIVER, LANES, EMOTES } from './config.js';
+import { CARDS, MAP, ROUTES, EMOTES } from './config.js';
 
-const EDGE = -(RIVER.half + 0.6); // our side of the river, in the bot's frame
+// just inside our deploy zone, in the bot's frame (its base is at -z)
+const edge = () => -(MAP.deployEdge + 0.5);
 
 // Rival AI. Plays the rival team (1, -z side). Ignores units it cannot see (hidden in thickets).
 const ROLE = {
@@ -89,7 +90,7 @@ export class Bot {
       const foe = ob.owner === 1 - this.team, free = ob.owner === null;
       if ((foe && souls >= 5 && Math.random() < 0.2 + sk * 0.25) || (free && souls >= 7 && Math.random() < 0.12 + sk * 0.15)) {
         const cheap = this.me.hand.find((k) => ['smg', 'k9', 'rifle', 'heavy'].includes(k) && CARDS[k].cost <= souls);
-        if (cheap) return this.queue(cheap, ob.def.x + (Math.random() - 0.5), EDGE - 0.4, 0.2);
+        if (cheap) return this.queue(cheap, ob.def.x + (Math.random() - 0.5), edge() - 0.4, 0.2);
       }
     }
 
@@ -125,7 +126,7 @@ export class Bot {
     if (CARDS[key].type !== 'spell') {
       const ok = (xx, zz) => sim.canDeploy(T, key, xx, this.Z(zz));
       if (!ok(px, pz)) {
-        pz = Math.min(pz, EDGE);
+        pz = Math.min(pz, edge());
         const n = sim.nav.nearestWalkable(px, this.Z(pz), 3);
         if (!n) return false;
         px = n[0]; pz = this.Z(n[1]);
@@ -201,22 +202,33 @@ export class Bot {
       const back = card.type === 'building' ? 2.6 : card.range > 2 ? 2.4 : 1.0;
       const dx = main.x - gx, dz = main.z - gz, d = Math.hypot(dx, dz) || 1;
       const k = Math.max(0, Math.min(1, (d - back - 1.5) / d));
-      x = gx + dx * k; z = Math.min(EDGE, gz + dz * k);
+      x = gx + dx * k; z = Math.min(edge(), gz + dz * k);
     }
     this.queue(best, x, z, 0.1);
     if (main.card.cost >= 5 && Math.random() < 0.3) this.emote('Hold the line.');
     return true;
   }
 
+  // x of a lane's route where it crosses depth z (bot frame)
+  laneX(id, z) {
+    const r = this.sim.route(this.team, id).map((p) => ({ x: p.x, z: this.Z(p.z) }));
+    for (let i = 0; i < r.length - 1; i++) {
+      const a = r[i], b = r[i + 1];
+      if ((a.z - z) * (b.z - z) <= 0 && a.z !== b.z) return a.x + (b.x - a.x) * ((z - a.z) / (b.z - a.z));
+    }
+    return r.reduce((best, p) => (Math.abs(p.z - z) < Math.abs(best.z - z) ? p : best)).x;
+  }
+
   // lane to push: the one whose next exposed enemy outpost is weakest
   pickLane() {
     const sim = this.sim;
     let best = null;
-    for (const [id, lane] of Object.entries(LANES)) {
+    for (const id of Object.keys(ROUTES)) {
+      const lane = { id };
       const t = sim.towers.filter((o) => o.alive && o.team !== this.team && o.lane === id && !sim.isProtected(o) && o.sub !== 'keep')
         .sort((a, b) => a.tier - b.tier)[0];
       const keepOpen = sim.towers.find((o) => o.alive && o.team !== this.team && o.sub === 'keep' && !sim.isProtected(o));
-      const target = t || (id === 'M' ? keepOpen : null);
+      const target = t || keepOpen;
       const score = (target ? 1 - target.hp / target.maxHp + (target.sub === 'keep' ? 1 : 0) : -0.5) + Math.random() * 0.6;
       if (!best || score > best.score) best = { id, lane, target, score };
     }
@@ -226,14 +238,14 @@ export class Bot {
   attack() {
     const sim = this.sim, me = this.me;
     const pick = this.pickLane();
-    const lx = pick.lane.x;
     // forward base: our deploy zone around the enemy outpost we already took in this lane
     const taken = sim.towers.filter((o) => !o.alive && o.team !== this.team && o.lane === pick.id).sort((a, b) => b.tier - a.tier)[0];
-    const frontZ = taken ? this.Z(taken.z) - 1.5 : EDGE - 0.3;
+    const frontZ = taken ? this.Z(taken.z) - 1.5 : edge() - 0.3;
+    const lx = taken ? taken.x : this.laneX(pick.id, frontZ);
     const tank = me.hand.find((k) => ROLE[k].includes('tank') && CARDS[k].cost <= me.souls);
     if (tank) {
       const slow = CARDS[tank].speed < 1;
-      const tz = slow && !taken ? -12 : frontZ, tx = slow && !taken && lx !== 0 ? lx : lx * 0.98;
+      const tz = slow && !taken ? -12 : frontZ, tx = slow && !taken ? this.laneX(pick.id, -12) : lx;
       this.queue(tank, tx, tz, 0.1);
       const support = me.hand.find((k) => k !== tank && ROLE[k].includes('escort') && k !== 'adrenaline')
         || me.hand.find((k) => k !== tank && CARDS[k].type === 'unit' && !ROLE[k].includes('tank'));
@@ -253,7 +265,7 @@ export class Bot {
       if (foes.length >= 2) { const c = this.cluster(foes, 2.5); return this.queue('airstrike', c.x, c.z, 0.1); }
     }
     if (me.hand.includes('mortar') && me.souls >= 5 && pick.target && Math.random() < 0.35) {
-      return this.queue('mortar', lx * 0.9, Math.min(EDGE, this.Z(pick.target.z) - 9), 0.1);
+      return this.queue('mortar', lx * 0.9, Math.min(edge(), this.Z(pick.target.z) - 9), 0.1);
     }
     const unit = me.hand.filter((k) => CARDS[k].type === 'unit' && CARDS[k].cost <= me.souls && !ROLE[k].includes('escort')).sort((a, b) => CARDS[b].cost - CARDS[a].cost)[0];
     if (unit) this.queue(unit, lx, frontZ, 0.1);

@@ -119,17 +119,41 @@ const UNITS = {
   },
 };
 
-export async function loadAssets(base = './assets/models/') {
-  const loader = new GLTFLoader();
-  let packed = null;
-  try { packed = (await import('./assets-data.js')).default; } catch { /* fall back to loose .glb files */ }
-  const decode = (b64) => { const bin = atob(b64); const u = new Uint8Array(bin.length); for (let i = 0; i < bin.length; i++) u[i] = bin.charCodeAt(i); return u.buffer; };
-  await Promise.allSettled(FILES.map(async (f) => {
+// Map-specific props live in their own packs, fetched only when that map is played.
+const PACKS = {
+  urban: ['cc_building-a', 'cc_building-c', 'cc_building-e', 'cc_building-g', 'cc_building-j', 'cc_building-skyscraper-a', 'cc_detail-parasol-a',
+    'cc_low-detail-building-a', 'cc_low-detail-building-d', 'cc_low-detail-building-h', 'cc_low-detail-building-wide-a', 'ci_building-c', 'ci_building-f',
+    'ci_chimney-medium', 'ci_detail-tank', 'cr_bridge-pillar', 'cr_construction-barrier', 'cr_construction-cone', 'cr_light-curved', 'cr_sign-highway',
+    'cs_fence-low', 'cs_planter', 'cs_tree-large', 'cs_tree-small', 'v_delivery', 'v_sedan', 'v_taxi', 'v_van'],
+  castle: ['ft_banner-red', 'ft_cart', 'ft_fence', 'ft_fountain-round', 'ft_hedge-large', 'ft_lantern', 'ft_rock-large', 'ft_roof-high-gable', 'ft_stall-green',
+    'ft_stall-red', 'ft_tree-crooked', 'ft_tree-high', 'ft_wall-block', 'kc_bridge-draw', 'kc_bridge-straight', 'kc_flag-banner-long', 'kc_gate', 'kc_rocks-large',
+    'kc_siege-catapult', 'kc_siege-ram', 'kc_siege-trebuchet', 'kc_tower-hexagon-base', 'kc_tower-hexagon-mid', 'kc_tower-hexagon-roof', 'kc_tower-square',
+    'kc_tree-large', 'kc_tree-small', 'kc_wall-corner', 'kc_wall-narrow-wood-fence', 'kc_wall'],
+};
+const loader = new GLTFLoader();
+const decode = (b64) => { const bin = atob(b64); const u = new Uint8Array(bin.length); for (let i = 0; i < bin.length; i++) u[i] = bin.charCodeAt(i); return u.buffer; };
+async function loadList(files, packed, base) {
+  await Promise.allSettled(files.filter((f) => !GLB[f]).map(async (f) => {
     const g = packed?.[f] ? await loader.parseAsync(decode(packed[f]), '') : await loader.loadAsync(`${base}${f}.glb`);
     const box = boundsOf(g.scene);
     GLB[f] = { scene: g.scene, animations: g.animations, box, height: box.max.y - Math.min(0, box.min.y) };
   }));
+}
+
+export async function loadAssets(base = './assets/models/') {
+  let packed = null;
+  try { packed = (await import('./assets-data.js')).default; } catch { /* fall back to loose .glb files */ }
+  await loadList(FILES, packed, base);
   return Object.keys(GLB).length;
+}
+
+const packsLoaded = {};
+export async function loadPack(name, base = './assets/models/') {
+  if (!PACKS[name] || packsLoaded[name]) return;
+  let packed = null;
+  try { packed = (await import(`./assets-${name}.js`)).default; } catch { /* loose files */ }
+  await loadList(PACKS[name], packed, base);
+  packsLoaded[name] = true;
 }
 export const hasAsset = (f) => !!GLB[f];
 
@@ -182,6 +206,23 @@ export function prop(file, { w, h, d } = {}) {
   g.add(obj);
   g.traverse((o) => { if (o.isMesh) { o.castShadow = true; o.receiveShadow = true; } });
   g.userData.size = size.multiplyScalar(s);
+  return g;
+}
+
+// A prop stretched to fill a w × h × d box (footprint centred on the origin, base on the ground).
+export function propBox(file, w, h, d, rotY = 0) {
+  const src = GLB[file];
+  if (!src) return null;
+  const obj = src.scene.clone(true);
+  const size = src.box.getSize(new THREE.Vector3());
+  const swap = Math.abs(Math.sin(rotY)) > 0.7;
+  const sx = (swap ? d : w) / Math.max(size.x, 1e-3), sy = h / Math.max(size.y, 1e-3), sz = (swap ? w : d) / Math.max(size.z, 1e-3);
+  obj.scale.set(sx, sy, sz);
+  const c = src.box.getCenter(new THREE.Vector3());
+  obj.position.set(-c.x * sx, -src.box.min.y * sy, -c.z * sz);
+  const inner = new THREE.Group(); inner.add(obj); inner.rotation.y = rotY;
+  const g = new THREE.Group(); g.add(inner);
+  g.traverse((o) => { if (o.isMesh) { o.castShadow = true; o.receiveShadow = true; } });
   return g;
 }
 

@@ -1,31 +1,45 @@
-import {
-  ARENA, RIVER, LANES, TUNNEL_COVER, BLOCKS, SANDS, MINES, MINE, OBJECTIVES,
-} from './config.js';
+import { ARENA, MAP, RIVER, MINE, OBJECTIVES } from './config.js';
 
-export const F = { BLOCK: 1, MIRE: 2, SPIKE: 4, THICKET: 8, RIFT: 16, STRUCT: 32 };
+export const F = { BLOCK: 1, MIRE: 2, SPIKE: 4, THICKET: 8, RIFT: 16, STRUCT: 32, WATER: 64, VOID: 128 };
 
-const COLS = Math.round((ARENA.halfW * 2) / ARENA.cell);
-const ROWS = Math.round((ARENA.halfL * 2) / ARENA.cell);
+// Map features are authored for the player half; the rival half mirrors z (entries on z = 0 stay single).
+const flip = (f) => (f.poly ? { ...f, poly: f.poly.map(([x, z]) => [x, -z]) } : { ...f, z: -f.z });
+export const mirrored = (list = []) => list.flatMap((f) => (!f.poly && Math.abs(f.z) < 1e-6 ? [f] : [f, flip(f)]));
 
-// Features are listed for the player half; the rival half mirrors z.
-export const mirrored = (list) => list.flatMap((f) => [f, { ...f, z: -f.z }]);
-// Blocks and hazards are authored for the left player quadrant; mirror x too (unless marked or centred).
-export const quad = (list) => mirrored(list.flatMap((f) => (f.noMirrorX || Math.abs(f.x) < 0.01 ? [f] : [f, { ...f, x: -f.x }])));
+export function inShape(s, x, z) {
+  if (s.poly) {
+    let inside = false;
+    const p = s.poly;
+    for (let i = 0, j = p.length - 1; i < p.length; j = i++) {
+      const [xi, zi] = p[i], [xj, zj] = p[j];
+      if ((zi > z) !== (zj > z) && x < ((xj - xi) * (z - zi)) / (zj - zi) + xi) inside = !inside;
+    }
+    return inside;
+  }
+  if (s.r !== undefined) return Math.hypot(x - s.x, z - s.z) < s.r;
+  return Math.abs(x - s.x) < s.hx && Math.abs(z - s.z) < s.hz;
+}
 
-export const ALL_BLOCKS = quad(BLOCKS);
-export const ALL_SANDS = quad(SANDS);
-export const ALL_MINES = quad(MINES);
+// the selected map, mirrored to full lists (refreshed whenever a NavGrid is built)
+export let ALL_BLOCKS = [], ALL_SANDS = [], ALL_MINES = [], ALL_VOIDS = [], ALL_WATER = [], ALL_BRIDGES = [], ALL_COVERS = [];
+export function prepareMap() {
+  ALL_BLOCKS = mirrored(MAP.blocks); ALL_SANDS = mirrored(MAP.sands); ALL_MINES = mirrored(MAP.mines);
+  ALL_VOIDS = mirrored(MAP.voids); ALL_WATER = mirrored(MAP.water); ALL_BRIDGES = mirrored(MAP.bridges); ALL_COVERS = mirrored(MAP.covers);
+}
+prepareMap();
 
-export const onBridge = (x) => Object.values(LANES).some((l) => Math.abs(x - l.x) < l.half);
+export const onBridge = (x) => (MAP.crossings || []).some((l) => Math.abs(x - l.x) < l.half);
 export const nearObjective = (x, z) => OBJECTIVES.some((o) => Math.hypot(x - o.x, z - o.z) < o.r + 0.4);
-export const isRiverAt = (x, z) => Math.abs(z) < RIVER.half && !onBridge(x) && !nearObjective(x, z);
+export const isRiverAt = (x, z) => RIVER.half > 0 && Math.abs(z) < RIVER.half && !onBridge(x) && !nearObjective(x, z);
 export const isRiftAt = () => false;
 
 export class NavGrid {
   constructor() {
-    this.cols = COLS; this.rows = ROWS; this.cell = ARENA.cell;
-    this.flags = new Uint8Array(COLS * ROWS);
-    this.structCount = new Uint8Array(COLS * ROWS);
+    prepareMap();
+    this.cols = Math.round((ARENA.halfW * 2) / ARENA.cell); this.rows = Math.round((ARENA.halfL * 2) / ARENA.cell);
+    this.cell = ARENA.cell;
+    this.flags = new Uint8Array(this.cols * this.rows);
+    this.structCount = new Uint8Array(this.cols * this.rows);
     this.build();
   }
 
@@ -43,10 +57,12 @@ export class NavGrid {
       for (let c = 0; c < this.cols; c++) {
         const [x, z] = this.center(c, r);
         let f = 0;
-        for (const m of ALL_BLOCKS) if (Math.abs(x - m.x) < m.hx && Math.abs(z - m.z) < m.hz) f |= F.BLOCK;
-        if (Math.abs(x - TUNNEL_COVER.x) < TUNNEL_COVER.hx && Math.abs(z - TUNNEL_COVER.z) < TUNNEL_COVER.hz) f |= F.THICKET;
+        for (const m of ALL_BLOCKS) if (inShape(m, x, z)) f |= F.BLOCK;
+        for (const m of ALL_VOIDS) if (inShape(m, x, z)) f |= F.BLOCK | F.VOID;
+        if (ALL_WATER.some((m) => inShape(m, x, z)) && !ALL_BRIDGES.some((m) => inShape(m, x, z))) f |= F.BLOCK | F.WATER;
+        for (const m of ALL_COVERS) if (inShape(m, x, z)) f |= F.THICKET;
         if (isRiverAt(x, z)) f |= F.MIRE;
-        for (const m of ALL_SANDS) if (Math.hypot(x - m.x, z - m.z) < m.r) f |= F.MIRE;
+        for (const m of ALL_SANDS) if (inShape(m, x, z)) f |= F.MIRE;
         for (const m of ALL_MINES) if (Math.hypot(x - m.x, z - m.z) < MINE.radius) f |= F.SPIKE;
         this.flags[this.idx(c, r)] = f;
       }

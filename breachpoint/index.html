@@ -151,6 +151,7 @@ button:focus-visible, input:focus-visible { outline: 2px solid var(--soul); outl
 .vs .x { font-family: var(--black); font-size: clamp(44px, 10vw, 84px); color: var(--gilt); }
 .vs .l .nm { color: var(--soul); text-shadow: 0 0 18px rgba(159,214,255,0.35); }
 .vs .r .nm { color: var(--blood); text-shadow: 0 0 18px rgba(255,74,58,0.35); }
+.vs-map { grid-column: 1 / -1; text-align: center; font-family: var(--display); font-size: 12px; letter-spacing: 0.16em; text-transform: uppercase; color: var(--gilt); margin-top: 10px; }
 .reveal { animation: reveal .6s cubic-bezier(.2,.8,.2,1) both; }
 @keyframes reveal { from { opacity: 0; transform: scale(1.08); letter-spacing: 0.3em; } }
 
@@ -342,15 +343,16 @@ button:focus-visible, input:focus-visible { outline: 2px solid var(--soul); outl
   <div class="menu-stack">
     <button class="btn primary" id="btn-battle">Find Match</button>
     <button class="btn" id="btn-deck">Loadout · Your Deck</button>
+    <button class="btn" id="btn-map">Map: Dustline</button>
     <button class="btn" id="btn-side">Side: Counter-Terrorists</button>
-    <button class="btn" id="btn-guide">Briefing · The Map</button>
+    <button class="btn" id="btn-guide">Briefing · How to Play</button>
     <div class="row">
       <button class="btn small" id="btn-sound">Sound: On</button>
       <button class="btn small" id="btn-quality">Quality: High</button>
       
     </div>
   </div>
-  <p class="foot">Three-lane ranked matches against rival squads, matched to your trophies.</p>
+  <p class="foot">Ranked matches on three mirrored maps against rival squads, matched to your trophies.</p>
   <p class="foot" style="margin-top:6px;font-size:13px">Models: Quaternius, Kenney &amp; KayKit · Audio: Free Firearm Sound Library, OpenGameArt artists, Kenney · all CC0</p>
 </section>
 
@@ -371,17 +373,19 @@ button:focus-visible, input:focus-visible { outline: 2px solid var(--soul); outl
 <!-- field guide -->
 <section id="guide" class="screen dim" hidden>
   <div class="panel">
-    <h2>Briefing · Dustline</h2>
-    <p class="sub">Three lanes, a jungle of alleys between them and a dry riverbed across the middle. Eight minutes to break the rival Command Post.</p>
+    <h2 id="guide-title">Briefing</h2>
+    <p class="sub" id="guide-sub"></p>
+    <div class="guide" id="guide-map"></div>
+    <div class="rule" style="margin:18px 0"></div>
     <div class="guide">
-      <div><h3>Lanes &amp; outposts</h3><p>Long (left), Mid and Tunnels (right) each have an outer and an inner outpost. An inner outpost is shielded until the outer one in its lane falls; the Command Post is shielded until any inner outpost falls. Destroy the Command Post to win.</p></div>
-      <div><h3>Recruit waves</h3><p>Every 30 seconds both bases send a squad of recruits down every lane. Your cards march the nearest lane when they have nothing to shoot.</p></div>
-      <div><h3>River objectives</h3><p>Hold a pad with troops alone to capture it. Supply Drop: funds +40%. Armory: your troops deal +15% damage. Med Station: your troops heal 1.5% per second.</p></div>
-      <div><h3>Veterancy</h3><p>Troops earn XP while fighting, for damage and for kills, and rank up to level 4 (chevrons over their heads): more health, damage and fire rate. XP a card's troops earn also promotes the card, so later deployments arrive at a higher level.</p></div>
-      <div><h3>Deploying</h3><p>Anywhere on your side of the river, plus a forward zone around every rival outpost you destroy. Each outpost you take also pays $2.</p></div>
-      <div><h3>Tunnels &amp; mines</h3><p>The walled stretch of Tunnels at the river hides troops inside. Proximity mines blink red when armed and hit everything on the ground nearby.</p></div>
-      <div><h3>Camera</h3><p>Drag the map to pan, pinch or scroll to zoom, tap the minimap to jump. Keyboard: WASD or arrows, +/- to zoom, Space to return to base, 1–4 for cards.</p></div>
-      <div><h3>Time</h3><p>Eight minutes, funds twice as fast in the last two. If no Command Post falls, more outposts destroyed wins; level after two minutes of sudden death goes to the healthier side.</p></div>
+      <div><h3>Outposts &amp; shields</h3><p>Each lane has an outer and an inner outpost. An inner outpost is shielded until the outer one in its lane falls; the Command Post is shielded until any inner outpost falls. Destroy the Command Post to win.</p></div>
+      <div><h3>Recruit waves</h3><p>Every 30 seconds both bases send a squad of recruits down every route. Your cards march the nearest route when they have nothing to shoot.</p></div>
+      <div><h3>Veterancy</h3><p>Troops earn XP while fighting, for damage and kills, and rank up to level 4 (chevrons overhead). XP a card's troops earn also promotes the card, so later deployments arrive at a higher level.</p></div>
+      <div><h3>Deploying</h3><p>Anywhere on your half of the map, plus a forward zone around every rival outpost you destroy. Each outpost you take also pays $2.</p></div>
+      <div><h3>Cover &amp; mines</h3><p>Tunnels, groves and smoke hide troops until enemies get close or they fire. Mines blink red when armed and hit everything on the ground nearby.</p></div>
+      <div><h3>Camera</h3><p>Drag the map to pan, pinch or scroll to zoom, tap the minimap to jump. Keyboard: WASD or arrows, +/- to zoom, Space for base, 1–4 for cards.</p></div>
+      <div><h3>Time</h3><p>Eight minutes, funds twice as fast in the last two. If no Command Post falls, more outposts destroyed wins; after two minutes of sudden death the healthier side takes it.</p></div>
+      <div><h3>Maps</h3><p>Pick Dustline, Overpass or Citadel from the menu. Every map is mirrored, so both sides play the same ground.</p></div>
     </div>
     <div class="panel-foot"><span></span><button class="btn" id="guide-done">Return</button></div>
   </div>
@@ -399,6 +403,7 @@ button:focus-visible, input:focus-visible { outline: 2px solid var(--soul); outl
     <div class="side l"><div class="nm" id="vs-me"></div><div class="house" id="vs-myside">Counter-Terrorists</div><div class="trophy" id="vs-met"></div></div>
     <div class="x reveal">vs</div>
     <div class="side r"><div class="nm reveal" id="vs-them"></div><div class="house" id="vs-house"></div><div class="trophy" id="vs-themt"></div></div>
+    <div class="vs-map reveal" id="vs-map"></div>
   </div>
 </section>
 

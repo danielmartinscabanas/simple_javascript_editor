@@ -5,14 +5,15 @@ import { UnrealBloomPass } from 'three/addons/postprocessing/UnrealBloomPass.js'
 import { OutputPass } from 'three/addons/postprocessing/OutputPass.js';
 import {
   ARENA, CARDS, DEFAULT_DECK, RIVAL_NAMES, RIVAL_HOUSES, rankFor, EMOTES, FACTION, MATCH, SOULS, setSides,
-  LANES, RIVER, BASE, LEG, XP,
+  MAP, setMap, XP,
 } from './config.js';
-import { NavGrid, F } from './nav.js';
+import { MAPS, MAP_ORDER } from './maps.js';
+import { NavGrid, F, mirrored, inShape } from './nav.js';
 import { World } from './world.js';
 import { Sim } from './sim.js';
 import { Bot, rivalDeck } from './bot.js';
 import { Audio } from './audio.js';
-import { buildModel, loadAssets, boundsOf } from './models.js';
+import { buildModel, loadAssets, loadPack, boundsOf } from './models.js';
 
 const $ = (id) => document.getElementById(id);
 const TROPHY_SVG = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 3h12v3h3v3a5 5 0 0 1-5 5 6 6 0 0 1-3 2.6V19h3v2H8v-2h3v-2.4A6 6 0 0 1 8 14a5 5 0 0 1-5-5V6h3zm-1 5v1a3 3 0 0 0 2 2.8V8zm14 0h-2v3.8A3 3 0 0 0 19 9z"/></svg>';
@@ -20,7 +21,7 @@ const TROPHY_SVG = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 3h12
 // ---------- persistence (best-effort) ----------
 const KEY = 'breachpoint.v1';
 function load() {
-  const d = { side: 'ct', name: 'Operator', trophies: 0, deck: DEFAULT_DECK.slice(), muted: false, quality: 'high', models: 'rigged', wins: 0, losses: 0 };
+  const d = { side: 'ct', map: 'dustline', name: 'Operator', trophies: 0, deck: DEFAULT_DECK.slice(), muted: false, quality: 'high', models: 'rigged', wins: 0, losses: 0 };
   try { Object.assign(d, JSON.parse(localStorage.getItem(KEY) || '{}')); } catch { /* storage unavailable */ }
   if (!Array.isArray(d.deck) || d.deck.length !== 8 || d.deck.some((k) => !CARDS[k])) d.deck = DEFAULT_DECK.slice();
   return d;
@@ -253,6 +254,7 @@ function refreshMenu() {
   $('precord').textContent = `${store.wins}W · ${store.losses}L`;
   $('btn-sound').textContent = `Sound: ${store.muted ? 'Off' : 'On'}`;
   $('btn-side').textContent = `Side: ${store.side === 'ct' ? 'Counter-Terrorists' : 'Insurgents'}`;
+  $('btn-map').textContent = `Map: ${MAPS[store.map]?.name || 'Dustline'}`;
   document.documentElement.dataset.side = store.side;
 }
 
@@ -265,7 +267,33 @@ $('btn-side').onclick = () => {
   setSides(store.side); renderThumbs(); refreshMenu();
 };
 $('btn-quality').onclick = () => { store.quality = store.quality === 'high' ? 'low' : 'high'; save(); applyQuality(); };
-$('btn-guide').onclick = () => { audio.start(); show('guide'); };
+$('btn-guide').onclick = () => { audio.start(); fillBriefing(); show('guide'); };
+$('btn-map').onclick = async () => {
+  audio.start(); audio.play('card');
+  const i = MAP_ORDER.indexOf(store.map);
+  store.map = MAP_ORDER[(i + 1) % MAP_ORDER.length]; save();
+  await switchMap(store.map);
+  refreshMenu();
+};
+// rebuild the 3D world for another map (fetching its prop pack first)
+let switching = null;
+async function switchMap(id) {
+  const job = (async () => {
+    setMap(id);
+    try { await loadPack(MAP.theme); } catch (err) { console.warn('Map pack failed to load', err); }
+    if (world) world.dispose();
+    world = new World(scene);
+    applyQuality();
+  })();
+  switching = job;
+  await job;
+}
+function fillBriefing() {
+  $('guide-title').textContent = `Briefing · ${MAP.name}`;
+  $('guide-sub').textContent = MAP.blurb;
+  $('guide-map').innerHTML = MAP.briefing.map(([h, p]) => `<div><h3>${h}</h3><p>${p}</p></div>`).join('')
+    + `<div><h3>Objectives</h3><p>${MAP.objectives.map((o) => `${o.name}: ${o.blurb}`).join('. ')}. Hold a pad with troops alone to capture it.</p></div>`;
+}
 $('guide-done').onclick = () => show('menu');
 $('btn-deck').onclick = () => { audio.start(); buildGrimoire(); show('deck'); };
 $('deck-done').onclick = () => { if (store.deck.length === 8) { save(); show('menu'); } };
@@ -339,8 +367,9 @@ function revealRival() {
   $('vs-them').textContent = rival.name;
   $('vs-house').textContent = rival.house;
   $('vs-themt').innerHTML = `${TROPHY_SVG}${rival.trophies}`;
+  $('vs-map').textContent = `${MAP.name} — ${MAP.blurb}`;
   audio.play('toll');
-  setTimeout(startBattle, 2600);
+  setTimeout(async () => { await switching; startBattle(); }, 2600);
 }
 
 // ---------- battle ----------
@@ -397,7 +426,7 @@ function startBattle() {
   crowns();
   buildMinimap();
   resize();
-  view.fx = 0; view.fz = 17; view.dist = view.defDist; clampView();
+  view.fx = 0; view.fz = MAP.camZ; view.dist = view.defDist; clampView();
   selected = -1;
   intro = 3.6; introStep = -1;
   audio.play('vo_prepare');
@@ -882,7 +911,7 @@ window.addEventListener('keydown', (e) => {
   if (view.mode !== 'battle' || !sim) return;
   if (e.key >= '1' && e.key <= '4') { audio.start(); select(Number(e.key) - 1); pointer.over = overField(pointer.x, pointer.y); }
   if (e.key === 'Escape') select(-1);
-  if (e.key === ' ') { focusOn(0, 17); e.preventDefault(); }
+  if (e.key === ' ') { focusOn(0, MAP.camZ - 2); e.preventDefault(); }
   if (e.key === '+' || e.key === '=') { view.dist *= 0.88; clampView(); }
   if (e.key === '-') { view.dist *= 1.12; clampView(); }
   held.add(e.key.toLowerCase());
@@ -928,20 +957,19 @@ function buildMinimap() {
   const c = document.createElement('canvas'); c.width = mini.width; c.height = mini.height;
   const g = c.getContext('2d');
   const img = g.createImageData(c.width, c.height);
-  const onLane = (x, z) => {
-    const az = Math.abs(z);
-    if (az > BASE.z0 && Math.abs(x) < BASE.hx) return true;
-    if (az > LEG.z0 && az < LEG.z1) return true;
-    return Object.values(LANES).some((l) => Math.abs(x - l.x) < l.half && az < (l.x === 0 ? BASE.z0 : LEG.z1));
-  };
+  const paths = mirrored(MAP.paths), greens = mirrored(MAP.grass || []);
+  const pal = { desert: [[92, 74, 50], [176, 150, 108], [74, 60, 44]], urban: [[96, 96, 94], [150, 148, 142], [60, 60, 62]], castle: [[70, 100, 52], [156, 146, 124], [60, 80, 44]] }[MAP.theme];
   for (let py = 0; py < c.height; py++) for (let px = 0; px < c.width; px++) {
     const x = (px / c.width) * ARENA.halfW * 2 - ARENA.halfW, z = (py / c.height) * ARENA.halfL * 2 - ARENA.halfL;
     const f = nav.flagAt(x, z);
-    let col = [92, 74, 50];
-    if (onLane(x, z)) col = [176, 150, 108];
-    if (Math.abs(z) < RIVER.half && f & F.MIRE) col = [74, 60, 44];
+    let col = pal[0];
+    if (paths.some((p) => inShape(p, x, z))) col = pal[1];
+    if (greens.some((p) => inShape(p, x, z))) col = [70, 110, 52];
+    if (f & F.MIRE) col = pal[2];
     if (f & F.THICKET) col = [col[0] * 0.65, col[1] * 0.7, col[2] * 0.6];
     if (f & F.BLOCK) col = [34, 26, 18];
+    if (f & F.WATER) col = [44, 86, 112];
+    if (f & F.VOID) col = [18, 16, 14];
     const i = (py * c.width + px) * 4;
     img.data[i] = col[0]; img.data[i + 1] = col[1]; img.data[i + 2] = col[2]; img.data[i + 3] = 235;
   }
@@ -1043,7 +1071,7 @@ function updateHud(dt) {
   flushPops(dt);
   $('h-lbl').textContent = sim.phase === 'overtime' ? 'Sudden death' : 'Time left';
   $('h-x2').hidden = !sim.doubleSouls();
-  const chips = sim.objectives.map((o) => `<span title="${o.def.name}: ${o.def.blurb}" style="color:${o.owner === null ? 'var(--ash)' : o.owner === 0 ? 'var(--soul)' : 'var(--blood)'}">${{ drop: 'Drop', armory: 'Arm', medic: 'Med' }[o.def.id]}</span>`).join(' · ');
+  const chips = sim.objectives.map((o) => `<span title="${o.def.name}: ${o.def.blurb}" style="color:${o.owner === null ? 'var(--ash)' : o.owner === 0 ? 'var(--soul)' : 'var(--blood)'}">${o.def.short || o.def.name}</span>`).join(' · ');
   if ($('h-altar').innerHTML !== chips) $('h-altar').innerHTML = chips;
   pingT -= dt;
   if (pingT <= 0) {
@@ -1085,11 +1113,11 @@ function frame() {
     if (intro > 0) {
       // open on the whole map, then swoop down to your base
       const k = Math.min(1, Math.max(0, (intro - 0.4) / 3.2)), e = k * k * (3 - 2 * k);
-      const fz = 17 + (view.overZ - 17) * e, d = view.defDist + (view.overDist - view.defDist) * e;
+      const fz = MAP.camZ + (view.overZ - MAP.camZ) * e, d = view.defDist + (view.overDist - view.defDist) * e;
       const dir = BATTLE_DIR.clone().applyAxisAngle(new THREE.Vector3(0, 1, 0), e * 0.12).normalize();
       camera.position.set(0, 0, fz).addScaledVector(dir, d);
       camera.lookAt(0, 0, fz);
-      view.fx = 0; view.fz = 17; view.dist = view.defDist;
+      view.fx = 0; view.fz = MAP.camZ; view.dist = view.defDist;
     } else applyCamera();
     drawMinimap(dt);
     if (sim.shake > 0) {
@@ -1123,7 +1151,8 @@ async function boot() {
   $('loading').textContent = 'Deploying…';
   try { await loadAssets(); } catch (err) { console.warn('Model load failed, using fallback models', err); }
   setSides(store.side);
-  world = new World(scene);
+  if (!MAPS[store.map]) store.map = 'dustline';
+  await switchMap(store.map);
   renderThumbs();
   applyQuality();
   refreshMenu();
@@ -1136,7 +1165,7 @@ async function boot() {
 boot();
 
 // test hook (harmless in play)
-window.__breach = { get sim() { return sim; }, get bot() { return bot; }, audio, startBattle: () => { rival = rival || { name: 'Test', house: 'Test', trophies: 0, skill: 0.5, ping: 40 }; startBattle(); }, select, tryDeploy, store, focusOn, skipIntro: () => { intro = 0; $('count').replaceChildren(); } };
+window.__breach = { get sim() { return sim; }, get bot() { return bot; }, audio, startBattle: () => { rival = rival || { name: 'Test', house: 'Test', trophies: 0, skill: 0.5, ping: 40 }; startBattle(); }, select, tryDeploy, store, focusOn, switchMap, skipIntro: () => { intro = 0; $('count').replaceChildren(); } };
 window.__cards = CARDS;
 window.__Bot = Bot;
 window.__rivalDeck = rivalDeck;
