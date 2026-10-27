@@ -14,6 +14,9 @@ const FILES = [
   'e_TrafficBarrier_1', 'e_WaterTower', 'e_CinderBlock', 'e_PlasticBarrier', 'e_StreetLights', 'e_Wheels_Stack',
   'v_Vehicle_Truck_Armored', 'b_crate-medium', 'b_crate-wide', 's_box-large', 'r_detail-dumpster-closed',
   'r_detail-barrier-strong-type-a',
+  'u_Doctor_Male_Young', 'u_Doctor_Female_Young', 'u_Worker_Male', 'u_Worker_Female', 'u_Suit_Male', 'u_Cowboy_Male',
+  'u_Ninja_Male', 'u_Ninja_Female', 'u_Soldier_Female', 'v_police', 'v_truck', 'v_ambulance', 'k_weapon-cannon',
+  'k_weapon_rifle', 'w_dagger', 's_metal-panel', 's_tool-hammer', 'k_craft_racer',
 ];
 
 // Weapon grip on the Quaternius character rig's right fist.
@@ -22,7 +25,11 @@ const RIFLE = { file: 'w_Rifle', len: 0.75, ...GRIP };
 const SMG = { file: 'w_SMG', len: 0.5, ...GRIP };
 const SHOTGUN = { file: 'w_Shotgun', len: 0.75, ...GRIP };
 const PISTOL = { file: 'w_Pistol', len: 0.25, ...GRIP };
+const DAGGER = { file: 'w_dagger', len: 0.32, ...GRIP };
+const HAMMER = { file: 's_tool-hammer', len: 0.34, ...GRIP };
+const LAUNCHER = { file: 'k_weapon_rifle', len: 0.85, ...GRIP };
 const SOLDIER = { idle: 'Idle', move: 'Walk', run: 'Run', attack: 'Shoot_OneHanded', death: 'Death' };
+const SUPPORT = { ...SOLDIER, attack: 'Shoot_OneHanded' };
 
 // Per-card models; each side has its own look.
 const UNITS = {
@@ -57,6 +64,46 @@ const UNITS = {
   dog: {
     ct: { file: 'z_dog', h: 0.8, idle: 'Idle', move: 'Run', attack: 'Attack', death: 'Death', collar: true },
     t: { file: 'z_dog', h: 0.8, idle: 'Idle', move: 'Run', attack: 'Attack', death: 'Death', collar: true },
+  },
+  medic: {
+    ct: { file: 'u_Doctor_Male_Young', h: 1.2, weapon: PISTOL, ...SUPPORT },
+    t: { file: 'u_Doctor_Female_Young', h: 1.2, weapon: PISTOL, ...SUPPORT, tint: 0xe8d8bc },
+  },
+  engineer: {
+    ct: { file: 'u_Worker_Male', h: 1.2, weapon: HAMMER, ...SOLDIER, attack: 'Punch', repair: 'PickUp' },
+    t: { file: 'u_Worker_Female', h: 1.2, weapon: HAMMER, ...SOLDIER, attack: 'Punch', repair: 'PickUp' },
+  },
+  commander: {
+    ct: { file: 'u_Suit_Male', h: 1.3, weapon: PISTOL, ...SUPPORT },
+    t: { file: 'u_Cowboy_Male', h: 1.3, weapon: PISTOL, ...SUPPORT },
+  },
+  ghost: {
+    ct: { file: 'u_Ninja_Male', h: 1.2, weapon: DAGGER, idle: 'Idle', move: 'Run', run: 'Run', attack: 'SwordSlash', death: 'Death', tint: 0x8899aa },
+    t: { file: 'u_Ninja_Female', h: 1.2, weapon: DAGGER, idle: 'Idle', move: 'Run', run: 'Run', attack: 'SwordSlash', death: 'Death', tint: 0xc8b090 },
+  },
+  riot: {
+    ct: { file: 'u_BlueSoldier_Male', h: 1.35, weapon: HAMMER, shield: 's_metal-panel', ...SOLDIER, attack: 'Punch', tint: 0x6a7c90 },
+    t: { file: 'u_Ninja_Sand', h: 1.35, weapon: HAMMER, shield: 's_metal-panel', ...SOLDIER, attack: 'Punch', tint: 0x8a7a62 },
+  },
+  grenadier: {
+    ct: { file: 'u_Soldier_Male', h: 1.3, weapon: { ...SHOTGUN, len: 0.6 }, ...SOLDIER, tint: 0xa8b0a0 },
+    t: { file: 'u_Ninja_Sand_Female', h: 1.3, weapon: { ...SHOTGUN, len: 0.6 }, ...SOLDIER, tint: 0xd0b890 },
+  },
+  rocketeer: {
+    ct: { file: 'u_Soldier_Female', h: 1.25, weapon: LAUNCHER, ...SOLDIER },
+    t: { file: 'u_Ninja_Sand', h: 1.25, weapon: LAUNCHER, ...SOLDIER, tint: 0xb8a888 },
+  },
+  apc: {
+    ct: { file: 'v_police', w: 0.95, prop: true },
+    t: { file: 'v_truck', w: 0.95, prop: true },
+  },
+  medevac: {
+    ct: { file: 'v_ambulance', w: 0.95, prop: true },
+    t: { file: 'v_ambulance', w: 0.95, prop: true, tint: 0xf0e0c8 },
+  },
+  mortar: {
+    ct: { file: 'k_weapon-cannon', h: 1.05, building: true, paint: true },
+    t: { file: 'k_weapon-cannon', h: 1.05, building: true, paint: true },
   },
   drone: {
     ct: { file: 'k_enemy-ufo-b-weapon', h: 0.7, flyer: true, paint: true, yaw: Math.PI },
@@ -198,11 +245,19 @@ function rigged(spec, team) {
   const s = spec.w ? spec.w / Math.max(size.x, size.z) : spec.h / src.height;
   body.scale.setScalar(s);
   const c = src.box.getCenter(new THREE.Vector3());
-  if (spec.flyer || spec.building || spec.paint) body.position.set(-c.x * s, -Math.min(0, src.box.min.y) * s, -c.z * s);
+  if (spec.flyer || spec.building || spec.paint || spec.prop) body.position.set(-c.x * s, -Math.min(0, src.box.min.y) * s, -c.z * s);
   const root = new THREE.Group();
   // Kenney craft point their nose down -Z; units face +Z
   if (spec.yaw) { const pivot = new THREE.Group(); pivot.rotation.y = spec.yaw; pivot.add(body); root.add(pivot); } else root.add(body);
   const gun = attachWeapon(body, spec, root);
+  if (spec.shield && GLB[spec.shield]) {
+    // riot shield: a metal panel carried in front of the chest
+    const sh = prop(spec.shield, { h: spec.h * 0.52 });
+    const sz = sh.userData.size;
+    if (sz.z > sz.x) sh.rotation.y = Math.PI / 2;
+    sh.position.set(spec.h * 0.1, spec.h * 0.16, spec.h * 0.28);
+    root.add(sh);
+  }
   const m = teamMats(team);
   if (spec.carry) {
     const charge = new THREE.Mesh(new THREE.BoxGeometry(0.34, 0.24, 0.22), new THREE.MeshStandardMaterial({ color: 0x3a3f2a, roughness: 0.8 }));
@@ -224,7 +279,7 @@ function rigged(spec, team) {
   const rig = { gltf: true, mixer, actions, spec, current: null, body: root, flyer: !!spec.flyer, building: !!spec.building, gun };
   if (spec.idle && actions[spec.idle]) { playClip(rig, spec.idle, 0); mixer.update(0.01); }
   syncWeapon(rig, root);
-  return { root, rig, height: spec.h };
+  return { root, rig, height: spec.h || src.height * s };
 }
 
 export function playClip(rig, name, fade = 0.15, once = false, speed = 1) {
@@ -262,6 +317,9 @@ function spellModel(name, team) {
     return canister(team, 0x4a5a32, 0x2a3320);
   }
   if (name === 'smokecan') return canister(team, 0x8a9096, 0xdddddd);
+  if (name === 'empcan') return canister(team, 0x2a3c5a, 0x5ae0ff);
+  if (name === 'adrencan') return canister(team, 0xd8dcd8, 0x3ccf5a);
+  if (name === 'jet') { const j = prop('k_craft_racer', { w: 0.9 }); if (j) { paintTeam(j, team); return j; } }
   if (name === 'flashcan') return canister(team, 0x6a7078, 0xf2e04a);
   if (name === 'molotov') {
     const g = new THREE.Group();
@@ -280,6 +338,12 @@ function spellModel(name, team) {
 }
 
 export function buildModel(name, team) {
+  if (name === 'barricade') {
+    // two concrete barriers side by side
+    const root = new THREE.Group();
+    for (const dx of [-0.42, 0.42]) { const b = prop('r_detail-barrier-strong-type-a', { w: 0.8 }); if (b) { b.position.x += dx; root.add(b); } }
+    return { root, rig: { body: root, building: true }, height: 0.55 };
+  }
   const side = FACTION[team].id;
   const spec = UNITS[name]?.[side];
   if (spec && GLB[spec.file]) {

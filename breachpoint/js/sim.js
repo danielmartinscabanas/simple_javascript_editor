@@ -178,7 +178,9 @@ export class Sim {
     }
     this.portal(team, x, z, Math.max(0.9, spread + 0.6));
     this.snd('deploy', x, z);
-    if (!card.air && card.type === 'unit' && card.model !== 'dog' && Math.random() < 0.45) this.snd('charge', x, z);
+    if (card.aura) this.snd('shout', x, z);
+    else if (card.type === 'building' && card.noAttack) this.snd('barricade', x, z);
+    else if (!card.air && !card.vehicle && card.type === 'unit' && card.model !== 'dog' && Math.random() < 0.45) this.snd('charge', x, z);
   }
 
   createUnit(team, key, x, z, deployT = 1.0) {
@@ -213,7 +215,7 @@ export class Sim {
       slowT: 0, stuckT: 0, lastX: x, lastZ: z, structure: building, life: card.lifetime || 0, fade: 1,
       baseScale, level: 1, xp: 0, hurtT: -9, minion: !!card.minion,
     };
-    if (building) { e.half = 0.5; this.nav.setStructure(x, z, 0.5, true); bar.visible = true; }
+    if (building) { e.half = card.half || 0.5; this.nav.setStructure(x, z, e.half, true); bar.visible = true; }
     if (!building) this.assignLane(e);
     if (!card.minion) {
       const rank = this.cardRank(team, key);
@@ -313,13 +315,16 @@ export class Sim {
   // ---------- spells ----------
   castSpell(team, key, x, z) {
     const card = CARDS[key];
-    const thrown = { frag: 'grenade', smoke: 'smokecan', flash: 'flashcan', molotov: 'molotov' }[key];
+    if (key === 'airstrike') return this.airstrike(team, card, x, z);
+    const thrown = { frag: 'grenade', smoke: 'smokecan', flash: 'flashcan', molotov: 'molotov', emp: 'empcan', adrenaline: 'adrencan' }[key];
     this.areaMarker(team, x, z, card.radius, 1.2);
     this.throwItem(team, thrown, x, z, key === 'frag' ? 0.9 : 0.7, () => {
       if (key === 'frag') this.explode(team, x, z, card.radius, card.dmg, card.towerMul, true);
       else if (key === 'smoke') this.popSmoke(team, card, x, z);
       else if (key === 'flash') this.flashbang(team, card, x, z);
       else if (key === 'molotov') this.ignite(team, card, x, z);
+      else if (key === 'emp') this.emp(team, card, x, z);
+      else if (key === 'adrenaline') this.adrenaline(team, card, x, z);
     });
     this.snd('throw', x, z);
   }
@@ -438,6 +443,113 @@ export class Sim {
     }, dispose: () => { this.scene.remove(glow, light); glow.geometry.dispose(); } });
   }
 
+  // A jet crosses the map and drops a line of bombs through the target.
+  airstrike(team, card, x, z) {
+    const xs = [];
+    for (let i = 0; i < card.bombs; i++) xs.push(x + (i - (card.bombs - 1) / 2) * card.spacing);
+    for (const bx of xs) this.areaMarker(team, bx, z, card.radius, card.delay + 0.4);
+    const jet = buildModel('jet', team).root;
+    jet.scale.setScalar(2.4); jet.rotation.y = Math.PI / 2;
+    this.scene.add(jet);
+    const speed = 30, over = card.delay - 0.25;
+    const dropped = xs.map(() => false);
+    this.snd('jet', x, z, 1.2);
+    this.effects.push({ t: 0, dur: card.delay + 1.4, update: (f) => {
+      const jx = x + (f.t - over) * speed;
+      jet.position.set(jx, 6 + Math.sin(f.t * 3) * 0.2, z);
+      if (Math.random() < 0.6) this.world.smoke.emit({ x: jx - 0.8, y: jet.position.y, z, spread: 0.05, life: 0.9, size: 0.25, sizeEnd: 0.9, color: [0.85, 0.85, 0.85, 0.35] });
+      xs.forEach((bx, i) => {
+        if (!dropped[i] && f.t >= card.delay + i * 0.14) { dropped[i] = true; this.explode(team, bx, z, card.radius, card.dmg, card.towerMul, true); }
+      });
+      return f.t < f.dur;
+    }, dispose: () => this.scene.remove(jet) });
+  }
+
+  emp(team, card, x, z) {
+    this.spellTargets(team, x, z, card.radius, (e) => {
+      this.damage(e, e.kind === 'tower' ? card.dmg * card.towerMul : card.dmg, null);
+      if (e.kind === 'tower') return;
+      const machine = e.air || e.kind === 'building' || e.card?.vehicle || e.card?.model === 'mech';
+      e.stunT = Math.max(e.stunT || 0, machine ? card.stun : card.stunOrganic);
+      e.windup = 0;
+    });
+    this.pulseRing(x, z, card.radius, new THREE.Color(0.6, 1.8, 3));
+    this.world.fx.emit({ x, y: 0.6, z, count: 70, spread: card.radius * 0.5, velRand: 3, gravity: 2, life: 0.5, size: 0.12, color: [0.8, 2.2, 3.2, 1] });
+    this.snd('emp', x, z);
+  }
+
+  adrenaline(team, card, x, z) {
+    for (const e of this.entities) {
+      if (!e.alive || e.team !== team || e.kind !== 'unit' || Math.hypot(e.x - x, e.z - z) > card.radius + e.radius) continue;
+      e.hp = Math.min(e.maxHp, e.hp + e.maxHp * card.heal);
+      e.rushT = card.duration;
+      this.world.fx.emit({ x: e.x, y: 0.4, z: e.z, count: 10, spread: 0.2, vel: [0, 2, 0], velRand: 0.4, life: 0.7, size: 0.14, color: [0.5, 2.6, 0.8, 1] });
+    }
+    this.pulseRing(x, z, card.radius, new THREE.Color(0.6, 2.6, 0.9));
+    this.snd('adrenaline', x, z);
+  }
+
+  pulseRing(x, z, r, color) {
+    const ring = new THREE.Mesh(new THREE.RingGeometry(0.2, 0.45, 48), new THREE.MeshBasicMaterial({ color, transparent: true, depthWrite: false, side: THREE.DoubleSide, blending: THREE.AdditiveBlending }));
+    ring.rotation.x = -Math.PI / 2; ring.position.set(x, 0.1, z);
+    this.scene.add(ring);
+    this.effects.push({ t: 0, dur: 0.6, update: (f) => { const k = f.t / f.dur; ring.scale.setScalar(1 + k * r * 2.1); ring.material.opacity = 1 - k; return k < 1; }, dispose: () => { this.scene.remove(ring); ring.geometry.dispose(); ring.material.dispose(); } });
+  }
+
+  // ---------- support ----------
+  // heal (troops) or repair (structures) everything friendly within reach, once per pulse
+  supportPulse(e, dt) {
+    const s = e.card.heal || e.card.repair;
+    e.supT = (e.supT ?? 0.4) - dt;
+    if (e.supT > 0) return;
+    e.supT = s.every;
+    const amt = s.amount * (1 + 0.15 * (e.level - 1));
+    let total = 0;
+    for (const o of this.entities) {
+      if (!o.alive || o.team !== e.team || o === e || o.hp >= o.maxHp || o.deployT > 0) continue;
+      if (e.card.heal ? o.kind !== 'unit' : o.kind === 'unit') continue;
+      if (Math.hypot(o.x - e.x, o.z - e.z) > s.radius + o.radius) continue;
+      const h = Math.min(amt, o.maxHp - o.hp);
+      o.hp += h; total += h;
+      this.world.fx.emit({ x: o.x, y: (o.y || 0) + (o.kind === 'tower' ? 2.2 : 0.7), z: o.z, count: e.card.heal ? 5 : 8, spread: 0.25, vel: [0, 1.2, 0], velRand: e.card.heal ? 0.2 : 1.2, gravity: e.card.heal ? 0 : 3, life: 0.7, size: 0.12, color: e.card.heal ? [0.5, 2.4, 0.7, 1] : [2.4, 1.6, 0.6, 1] });
+    }
+    if (total > 0) {
+      this.gainXp(e, total * XP.perDamage * 1.2);
+      e.hurtT = this.time;
+      e.supportT = 0.6;
+      if ((e.supN = (e.supN || 0) + 1) % 3 === 1) this.snd(e.card.heal ? 'heal' : 'repair', e.x, e.z, 0.7);
+    }
+  }
+
+  // who a support unit should stay with: the most hurt nearby ally (medic) or damaged structure (engineer)
+  supportAnchor(e) {
+    let best = null, bs = Infinity;
+    for (const o of this.entities) {
+      if (!o.alive || o.team !== e.team || o === e || o.deployT > 0) continue;
+      const d = Math.hypot(o.x - e.x, o.z - e.z);
+      if (d > 11) continue;
+      let score;
+      if (e.card.repair) {
+        if (o.kind === 'unit' || o.hp >= o.maxHp * 0.97) continue;
+        score = d - (1 - o.hp / o.maxHp) * 8;
+      } else {
+        if (o.kind !== 'unit' || o.card?.heal || (o.minion && o.hp >= o.maxHp)) continue;
+        score = d - (1 - o.hp / o.maxHp) * 6 - (o.minion ? 0 : 2);
+      }
+      if (score < bs) { bs = score; best = o; }
+    }
+    return best;
+  }
+
+  follow(e, a, dt) {
+    const s = e.card.heal || e.card.repair;
+    const want = s.radius * 0.5 + (a.radius || 0);
+    if (Math.hypot(a.x - e.x, a.z - e.z) <= want) { e.moving = false; return; }
+    const wp = e.followWp ||= { x: 0, z: 0, radius: 0, isWp: true };
+    wp.x = a.x; wp.z = a.z;
+    this.move(e, wp, dt);
+  }
+
   areaMarker(team, x, z, r, dur) {
     const mat = new THREE.MeshBasicMaterial({ color: new THREE.Color(FACTION[team].glow).multiplyScalar(1.4), transparent: true, depthWrite: false, side: THREE.DoubleSide });
     const ring = new THREE.Mesh(new THREE.RingGeometry(r - 0.06, r, 48), mat);
@@ -447,7 +559,7 @@ export class Sim {
   }
 
   // ---------- combat ----------
-  isHidden(e) { return e.deployT <= 0 && ((e.inThicket && e.revealT <= 0) || (!e.structure && this.inSmoke(e))); }
+  isHidden(e) { return e.deployT <= 0 && (((e.inThicket || e.card?.cloak) && e.revealT <= 0) || (!e.structure && this.inSmoke(e))); }
 
   canTarget(a, b) {
     if (!b.alive || b.team === a.team) return false;
@@ -463,10 +575,11 @@ export class Sim {
   acquire(e) {
     let best = null, bestD = Infinity;
     const sight = e.kind === 'unit' ? e.sight : e.range;
+    const minR = e.card?.minRange || 0;
     for (const o of this.entities) {
       if (!this.canTarget(e, o)) continue;
       const d = this.edgeDist(e, o);
-      if (d > sight) continue;
+      if (d > sight || d < minR) continue;
       // units prefer troops over structures when both are in sight
       const bias = o.structure && e.kind === 'unit' && !e.buildingsOnly ? 1.5 : 0;
       if (d + bias < bestD) { bestD = d + bias; best = o; }
@@ -478,6 +591,16 @@ export class Sim {
     if (!e.alive) return;
     if (e.kind === 'tower' && this.isProtected(e)) return;
     if (src && src.kind !== 'tower' && this.objOwner('armory') === src.team) amount *= 1 + OBJECTIVES[1].bonus;
+    if (src && src.buffDmg) amount *= src.buffDmg;
+    if (e.card?.shield && src && (src.kind === 'tower' || (src.range || 0) > 1.5)) {
+      // the riot shield blocks fire from the front
+      const dx = src.x - e.x, dz = src.z - e.z, d = Math.hypot(dx, dz) || 1;
+      if ((Math.sin(e.facing) * dx + Math.cos(e.facing) * dz) / d > 0.3) {
+        amount *= 1 - e.card.shield;
+        if (Math.random() < 0.3) this.world.fx.emit({ x: e.x + Math.sin(e.facing) * 0.5, y: 0.9, z: e.z + Math.cos(e.facing) * 0.5, count: 4, spread: 0.1, velRand: 2, gravity: 6, life: 0.25, size: 0.07, color: [3, 2.6, 1.6, 1] });
+      }
+    }
+    if (e.card?.cloak) e.revealT = Math.max(e.revealT, 0.8);
     const dealt = Math.min(amount, Math.max(0, e.hp));
     e.hp -= amount;
     e.flashT = 0.1;
@@ -507,9 +630,9 @@ export class Sim {
     if (e.structure) this.nav.setStructure(e.x, e.z, e.half, false);
     this.world.fx.emit({ x: e.x, y: e.y + 0.5, z: e.z, count: 18, spread: 0.25, vel: [0, 1.6, 0], velRand: 0.5, life: 1.4, size: 0.18, color: col });
     this.world.smoke.emit({ x: e.x, y: e.y + 0.3, z: e.z, count: 6, spread: 0.3, vel: [0, 0.4, 0], velRand: 0.3, life: 1.2, size: 0.4, sizeEnd: 1.6, color: [0.08, 0.07, 0.07, 0.6] });
-    this.snd(e.air ? 'droneDown' : e.card?.model === 'mech' ? 'boom' : 'death', e.x, e.z, e.minion ? 0.6 : 1);
+    this.snd(e.air ? 'droneDown' : e.card?.model === 'mech' || e.card?.vehicle ? 'boom' : 'death', e.x, e.z, e.minion ? 0.6 : 1);
     if (e.badge) e.badge.visible = false;
-    if (e.card?.model === 'mech') this.boomFx(e.x, e.z, 1.2, 1);
+    if (e.card?.model === 'mech' || e.card?.vehicle) this.boomFx(e.x, e.z, 1.2, 1);
     e.bar.visible = false;
     this.corpses.push({ e, t: 0 });
     const ds = e.card?.deathSpawn;
@@ -593,6 +716,8 @@ export class Sim {
       buckshot: { len: 0.4, w: 0.07, color: new THREE.Color(3, 2.2, 1.2), speed: 30 },
       laser: { len: 0.7, w: 0.05, color: glow.clone().multiplyScalar(3), speed: 28 },
       shell: { len: 0.35, w: 0.16, color: new THREE.Color(2.5, 1.3, 0.5), speed: 15 },
+      lob: { len: 0.2, w: 0.2, color: new THREE.Color(0.25, 0.28, 0.2), speed: 8.5, arc: true },
+      rocket: { len: 0.55, w: 0.12, color: new THREE.Color(2.8, 1.4, 0.5), speed: 14 },
     }[kind] || { len: 0.5, w: 0.04, color: new THREE.Color(3, 2.6, 1.4), speed: 38 };
     const mesh = new THREE.Mesh(new THREE.BoxGeometry(spec.w, spec.w, spec.len), new THREE.MeshBasicMaterial({ color: spec.color }));
     const y0 = src.kind === 'tower' ? src.muzzleY : src.kind === 'building' ? 1.0 : (src.y || 0) + src.height * 0.55;
@@ -603,8 +728,12 @@ export class Sim {
     this.projectiles.push({
       team: src.team, src, target, kind, mesh, x: src.x, y: y0, z: src.z,
       tx: target.x, ty: (target.y || 0) + 0.5, tz: target.z,
-      speed: spec.speed, dmg: src.dmg * (target.structure && src.card?.structMul ? src.card.structMul : 1), splash: src.card?.splash || 0, hitsAir: src.hitsAir,
+      speed: spec.speed, dmg: src.dmg * (target.structure && src.card?.structMul ? src.card.structMul : 1) * (src.buffDmg || 1)
+        * (src.card?.armorMul && !target.structure && (target.air || target.mass >= 9) ? src.card.armorMul : 1),
+      splash: src.card?.splash || 0, hitsAir: src.hitsAir,
+      arc: !!spec.arc, sx: src.x, sz: src.z, sy: y0, arcH: src.card?.lobH || 2.4,
     });
+    if (spec.arc) { const pr = this.projectiles[this.projectiles.length - 1]; pr.ty = 0.15; pr.total = Math.hypot(target.x - src.x, target.z - src.z) || 0.1; }
   }
 
   impact(p) {
@@ -617,7 +746,8 @@ export class Sim {
       }
       fx.emit({ x: p.x, y: p.y, z: p.z, count: 18, spread: 0.1, velRand: 2.4, gravity: 5, life: 0.4, size: 0.14, color: [2, 1.3, 0.5, 1] });
       this.world.smoke.emit({ x: p.x, y: p.y, z: p.z, count: 5, spread: 0.2, vel: [0, 0.6, 0], velRand: 0.4, life: 1, size: 0.5, sizeEnd: 1.4, color: [0.5, 0.42, 0.32, 0.6] });
-      this.snd(p.kind === 'shell' ? 'shellHit' : 'hit', p.x, p.z);
+      this.snd(p.kind === 'shell' || p.kind === 'lob' || p.kind === 'rocket' ? 'shellHit' : 'hit', p.x, p.z);
+      if (p.kind === 'lob' || p.kind === 'rocket') this.boomFx(p.x, p.z, p.splash * 0.7, 0.35);
     } else if (p.target.alive) {
       this.damage(p.target, p.dmg, p.src);
       const tower = p.target.structure;
@@ -667,6 +797,7 @@ export class Sim {
 
     this.updateHazards(dt);
     this.updateAltar(dt);
+    this.updateBuffs(dt);
 
     for (const e of this.entities) {
       if (!e.alive) continue;
@@ -682,6 +813,7 @@ export class Sim {
         e.hp -= (e.maxHp / e.life) * dt;
         if (e.hp <= 0) { this.kill(e); continue; }
       }
+      if (e.card?.heal || e.card?.repair) this.supportPulse(e, dt);
       if (e.kind === 'tower' && !e.active) continue;
       if (medic === e.team && e.kind === 'unit' && e.hp < e.maxHp) e.hp = Math.min(e.maxHp, e.hp + e.maxHp * OBJECTIVES[2].bonus * dt);
       if (e.kind !== 'tower' && this.time - e.hurtT < 1.5) this.gainXp(e, XP.combatPerSec * dt);
@@ -697,6 +829,31 @@ export class Sim {
     this.entities = this.entities.filter((e) => e.alive || e.kind === 'tower');
     this.updateEffects(dt);
     this.updateViews(dt);
+  }
+
+  // commander auras and adrenaline: damage, speed and fire-rate multipliers for this tick
+  updateBuffs(dt) {
+    const auras = [];
+    for (const e of this.entities) {
+      if (e.kind === 'tower') continue;
+      e.buffDmg = 1; e.buffSpeed = 1; e.haste = 1;
+      if (e.alive && e.card?.aura && e.deployT <= 0) auras.push(e);
+    }
+    for (const c of auras) {
+      const a = c.card.aura, k = 1 + 0.15 * (c.level - 1);
+      for (const e of this.entities) {
+        if (!e.alive || e.team !== c.team || e === c || e.kind === 'tower') continue;
+        if (Math.hypot(e.x - c.x, e.z - c.z) > a.radius + e.radius) continue;
+        e.buffDmg = Math.max(e.buffDmg, 1 + a.dmg * k); e.buffSpeed = Math.max(e.buffSpeed, 1 + a.speed * k);
+        if (Math.random() < dt * 1.5) this.world.fx.emit({ x: e.x, y: 0.1, z: e.z, spread: 0.3, vel: [0, 0.8, 0], life: 0.6, size: 0.08, color: [2.4, 1.9, 0.6, 1] });
+      }
+    }
+    for (const e of this.entities) {
+      if (!(e.rushT > 0)) continue;
+      e.rushT -= dt;
+      e.haste *= 1 + CARDS.adrenaline.haste; e.buffSpeed *= 1 + CARDS.adrenaline.haste;
+      if (Math.random() < dt * 5) this.world.fx.emit({ x: e.x, y: 0.5, z: e.z, spread: 0.2, vel: [0, 1, 0], life: 0.4, size: 0.09, color: [0.6, 2.6, 0.8, 1] });
+    }
   }
 
   updateHazards(dt) {
@@ -736,23 +893,33 @@ export class Sim {
   }
 
   think(e, dt) {
+    if (e.card?.noAttack && e.kind === 'building') return;
+    // support units stay with whoever they are patching up
+    let anchor = null;
+    if ((e.card?.heal || e.card?.repair) && e.kind === 'unit') {
+      e.anchorT = (e.anchorT || 0) - dt;
+      if (e.anchorT <= 0) { e.anchorT = 0.5; e.anchor = this.supportAnchor(e); }
+      anchor = e.anchor && e.anchor.alive ? e.anchor : null;
+    }
+    if (e.card?.noAttack) { if (anchor) this.follow(e, anchor, dt); else this.march(e, dt); return; }
     // targeting
     e.retarget -= dt;
     const t = e.target;
-    const valid = t && this.canTarget(e, t) && (e.kind === 'unit' ? true : this.edgeDist(e, t) <= e.range + 0.2);
+    const valid = t && this.canTarget(e, t) && (e.kind === 'unit' ? true : this.edgeDist(e, t) <= e.range + 0.2)
+      && !(e.card?.minRange && this.edgeDist(e, t) < e.card.minRange);
     if (!valid || (e.retarget <= 0 && (!t || t.structure || this.edgeDist(e, t) > e.range))) {
       e.retarget = 0.25 + Math.random() * 0.1;
       const n = this.acquire(e);
       if (n !== e.target) { e.target = n; e.path = null; }
     }
     const tg = e.target;
-    if (e.cd > 0) e.cd -= dt;
+    if (e.cd > 0) e.cd -= dt * (e.haste || 1);
     if (e.attackT >= 0) e.attackT += dt;
     if (e.windup > 0) {
       e.windup -= dt;
       if (e.windup <= 0) this.strike(e);
     }
-    if (!tg) { if (e.kind === 'unit') this.march(e, dt); return; }
+    if (!tg) { if (anchor) this.follow(e, anchor, dt); else if (e.kind === 'unit') this.march(e, dt); return; }
     const d = this.edgeDist(e, tg);
     if (d <= e.range) {
       if (e.kind === 'unit') e.facingTarget = Math.atan2(tg.x - e.x, tg.z - e.z);
@@ -766,7 +933,8 @@ export class Sim {
         e.revealT = 1.2;
       }
     } else if (e.kind === 'unit') {
-      this.move(e, tg, dt);
+      if (anchor) this.follow(e, anchor, dt);
+      else this.move(e, tg, dt);
     }
   }
 
@@ -825,6 +993,7 @@ export class Sim {
       if (this.nav.flagAt(e.x, e.z) & F.MIRE) speed *= 0.5;
     }
     if (e.slowT > 0) speed *= 0.5;
+    speed *= e.buffSpeed || 1;
     const ch = e.card?.charge;
     if (ch) { e.charging = (e.runUp || 0) >= ch.after; if (e.charging) speed *= ch.speedMul; }
     let gx = tg.x, gz = tg.z;
@@ -898,6 +1067,24 @@ export class Sim {
   updateProjectiles(dt) {
     const keep = [];
     for (const p of this.projectiles) {
+      if (p.arc) {
+        // lobbed: fly to where the target stood when fired, in a parabola
+        const dx = p.tx - p.x, dz = p.tz - p.z, d = Math.hypot(dx, dz), step = p.speed * dt;
+        if (d <= step + 0.05) {
+          p.x = p.tx; p.z = p.tz; p.y = p.ty;
+          this.impact(p);
+          this.scene.remove(p.mesh); p.mesh.geometry.dispose(); p.mesh.material.dispose();
+          continue;
+        }
+        p.x += (dx / d) * step; p.z += (dz / d) * step;
+        const k = 1 - (d - step) / p.total;
+        p.y = p.sy + (p.ty - p.sy) * k + 4 * p.arcH * k * (1 - k);
+        p.mesh.position.set(p.x, p.y, p.z);
+        p.mesh.rotation.x += dt * 8;
+        if (Math.random() < 0.5) this.world.smoke.emit({ x: p.x, y: p.y, z: p.z, spread: 0.02, life: 0.4, size: 0.12, sizeEnd: 0.4, color: [0.6, 0.55, 0.5, 0.4] });
+        keep.push(p);
+        continue;
+      }
       if (p.target.alive) { p.tx = p.target.x; p.ty = (p.target.y || 0) + (p.target.kind === 'tower' ? 2 : 0.5); p.tz = p.target.z; }
       const dx = p.tx - p.x, dy = p.ty - p.y, dz = p.tz - p.z;
       const d = Math.hypot(dx, dy, dz);
@@ -911,7 +1098,8 @@ export class Sim {
       p.x += (dx / d) * step; p.y += (dy / d) * step; p.z += (dz / d) * step;
       p.mesh.position.set(p.x, p.y, p.z);
       p.mesh.lookAt(p.tx, p.ty, p.tz);
-      if (p.kind === 'shell') this.world.smoke.emit({ x: p.x, y: p.y, z: p.z, spread: 0.03, life: 0.6, size: 0.2, sizeEnd: 0.7, color: [0.45, 0.42, 0.38, 0.5] });
+      if (p.kind === 'rocket') this.world.fx.emit({ x: p.x, y: p.y, z: p.z, spread: 0.02, life: 0.15, size: 0.2, sizeEnd: 0.05, color: [3, 1.4, 0.4, 1] });
+      if (p.kind === 'shell' || p.kind === 'rocket') this.world.smoke.emit({ x: p.x, y: p.y, z: p.z, spread: 0.03, life: 0.6, size: 0.2, sizeEnd: 0.7, color: [0.45, 0.42, 0.38, 0.5] });
       keep.push(p);
     }
     this.projectiles = keep;

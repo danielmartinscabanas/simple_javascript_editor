@@ -26,13 +26,13 @@ export const TEAM = { PLAYER: 0, RIVAL: 1 };
 // Per lane an outer (tier 1) and inner (tier 2) outpost, then the Command Post. Inner outposts are shielded
 // until their lane's outer one falls; the Command Post is shielded until any inner outpost falls.
 export const TOWERS = [
-  { kind: 'keep', lane: 'M', tier: 3, x: 0, z: 30.6, half: 1.5, hp: 7800, dmg: 150, hitSpeed: 0.8, range: 7.5 },
-  { kind: 'bell', lane: 'L', tier: 1, x: -17, z: 12, half: 1.1, hp: 3800, dmg: 115, hitSpeed: 0.75, range: 7.5 },
-  { kind: 'bell', lane: 'L', tier: 2, x: -13, z: 28.1, half: 1.1, hp: 4800, dmg: 130, hitSpeed: 0.75, range: 7.5 },
-  { kind: 'bell', lane: 'M', tier: 1, x: 0, z: 10, half: 1.1, hp: 3800, dmg: 115, hitSpeed: 0.75, range: 7.5 },
-  { kind: 'bell', lane: 'M', tier: 2, x: 0, z: 19.5, half: 1.1, hp: 4800, dmg: 130, hitSpeed: 0.75, range: 7.5 },
-  { kind: 'bell', lane: 'R', tier: 1, x: 17, z: 12, half: 1.1, hp: 3800, dmg: 115, hitSpeed: 0.75, range: 7.5 },
-  { kind: 'bell', lane: 'R', tier: 2, x: 13, z: 28.1, half: 1.1, hp: 4800, dmg: 130, hitSpeed: 0.75, range: 7.5 },
+  { kind: 'keep', lane: 'M', tier: 3, x: 0, z: 30.6, half: 1.5, hp: 9000, dmg: 160, hitSpeed: 0.8, range: 7.5 },
+  { kind: 'bell', lane: 'L', tier: 1, x: -17, z: 12, half: 1.1, hp: 4400, dmg: 120, hitSpeed: 0.75, range: 7.5 },
+  { kind: 'bell', lane: 'L', tier: 2, x: -13, z: 28.1, half: 1.1, hp: 5600, dmg: 135, hitSpeed: 0.75, range: 7.5 },
+  { kind: 'bell', lane: 'M', tier: 1, x: 0, z: 10, half: 1.1, hp: 4400, dmg: 120, hitSpeed: 0.75, range: 7.5 },
+  { kind: 'bell', lane: 'M', tier: 2, x: 0, z: 19.5, half: 1.1, hp: 5600, dmg: 135, hitSpeed: 0.75, range: 7.5 },
+  { kind: 'bell', lane: 'R', tier: 1, x: 17, z: 12, half: 1.1, hp: 4400, dmg: 120, hitSpeed: 0.75, range: 7.5 },
+  { kind: 'bell', lane: 'R', tier: 2, x: 13, z: 28.1, half: 1.1, hp: 5600, dmg: 135, hitSpeed: 0.75, range: 7.5 },
 ];
 
 // Hard cover, left-side player quadrant (x < 0, z > 0); mirrored to all four quadrants unless `noMirrorX`.
@@ -83,8 +83,8 @@ export const BOUNTY = { tower: 2 };                         // funds for destroy
 export const XP = {
   combatPerSec: 1.0, perDamage: 1 / 45, kill: 6, killRecruit: 2, killTower: 25,
   maxLevel: 4, hpPerLevel: 0.18, dmgPerLevel: 0.15, hastePerLevel: 0.05,
-  curve: (card) => { const a = 10 + card.cost * 4; return [a, a * 2.2, a * 3.8]; },     // unit level 2, 3, 4
-  rankAt: (card) => { const a = 10 + card.cost * 4; return [a * 2.5, a * 6]; },         // card rank 2, 3
+  curve: (card) => { const a = 10 + card.cost * 4; return [a, a * 2.4, a * 4.5]; },     // unit level 2, 3, 4
+  rankAt: (card) => { const a = 10 + card.cost * 4; return [a * 4, a * 9]; },         // card rank 2, 3
 };
 
 // Factions. Which one each team plays is chosen in the menu (team 0 = player).
@@ -122,7 +122,7 @@ export const CARDS = {
   },
   mech: {
     name: 'Assault Mech', cost: 7, type: 'unit', count: 1, model: 'mech',
-    hp: 3800, dmg: 240, hitSpeed: 1.6, range: 3.2, sight: 7, speed: 0.75, radius: 0.85, mass: 22,
+    hp: 3800, dmg: 215, hitSpeed: 1.6, range: 3.2, sight: 7, speed: 0.75, radius: 0.85, mass: 22,
     air: false, hitsAir: false, buildingsOnly: true, projectile: 'shell', splash: 0.8, sfx: 'cannon',
     lore: 'Walks straight for structures and shells them. Huge armour.',
   },
@@ -151,6 +151,88 @@ export const CARDS = {
     name: 'Sentry Gun', cost: 4, type: 'building', count: 1, model: 'sentry',
     hp: 1150, dmg: 52, hitSpeed: 0.32, range: 6.5, sight: 6.5, radius: 0.7, lifetime: 32,
     air: false, hitsAir: true, projectile: 'tracer', sfx: 'sentry', lore: 'Automated turret. Rapid fire at ground and air for 32 seconds.',
+  },
+  // ---- melee ----
+  ghost: {
+    name: 'Ghost', cost: 3, type: 'unit', count: 1, model: 'ghost', role: 'melee',
+    hp: 380, dmg: 150, hitSpeed: 0.75, range: 0.55, sight: 6, speed: 2.0, radius: 0.32, mass: 2,
+    air: false, hitsAir: false, cloak: true, sfx: 'knife', lore: 'Knife specialist. Invisible until it strikes, and deadly up close.',
+  },
+  riot: {
+    name: 'Riot Shield', cost: 4, type: 'unit', count: 1, model: 'riot', role: 'melee',
+    hp: 1350, dmg: 72, hitSpeed: 1.1, range: 0.6, sight: 5.5, speed: 1.0, radius: 0.42, mass: 8,
+    air: false, hitsAir: false, shield: 0.65, sfx: 'baton', lore: 'Its shield stops 65% of gunfire from the front. Leads a push from the front.',
+  },
+  // ---- support ----
+  medic: {
+    name: 'Combat Medic', cost: 3, type: 'unit', count: 1, model: 'medic', role: 'support',
+    hp: 420, dmg: 28, hitSpeed: 0.8, range: 3.6, sight: 6, speed: 1.3, radius: 0.33, mass: 3,
+    air: false, hitsAir: true, projectile: 'tracer', sfx: 'pistol', heal: { radius: 2.8, amount: 42, every: 1.0 },
+    lore: 'Stays with your troops and heals everyone around her. Weak sidearm.',
+  },
+  engineer: {
+    name: 'Combat Engineer', cost: 3, type: 'unit', count: 1, model: 'engineer', role: 'support',
+    hp: 480, dmg: 48, hitSpeed: 1.1, range: 0.6, sight: 6, speed: 1.25, radius: 0.34, mass: 3,
+    air: false, hitsAir: false, sfx: 'baton', repair: { radius: 2.6, amount: 95, every: 1.0 },
+    lore: 'Repairs damaged outposts and sentries, even shielded ones. Swings a hammer if cornered.',
+  },
+  commander: {
+    name: 'Field Commander', cost: 4, type: 'unit', count: 1, model: 'commander', role: 'support',
+    hp: 650, dmg: 58, hitSpeed: 0.9, range: 4.5, sight: 6.5, speed: 1.15, radius: 0.35, mass: 4,
+    air: false, hitsAir: true, projectile: 'tracer', sfx: 'pistol', aura: { radius: 3.4, dmg: 0.25, speed: 0.2 },
+    lore: 'Allies near the commander deal 25% more damage and move 20% faster.',
+  },
+  medevac: {
+    name: 'Medevac', cost: 4, type: 'unit', count: 1, model: 'medevac', role: 'support',
+    hp: 1150, dmg: 0, hitSpeed: 1, range: 0, sight: 6, speed: 1.45, radius: 0.62, mass: 10,
+    air: false, hitsAir: false, vehicle: true, noAttack: true, heal: { radius: 3.6, amount: 58, every: 1.0 },
+    lore: 'An unarmed ambulance that follows the push and heals everyone around it.',
+  },
+  // ---- heavy weapons ----
+  grenadier: {
+    name: 'Grenadier', cost: 4, type: 'unit', count: 1, model: 'grenadier', role: 'ranged',
+    hp: 440, dmg: 150, hitSpeed: 1.8, range: 5.4, minRange: 1.5, sight: 6.5, speed: 1.0, radius: 0.36, mass: 3,
+    air: false, hitsAir: false, projectile: 'lob', splash: 1.3, sfx: 'launcher',
+    lore: 'Lobs grenades over cover for splash damage. Useless point-blank.',
+  },
+  rocket: {
+    name: 'Rocket Trooper', cost: 4, type: 'unit', count: 1, model: 'rocketeer', role: 'ranged',
+    hp: 400, dmg: 210, hitSpeed: 2.2, range: 5.8, sight: 7, speed: 1.0, radius: 0.35, mass: 3,
+    air: false, hitsAir: true, projectile: 'rocket', splash: 0.6, armorMul: 2.5, structMul: 0.7, sfx: 'rocketfire',
+    lore: 'Rockets wreck armour: 2.5× damage to mechs, vehicles and drones.',
+  },
+  apc: {
+    name: 'Armored Car', cost: 5, type: 'unit', count: 1, model: 'apc', role: 'tank',
+    hp: 1700, dmg: 34, hitSpeed: 0.32, range: 4.6, sight: 6.5, speed: 1.75, radius: 0.62, mass: 12, structMul: 0.55,
+    air: false, hitsAir: true, vehicle: true, projectile: 'tracer', sfx: 'smg',
+    lore: 'Fast and armoured, with a mounted gun that hits ground and air on the move.',
+  },
+  mortar: {
+    name: 'Mortar Pit', cost: 5, type: 'building', count: 1, model: 'mortar', role: 'building',
+    hp: 950, dmg: 190, hitSpeed: 3.0, range: 11, minRange: 3, sight: 11, radius: 0.7, lifetime: 40,
+    air: false, hitsAir: false, projectile: 'lob', lobH: 6, splash: 1.5, sfx: 'mortar',
+    lore: 'Long-range artillery for 40 seconds. Splash; cannot hit air or anything close.',
+  },
+  barricade: {
+    name: 'Barricade', cost: 2, type: 'building', count: 1, model: 'barricade', role: 'building',
+    hp: 1600, dmg: 0, hitSpeed: 1, range: 0, sight: 0, radius: 0.9, half: 0.9, lifetime: 35,
+    air: false, hitsAir: false, noAttack: true, lore: 'Concrete barriers that block a path and soak fire for 35 seconds.',
+  },
+  // ---- tactical ----
+  airstrike: {
+    name: 'Airstrike', cost: 6, type: 'spell', model: 'jet',
+    radius: 1.7, dmg: 380, towerMul: 0.35, bombs: 3, spacing: 1.9, delay: 1.2,
+    lore: 'A jet bombs a line across the target after a short delay.',
+  },
+  emp: {
+    name: 'EMP', cost: 3, type: 'spell', model: 'empcan',
+    radius: 3.0, dmg: 80, stun: 4.5, stunOrganic: 1.0, towerMul: 0.3,
+    lore: 'Fries electronics: drones, mechs, vehicles and turrets shut down for 4.5 s; troops 1 s.',
+  },
+  adrenaline: {
+    name: 'Adrenaline', cost: 3, type: 'spell', model: 'adrencan',
+    radius: 3.0, duration: 6, haste: 0.4, heal: 0.2,
+    lore: 'Allies in the area heal 20% and move and fire 40% faster for 6 seconds.',
   },
   recruit: {
     name: 'Recruit', cost: 0, type: 'unit', count: 1, model: 'recruit', minion: true,

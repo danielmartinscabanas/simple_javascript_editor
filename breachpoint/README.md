@@ -18,9 +18,14 @@ A three-lane map (40 × 68 m) in the spirit of a MOBA, played with cards:
 - **Match:** 8 minutes (double funds in the last 2), then 2 minutes of sudden death; without a Command Post kill, more outposts destroyed wins.
 - **Camera:** drag to pan, pinch/scroll to zoom, tap the minimap; WASD/arrows, +/-, Space for base.
 
-## Cards (14)
+## Cards (28)
 
-Riflemen, SMG Rush, Marksman, Heavy Gunner (shotgun splash), Assault Mech (structure-only), K-9 Unit, Breacher (plants a charge on a structure and dies in the blast), Recon Drone, Kamikaze Drones, Sentry Gun, Frag Grenade, Smoke Grenade (conceals everything inside for 7 s), Flashbang (2.4 s stun), Molotov (fire area).
+- **Troops:** Riflemen, SMG Rush, Marksman, Heavy Gunner (shotgun splash), Grenadier (lobbed grenades, minimum range), Rocket Trooper (2.5× vs mechs, vehicles and drones), K-9 Unit.
+- **Melee:** Ghost (knife; cloaked until it strikes), Riot Shield (blocks 65% of gunfire from the front), Breacher (plants a charge on a structure and dies in the blast).
+- **Support:** Combat Medic (heals nearby troops and follows the wounded), Combat Engineer (repairs outposts and turrets), Field Commander (aura: +25% damage, +20% speed), Medevac (unarmed ambulance with a big heal aura).
+- **Vehicles & machines:** Armored Car (fast, fires on the move at ground and air), Assault Mech (structure-only), Recon Drone, Kamikaze Drones.
+- **Buildings:** Sentry Gun, Mortar Pit (11 m artillery, can't hit close or air), Barricade (blocks a path, soaks fire).
+- **Tactical:** Frag, Smoke, Flashbang, Molotov, Airstrike (a jet bombs a line after a delay), EMP (machines shut down 4.5 s, troops 1 s), Adrenaline (heal 20% and +40% speed and fire rate for 6 s).
 
 ## Assets — all CC0
 
@@ -29,6 +34,12 @@ Riflemen, SMG Rush, Marksman, Heavy Gunner (shotgun splash), Assault Mech (struc
 | Soldiers (CT blue SWAT, camo, sand-balaclava insurgents) | Quaternius, Ultimate Animated Character Pack |
 | Rifles, SMG, shotgun, pistol, containers, barrels, pallets, barriers, water tower, armoured truck, K-9 | Quaternius, Zombie Apocalypse Kit |
 | Assault mechs | Quaternius, Animated Mech Pack |
+| Medics, engineers, commander, ghosts, rocket trooper | Quaternius, Ultimate Animated Character Pack (Doctor, Worker, Suit, Cowboy, Ninja, Soldier) |
+| Armored car, technical, ambulance | Kenney, Car Kit (police, truck, ambulance) |
+| Mortar | Kenney, Tower Defense Kit (cannon) |
+| Rocket launcher, airstrike jet | Kenney, Space Kit (weapon rifle, racer craft) |
+| Knife | KayKit, Fantasy Weapons Bits (dagger) |
+| Riot shield, engineer's hammer | Kenney, Survival Kit (metal panel, hammer) |
 | Towers and walls | Kenney, Castle Kit |
 | Drones, sentry turret | Kenney, Tower Defense Kit and Space Kit |
 | Crates, grenade | Kenney, Blaster Kit; Survival Kit; Retro Urban Kit |

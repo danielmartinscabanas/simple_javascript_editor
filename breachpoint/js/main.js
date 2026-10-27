@@ -236,7 +236,8 @@ function cardEl(key, extra = '') {
   const el = document.createElement('div');
   el.className = `card ${extra}`;
   el.style.backgroundImage = `radial-gradient(ellipse at 50% 40%, rgba(60,40,50,0.0), rgba(0,0,0,0.35)), url(${thumbs[key]}), radial-gradient(ellipse at 50% 30%, #b08a55, #3a2a18 80%)`;
-  el.innerHTML = `<div class="cost"><b>${c.cost}</b></div>${c.type !== 'unit' ? `<span class="tp">${c.type}</span>` : ''}<div class="nm">${c.name}</div>`;
+  const tag = c.type !== 'unit' ? c.type : c.vehicle ? 'vehicle' : ['support', 'melee'].includes(c.role) ? c.role : '';
+  el.innerHTML = `<div class="cost"><b>${c.cost}</b></div>${tag ? `<span class="tp">${tag}</span>` : ''}<div class="nm">${c.name}</div>`;
   el.dataset.key = key;
   return el;
 }
@@ -645,7 +646,7 @@ function showStats() {
   }
 }
 
-const WEAPON = { rifle: 'rifle', smg: 'smg', sniper: 'scope', heavy: 'shotgun', mech: 'cannon', k9: 'bite', breacher: 'C4', drone: 'laser', swarm: 'boom', sentry: 'turret' };
+const WEAPON = { rifle: 'rifle', smg: 'smg', sniper: 'scope', heavy: 'shotgun', mech: 'cannon', k9: 'bite', breacher: 'C4', drone: 'laser', swarm: 'boom', sentry: 'turret', recruit: 'smg', ghost: 'knife', riot: 'baton', medic: 'pistol', engineer: 'hammer', commander: 'pistol', grenadier: '40mm', rocket: 'RPG', apc: 'MG', mortar: 'mortar' };
 function killFeed(k, v) {
   if (!v || v.kind === 'tower' || view.mode !== 'battle') return;
   const host = $('killfeed');
@@ -1138,4 +1139,5 @@ boot();
 window.__breach = { get sim() { return sim; }, get bot() { return bot; }, audio, startBattle: () => { rival = rival || { name: 'Test', house: 'Test', trophies: 0, skill: 0.5, ping: 40 }; startBattle(); }, select, tryDeploy, store, focusOn, skipIntro: () => { intro = 0; $('count').replaceChildren(); } };
 window.__cards = CARDS;
 window.__Bot = Bot;
+window.__rivalDeck = rivalDeck;
 window.__view = view;

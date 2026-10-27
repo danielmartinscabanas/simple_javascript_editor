@@ -49,6 +49,15 @@ Mirrors used (the container could only reach GitHub):
 | wind_loop | desert wind bed | "Mild Wind Background Noise" | Bashar3A |
 | levelup | unit level-up bell | "Bell dings/chimes" (opengameart.org/content/bell-dingschimes), via GodotFall `level_up.ogg` | pwl |
 | rankup | card rank-up (rack clack + bell) | "68 Workshop Sounds" (opengameart.org/content/68-workshop-sounds), via GodotFall `upgrade_gun.ogg` | bart |
+| knife_swish, knife_hit | Ghost knife | "Swishes Sound Pack"; "40 wet towel club/pound/hit sounds" | artisticdude; qubodup |
+| whack | Riot Shield / Engineer melee | "37 hits/punches"; "100 CC0 metal and wood SFX" | qubodup; rubberduck |
+| ratchet | Engineer repairs | "68 Workshop Sounds" | bart |
+| medkit | Medic / Medevac heals | "Zipper"; "Fabric rustling" | AntumDeluge; iochi-glaucus |
+| mortar | Mortar Pit firing | "Battle at sea"; "Low rumbling" | thimras; Musheran |
+| jet | Airstrike flyover | "Rocket launch" | qubodup |
+| static | EMP | "Static" | xhunterko |
+| heartbeat | Adrenaline | "Heartbeat (single sound)" | qubodup |
+| shout_hey, shout_kill | Field Commander deploying | "Aggressive NPC sounds 'Hey', 'I will kill you'" | mujtaba-io |
 | vo_* | announcer | Voiceover Pack | Kenney |
 | fanfare | victory brass fanfare | "Classic fanfare lick" (opengameart.org/content/classic-fanfare-lick), via github.com/FlamingFury00/Cartoon-Hitster | fvcalderan |
 | music_victory | victory song | "Town Theme RPG" (opengameart.org/content/town-theme-rpg), via github.com/castle-engine/castle-engine `examples/audio/music_collection_player/data/songs/` | cynicmusic |

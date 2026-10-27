@@ -7,6 +7,10 @@ const ROLE = {
   recruit: ['ranged'], rifle: ['ranged', 'antiAir'], smg: ['swarm', 'antiAir', 'dps'], sniper: ['ranged', 'antiAir'], heavy: ['tank', 'splash'],
   mech: ['tank', 'win'], k9: ['melee', 'dps'], breacher: ['win', 'melee'], drone: ['air', 'antiAir'], swarm: ['air', 'antiAir', 'swarm'],
   sentry: ['building', 'antiAir'], frag: ['spell'], smoke: ['support'], flash: ['spell'], molotov: ['spell'],
+  ghost: ['melee', 'dps'], riot: ['tank', 'melee'], medic: ['support', 'escort'], engineer: ['support', 'melee'],
+  commander: ['support', 'escort', 'ranged'], medevac: ['support', 'escort'], grenadier: ['ranged', 'splash'],
+  rocket: ['ranged', 'antiAir', 'antiArmor'], apc: ['tank', 'antiAir'], mortar: ['building', 'splash'],
+  barricade: ['building'], airstrike: ['spell'], emp: ['spell'], adrenaline: ['support', 'escort'],
 };
 
 export function rivalDeck() {
@@ -15,9 +19,11 @@ export function rivalDeck() {
     const d = keys.slice().sort(() => Math.random() - 0.5).slice(0, 8);
     const has = (f) => d.filter((k) => f(k)).length;
     const air = has((k) => CARDS[k].hitsAir);
-    const spell = has((k) => CARDS[k].type === 'spell' && k !== 'smoke');
+    const spell = has((k) => CARDS[k].type === 'spell' && !['smoke', 'adrenaline'].includes(k));
     const win = has((k) => ROLE[k].includes('tank') || ROLE[k].includes('win'));
-    if (air >= 3 && spell >= 1 && spell <= 2 && win >= 1) return d;
+    const escort = has((k) => ROLE[k].includes('escort'));
+    const build = has((k) => CARDS[k].type === 'building');
+    if (air >= 3 && spell >= 1 && spell <= 3 && win >= 1 && escort <= 2 && build <= 2) return d;
   }
   return ['rifle', 'smg', 'k9', 'drone', 'mech', 'heavy', 'frag', 'sentry'];
 }
@@ -160,6 +166,11 @@ export class Bot {
       const card = CARDS[k], r = ROLE[k];
       if (card.cost > me.souls) return -1;
       let s = 1;
+      if (card.noAttack && card.type !== 'building') return -1;
+      if (k === 'adrenaline' || k === 'engineer') return -1;
+      if (k === 'emp') return anyAir || main.card.vehicle || main.card.model === 'mech' ? 3 + Math.random() : -1;
+      if (r.includes('escort')) s -= 1.5;
+      if (r.includes('antiArmor') && (main.card.vehicle || main.card.model === 'mech' || main.air)) s += 3;
       if (card.type === 'spell') {
         if (k === 'smoke') return -1;
         if (!swarm && !(k === 'flash' && c.hp > 1200)) return -1;
@@ -224,7 +235,9 @@ export class Bot {
       const slow = CARDS[tank].speed < 1;
       const tz = slow && !taken ? -12 : frontZ, tx = slow && !taken && lx !== 0 ? lx : lx * 0.98;
       this.queue(tank, tx, tz, 0.1);
-      const support = me.hand.find((k) => k !== tank && CARDS[k].type === 'unit' && !ROLE[k].includes('tank'));
+      const support = me.hand.find((k) => k !== tank && ROLE[k].includes('escort') && k !== 'adrenaline')
+        || me.hand.find((k) => k !== tank && CARDS[k].type === 'unit' && !ROLE[k].includes('tank'));
+      if (me.hand.includes('adrenaline') && Math.random() < 0.6) this.pending.push({ key: 'adrenaline', x: tx, z: tz + (slow ? 8 : 4), t: slow ? 12 : 6 });
       if (support) this.pending.push({ key: support, x: tx, z: tz - 1.4, t: slow ? 4 : 1.6 });
       if (me.hand.includes('smoke') && Math.random() < 0.5 && pick.target) this.pending.push({ key: 'smoke', x: pick.target.x, z: this.Z(pick.target.z) - 1.5, t: slow ? 16 : 7 });
       return;
@@ -232,7 +245,17 @@ export class Bot {
     if (me.hand.includes('breacher') && me.souls >= 4 && Math.random() < 0.5 && pick.target) {
       return this.queue('breacher', lx, frontZ, 0.1);
     }
-    const unit = me.hand.filter((k) => CARDS[k].type === 'unit' && CARDS[k].cost <= me.souls).sort((a, b) => CARDS[b].cost - CARDS[a].cost)[0];
+    // a damaged outpost of ours? send the engineer
+    const hurt = sim.towers.find((t) => t.alive && t.team === this.team && t.hp < t.maxHp * 0.7);
+    if (hurt && me.hand.includes('engineer') && me.souls >= 3) return this.queue('engineer', hurt.x, this.Z(hurt.z) - 1.5, 0.1);
+    if (pick.target && me.hand.includes('airstrike') && me.souls >= 6 && Math.random() < 0.3) {
+      const foes = this.visibleEnemies().filter((e) => Math.hypot(e.x - pick.target.x, e.z - this.Z(pick.target.z)) < 6);
+      if (foes.length >= 2) { const c = this.cluster(foes, 2.5); return this.queue('airstrike', c.x, c.z, 0.1); }
+    }
+    if (me.hand.includes('mortar') && me.souls >= 5 && pick.target && Math.random() < 0.35) {
+      return this.queue('mortar', lx * 0.9, Math.min(EDGE, this.Z(pick.target.z) - 9), 0.1);
+    }
+    const unit = me.hand.filter((k) => CARDS[k].type === 'unit' && CARDS[k].cost <= me.souls && !ROLE[k].includes('escort')).sort((a, b) => CARDS[b].cost - CARDS[a].cost)[0];
     if (unit) this.queue(unit, lx, frontZ, 0.1);
   }
 }
