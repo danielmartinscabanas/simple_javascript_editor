@@ -1201,6 +1201,148 @@ function buildBackground() {
   }
   x.fillStyle = 'rgba(20,12,16,0.5)';
   for (const t of trees) { const w = t.v < 3 ? 5 : 8; const bx = t.c * TS + 4, by = t.r * TS + 7; x.fillRect(bx - w, by - 1, w * 2 + 1, 2); x.fillRect(bx - w + 2, by + 1, w * 2 - 3, 1); }
+  buildCompound(x);
+}
+// ---- vila e fortaleza ao redor do castelo (decoração sólida: ocupa tiles, não é alvo) ----
+const STN = ['#f4ecda', '#dcd2bc', '#bcb09a', '#968b7c', '#6e6458', '#4c443c'];
+const stoneAt = (px, py, y0, level, seed) => {
+  const ry = py - y0, row = ry >> 2, off = (row & 1) * 4, bx = (px + off) >> 3;
+  let lv = level + (hash(bx * 5 + seed, row * 11) < 0.25 ? 1 : hash(bx * 3 + seed, row * 7) > 0.8 ? -1 : 0);
+  if ((ry & 3) === 3 || ((px + off) & 7) === 7) return STN[clamp(lv + 2, 0, 5)];
+  if ((ry & 3) === 0) lv -= 1;
+  return STN[clamp(lv, 0, 5)];
+};
+function spr(w, h, fn) {
+  const c = mk(w, h), x = c.getContext('2d');
+  fn((px, py, col) => { if (px >= 0 && py >= 0 && px < w && py < h) { x.fillStyle = col; x.fillRect(px, py, 1, 1); } });
+  return outlineCanvas(c);
+}
+const TILE_RED = ['#e0804a', '#c0643a', '#9a4a2c', '#6e3420'], THATCH = ['#e6cc78', '#cfae58', '#ad8c40', '#826a30'], SLATE = ['#8f96a0', '#6b727d', '#4e545f', '#343944'];
+function roofTri(P, cx, apex, base, hw, pal, seed) { // telhado de duas águas visto de frente
+  for (let py = apex; py <= base; py++) {
+    const t = (py - apex) / Math.max(1, base - apex), w = hw * (0.15 + 0.85 * t);
+    for (let px = Math.round(cx - w); px <= Math.round(cx + w); px++) {
+      const u = (px - (cx - w)) / (2 * w + 0.001); let k = u < 0.2 ? 0 : u < 0.55 ? 1 : u < 0.85 ? 2 : 3;
+      const rr = py - apex; if (rr % 3 === 2) k = Math.min(3, k + 1); else if (rr % 3 === 0 && ((px + (rr / 3 | 0) * 2) & 3) === 0) k = Math.max(0, k - 1);
+      P(px, py, pal[k]);
+    }
+  }
+}
+function coneRoof(P, cx, apex, base, hw, team) {
+  const T = TEAM[team], R4 = [T.h, T.t, T.T, mixc(T.T, '#1b1416', 0.5)];
+  for (let py = apex; py <= base; py++) {
+    const w = (py - apex) / (base - apex) * hw + 0.6;
+    for (let px = Math.round(cx - w); px <= Math.round(cx + w - 1); px++) {
+      const u = (px - (cx - w)) / (2 * w); let k = u < 0.18 ? 0 : u < 0.5 ? 1 : u < 0.82 ? 2 : 3; const rr = py - apex;
+      if (rr % 4 === 3) k = Math.min(3, k + 1); if (py >= base - 1) k = Math.min(3, k + 1); P(px, py, R4[k]);
+    }
+  }
+}
+function towerSpr(team, seed, tall) {
+  const w = 16, h = tall ? 44 : 36, top = h - 28;
+  return spr(w, h, P => {
+    const x0 = 2, bw = 12;
+    for (let py = top + 8; py < h; py++) for (let px = x0; px < x0 + bw; px++) { const u = (px - x0) / (bw - 1); P(px, py, stoneAt(px, py, top + 8, u < 0.2 ? 0 : u < 0.5 ? 1 : u < 0.78 ? 2 : 3, seed)); }
+    for (let px = x0 - 1; px < x0 + bw + 1; px++) { for (let py = top + 3; py < top + 8; py++) { if (py < top + 5 && ((px - x0 + 1) % 4) > 2) continue; P(px, py, py === top + 7 ? STN[4] : STN[px < x0 + 5 ? 1 : 2]); } }
+    coneRoof(P, 8, 0, top + 3, 7, team);
+    for (let dy = 0; dy < 7; dy++) { P(8, top + 14 + dy, '#0e0a0c'); P(7, top + 14 + dy, STN[3]); P(9, top + 14 + dy, STN[1]); }
+  });
+}
+function keepSpr(team, seed) {
+  const w = 30, h = 32;
+  return spr(w, h, P => {
+    for (let py = 12; py < h; py++) for (let px = 4; px < 26; px++) { const u = (px - 4) / 21; P(px, py, stoneAt(px, py, 12, u < 0.25 ? 1 : u < 0.7 ? 2 : 3, seed)); }
+    for (let px = 3; px < 27; px++) for (let py = 8; py < 12; py++) { if (py < 10 && ((px - 3) % 4) > 2) continue; P(px, py, py === 11 ? STN[4] : STN[2]); }
+    for (const tx of [0, 22]) { for (let py = 8; py < h; py++) for (let px = tx; px < tx + 8; px++) { const u = (px - tx) / 7; P(px, py, stoneAt(px, py, 8, u < 0.3 ? 0 : u < 0.65 ? 2 : 3, seed + tx)); }
+      coneRoof(P, tx + 4, 0, 9, 5, team); }
+    for (let py = 20; py < h; py++) for (let px = 11; px < 19; px++) { const arch = py < 24 ? Math.abs(px - 14.5) <= 2.5 + (py - 20) * 0.5 : true; if (arch) P(px, py, ((px + py) % 4 === 0) ? '#4a4852' : '#0e0a0c'); }
+    for (const sx of [8, 21]) for (let dy = 0; dy < 5; dy++) { P(sx, 16 + dy, '#0e0a0c'); }
+  });
+}
+function houseSpr(seed) {
+  const w = 22, h = 24, thatch = seed % 2 === 0;
+  return spr(w, h, P => {
+    for (let py = 14; py < h; py++) for (let px = 2; px < 20; px++) { P(px, py, py < 18 ? '#e8dcc0' : stoneAt(px, py, 18, 2, seed)); }
+    for (let py = 14; py < 18; py++) for (const px of [2, 7, 12, 19]) P(px, py, '#5a3a22');
+    for (let px = 2; px < 20; px++) P(px, 14, '#5a3a22');
+    for (let py = 14; py < 18; py++) for (let px = 3; px < 19; px++) if ((px + py * 2) % 9 === 0 && py > 14) P(px, py, '#5a3a22');
+    roofTri(P, 11, 0, 13, 11, thatch ? THATCH : TILE_RED, seed);
+    for (let py = 17; py < h; py++) for (let px = 9; px < 14; px++) P(px, py, py === 17 ? '#3a2616' : px === 9 ? '#6a4426' : '#8a5a32');
+    for (const wx of [4, 15]) { for (let dy = 0; dy < 3; dy++) for (let dx = 0; dx < 3; dx++) P(wx + dx, 15 + dy, dx === 1 && dy === 1 ? '#f0c85a' : '#3a4a5a'); }
+    if (!thatch) { for (let py = 0; py < 6; py++) for (let px = 17; px < 20; px++) P(px, py + 1, py === 0 ? STN[4] : STN[2]); }
+  });
+}
+function chapelSpr(seed) {
+  const w = 20, h = 40;
+  return spr(w, h, P => {
+    for (let py = 24; py < h; py++) for (let px = 3; px < 17; px++) { const u = (px - 3) / 13; P(px, py, stoneAt(px, py, 24, u < 0.3 ? 1 : u < 0.7 ? 2 : 3, seed)); }
+    roofTri(P, 10, 14, 23, 9, SLATE, seed);
+    for (let py = 0; py < 14; py++) { const hw = py < 3 ? 0 : 2; for (let px = 10 - hw; px <= 10 + hw; px++) P(px, py + 8, py > 9 ? STN[4] : (px < 10 ? STN[1] : STN[3])); }
+    for (let py = 2; py < 12; py++) P(10, py, '#9aa0aa'); P(8, 4, '#9aa0aa'); P(9, 4, '#9aa0aa'); P(11, 4, '#9aa0aa'); P(12, 4, '#9aa0aa'); P(10, 1, '#c8b070');
+    for (let py = 30; py < h; py++) for (let px = 8; px < 13; px++) { const arch = py > 32 || Math.abs(px - 10) < 2; if (arch) P(px, py, '#3a2616'); }
+    for (let dy = 0; dy < 5; dy++) { P(5, 28 + dy, '#3a4a6a'); P(15, 28 + dy, '#3a4a6a'); P(5, 28 + dy, dy < 2 ? '#6a7ab0' : '#3a4a6a'); }
+  });
+}
+function wallSpr(seed, len) {
+  const w = len, h = 18;
+  return spr(w, h, P => {
+    for (let py = 4; py < h; py++) for (let px = 0; px < w; px++) { P(px, py, py < 6 ? STN[3] : stoneAt(px, py, 6, 2 + (py > 12 ? 1 : 0), seed)); }
+    for (let px = 0; px < w; px++) if (((px) % 6) < 4) for (let py = 0; py < 4; py++) P(px, py, py === 0 ? STN[0] : STN[2]);
+  });
+}
+function barnSpr(seed) {
+  const w = 28, h = 22;
+  return spr(w, h, P => {
+    for (let py = 10; py < h; py++) for (let px = 2; px < 26; px++) P(px, py, (px % 4 === 0) ? '#5a2e1c' : (px % 4 === 1 ? '#a8603a' : '#8a4a2c'));
+    roofTri(P, 14, 0, 9, 14, THATCH, seed);
+    for (let py = 14; py < h; py++) for (let px = 10; px < 18; px++) P(px, py, ((px - 10 === py - 14) || (px - 10 === 21 - py) || px === 10 || px === 17 || py === 14) ? '#e0b070' : '#3a2214');
+  });
+}
+function wellSpr() { return spr(10, 12, P => { for (let py = 6; py < 12; py++) for (let px = 1; px < 9; px++) P(px, py, stoneAt(px, py, 6, py > 9 ? 3 : 2, 3)); for (let px = 2; px < 8; px++) P(px, 6, '#2a3a4a'); for (const px of [1, 8]) for (let py = 1; py < 6; py++) P(px, py, '#6a4426'); for (let px = 0; px < 10; px++) P(px, 0, '#a8603a'); }); }
+function haySpr() { return spr(10, 8, P => { for (let py = 1; py < 8; py++) for (let px = 0; px < 10; px++) { const e = (px === 0 || px === 9) && (py < 3 || py > 6); if (!e) P(px, py, (px + py) % 3 === 0 ? '#caa850' : '#e6cc78'); } for (let px = 2; px < 8; px += 3) for (let py = 1; py < 8; py++) P(px, py, '#a08038'); }); }
+function barrelSpr() { return spr(7, 9, P => { for (let py = 0; py < 9; py++) for (let px = 0; px < 7; px++) { if ((py === 0 || py === 8) && (px === 0 || px === 6)) continue; P(px, py, py === 2 || py === 6 ? '#3a3238' : (px < 2 ? '#c88a52' : px < 5 ? '#a8603a' : '#7a4426')); } }); }
+function buildCompound(x) {
+  const items = [];
+  const kinds = [t => towerSpr(t, R() * 99 | 0, false), t => towerSpr(t, R() * 99 | 0, true), t => keepSpr(t, R() * 99 | 0), () => houseSpr(R() * 99 | 0), () => houseSpr(R() * 99 | 0), () => chapelSpr(R() * 99 | 0), () => barnSpr(R() * 99 | 0), () => wallSpr(R() * 99 | 0, 26)];
+  for (const c of castles) {
+    const t = c.team;
+    // paredão de fundo com torres, atrás da base
+    const wallY = t === 0 ? H - 20 : 0, wy2 = t === 0 ? H - 1 : 19;
+    for (let px = 0; px < MW; px += 26) { const wl = wallSpr(7 + px, Math.min(26, MW - px)); items.push({ img: wl, x: px - 1, by: wy2 + 1, back: true }); }
+    for (let px = 14; px < MW - 10; px += 70) if (px < c.x - 14 || px > c.x + c.w + 6) items.push({ img: towerSpr(t, px, false), x: px - 8, by: wy2 + 1, back: true, tall: true });
+    // flancos: subcastelos, casas, capela, celeiro
+    for (const side of [-1, 1]) {
+      let cur = side < 0 ? c.x - 8 : c.x + c.w + 8, guard = 0, placed = 0;
+      while (guard++ < 12 && placed < 4) {
+        const img = kinds[R() * kinds.length | 0](t), w = img.width, h = img.height, left = side < 0 ? cur - w : cur;
+        if (left < 4 || left + w > MW - 4) { if (cur < 0 || cur > MW) break; cur += side * -0; if (placed > 0 || guard > 6) break; continue; }
+        const lo = t === 0 ? c.y + 6 : 46, hi = t === 0 ? H - 28 : 92;
+        const by = Math.round(lo + R() * (hi - lo));
+        items.push({ img, x: left, by }); placed++;
+        cur = side < 0 ? left - 5 - (R() * 8 | 0) : left + w + 5 + (R() * 8 | 0);
+      }
+      // adereços
+      for (let i = 0; i < 3; i++) { const pr = [wellSpr, haySpr, barrelSpr][i % 3](), px = side < 0 ? 6 + R() * Math.max(1, c.x - 30) : c.x + c.w + 10 + R() * Math.max(1, MW - c.x - c.w - 30);
+        items.push({ img: pr, x: Math.round(px), by: Math.round((t === 0 ? c.y + 20 : 60) + R() * 30), prop: true }); }
+    }
+  }
+  items.sort((a, b) => (a.back ? -1 : 0) - (b.back ? -1 : 0) || a.by - b.by);
+  const placedBoxes = [];
+  for (const it of items) {
+    const { img } = it, w = img.width, h = img.height, y = it.by - h + 1;
+    if (!it.back) {
+      if (it.x < 2 || it.x + w > MW - 2 || y < 2 || it.by > H - 3) continue;
+      // não pode sobrepor terreno nem outras construções
+      let ok = true;
+      for (let ty = (it.by - 10) >> 3; ty <= it.by >> 3 && ok; ty++) for (let tx = (it.x + 2) >> 3; tx <= (it.x + w - 3) >> 3; tx++) if (kAt(tx, ty) !== 0 || swp[ty * COLS + tx]) { ok = false; break; }
+      for (const b of placedBoxes) if (it.x < b.x + b.w + 1 && it.x + w + 1 > b.x && it.by - 10 < b.by + 2 && it.by + 2 > b.by - 10) ok = false;
+      if (!ok) continue;
+      for (let ty = (it.by - 8) >> 3; ty <= (it.by - 1) >> 3; ty++) for (let tx = (it.x + 2) >> 3; tx <= (it.x + w - 3) >> 3; tx++) if (kAt(tx, ty) === 0) kind[ty * COLS + tx] = 4;
+      placedBoxes.push({ x: it.x, w, by: it.by });
+      x.fillStyle = 'rgba(20,12,16,0.44)'; x.fillRect(it.x + 2, it.by - 1, w - 2, 3);
+    } else { for (let ty = (it.by - 10) >> 3; ty <= Math.min(ROWS - 1, it.by >> 3); ty++) for (let tx = Math.max(0, it.x >> 3); tx <= Math.min(COLS - 1, (it.x + w - 1) >> 3); tx++) if (kAt(tx, ty) === 0) kind[ty * COLS + tx] = 4; }
+    x.drawImage(img, it.x - 1, y - 1);
+  }
 }
 // ---- árvores: pinheiros e carvalhos sombrios ----
 const PINE = ['#86a566', '#5e8648', '#456c3a', '#2f4f2e', '#1e3622'];
