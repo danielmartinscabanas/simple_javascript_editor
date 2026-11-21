@@ -625,7 +625,7 @@ function findSpot(team, type, x, y) {
     return best;
   }
   const xmin = 5, xmax = MW - 5, tx = clamp(x, xmin, xmax), ty = clamp(y, ymin, ymax);
-  const ok = (px, py) => px >= xmin && px <= xmax && py >= ymin && py <= ymax && free(px, py) && !units.some(o => !o.dead && Math.hypot(o.x - px, o.y - py) < o.d.r + d.r + 1);
+  const ok = (px, py) => px >= xmin && px <= xmax && py >= ymin && py <= ymax && free(px, py) && !units.some(o => !o.dead && Math.hypot(o.x - px, o.y - py) < o.d.r + d.r + 1) && !fences.some(f => !f.dead && px > f.rx - 3 && px < f.rx + 27 && py > f.ry - 4 && py < f.ry + 12);
   if (ok(tx, ty)) return { x: tx, y: ty };
   for (let rad = 2; rad <= 300; rad += 2) {
     const n = Math.max(8, Math.ceil(2 * Math.PI * rad / 3)); let best = null, bd = 1e9;
@@ -686,11 +686,11 @@ function refund(e) {
   for (let i = 0; i < 8; i++) parts.push({ x: cx + (R() - 0.5) * (e.isFence ? 20 : 4), y: cy, vx: (R() - 0.5) * 20, vy: -R() * 20, life: 0.4, max: 0.4, c: C.cream });
 }
 function removeAt(p) {
-  for (const f of fences) if (f.team === 0 && p.x >= f.rx - 2 && p.x <= f.rx + 26 && p.y >= f.ry - 8 && p.y <= f.ry + 10) { refund(f); return true; }
-  let best = null, bd = 7;
+  let best = null, bd = 8;
   for (const u of units) { if (u.team !== 0) continue; const d = Math.hypot(u.x - p.x, u.y - 4 - p.y); if (d < bd) { bd = d; best = u; } }
-  if (!best) return false;
-  refund(best); return true;
+  if (best) { refund(best); return true; }
+  for (const f of fences) if (f.team === 0 && p.x >= f.rx - 2 && p.x <= f.rx + 26 && p.y >= f.ry - 8 && p.y <= f.ry + 10) { refund(f); return true; }
+  return false;
 }
 function undo() {
   if (phase !== 'setup' || !hist.length) return false;
@@ -1807,7 +1807,7 @@ function render() {
   drawFarms();
   const placing = (sel >= 0 && phase !== 'count') || phase === 'setup';
   if (placing && !over) {
-    rect(0, 0, MW, MID + 8, phase === 'setup' ? 'rgba(20,12,16,0.46)' : 'rgba(200,54,30,0.18)');
+    if (phase === 'setup') rect(0, 0, MW, MID + 8, 'rgba(20,12,16,0.46)');
     g.fillStyle = C.cream; for (let px = (time * 12 | 0) % 6; px < MW; px += 6) g.fillRect(px, MID + 8, 3, 1);
   }
   if (sel >= 0 && CARDS[sel] === 'farmer' && phase !== 'count' && !over && farms[0]) {
@@ -1849,7 +1849,7 @@ function render() {
   drawSide();
   if (phase === 'setup' && !over) {
     if (msg) banner(msg.s);
-    else banner(((time / 3) | 0) % 2 ? 'TOQUE NUM BONECO PARA TIRAR' : 'DEPOIS TOQUE EM PRONTO', C.ember);
+    else banner(((time / 3) | 0) % 2 ? 'SEM CARTA, TOQUE NO BONECO PARA TIRAR' : 'DEPOIS TOQUE EM PRONTO', C.ember);
     drawText('?', MW / 2, 140, C.cream, 'center', C.ink);
   } else if (msg) { g.globalAlpha = clamp(msg.t, 0, 1); banner(msg.s); g.globalAlpha = 1; }
   if (phase === 'count') {
@@ -1891,7 +1891,7 @@ cv.addEventListener('pointerdown', e => {
     if (phase === 'setup' && inBtn(p)) { startBattle(); return; }
     if (phase === 'setup' && inRect(p, UNDO)) { if (!undo()) msg = { s: 'NADA PARA DESFAZER', t: 1 }; return; }
     const i = cardAt(p); if (i >= 0) { sel = sel === i ? -1 : i; drag = { i, moved: false }; }
-  } else if (phase === 'setup' && removeAt(p)) { /* removido */ }
+  } else if (phase === 'setup' && sel < 0 && removeAt(p)) { /* sem carta selecionada: toque remove */ }
   else if (sel >= 0 && phase !== 'count') tryDeploy(p);
 });
 cv.addEventListener('pointermove', e => { const p = toLogical(e); hover = p; hoverTouch = e.pointerType !== 'mouse'; if (drag && p.x < MW - 2) drag.moved = true; });
