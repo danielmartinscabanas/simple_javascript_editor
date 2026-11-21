@@ -285,47 +285,57 @@ function genMap() {
     markCastles();
     const RMIN = 12, RMAX = ROWS - 12, k = (RMAX - RMIN) / 42 * MW / 216;
     const okArea = (c, r, w, h) => { for (let a = 0; a < w; a++) for (let b = 0; b < h; b++) if (kAt(c + a, r + b) || r + b < RMIN || r + b > RMAX) return false; return true; };
-    const nL = Math.round((3 + (R() * 2 | 0)) * k);
+    // Obstáculos concentrados: poucos lagos grandes, afloramentos de pedras, bosques com clareiras.
+    const rc = () => [2 + (R() * (COLS - 4) | 0), RMIN + 3 + (R() * (RMAX - RMIN - 6) | 0)];
+    const sq = Math.sqrt(k);
+    const nL = R() < 0.5 ? 1 : 2, centers = [];
     for (let l = 0; l < nL; l++) {
-      const c0 = 2 + (R() * (COLS - 4) | 0), r0 = RMIN + 2 + (R() * (RMAX - RMIN - 4) | 0);
+      let [c0, r0] = rc();
+      if (l === 1) { // segundo lago na outra metade do campo
+        const first = centers[0]; r0 = first[1] < (RMIN + RMAX) / 2 ? (RMIN + RMAX) / 2 + (R() * (RMAX - RMIN) / 2.5 | 0) : RMIN + 3 + (R() * (RMAX - RMIN) / 2.5 | 0);
+        r0 = clamp(r0 | 0, RMIN + 3, RMAX - 3);
+      }
       if (kAt(c0, r0)) continue;
-      const n = 6 + (R() * 12 | 0), set = [[c0, r0]]; kind[r0 * COLS + c0] = 2;
+      centers.push([c0, r0]);
+      const n = Math.round((nL === 1 ? 46 + R() * 30 : 28 + R() * 22) * sq), set = [[c0, r0]]; kind[r0 * COLS + c0] = 2;
       let guard = 0;
-      while (set.length < n && guard++ < 300) {
-        const [c, r] = set[R() * set.length | 0], d = DIR4[R() * 4 | 0];
-        const nc = c + d[0], nr = r + d[1];
-        if (nc < 0 || nc >= COLS || nr < RMIN || nr > RMAX || kAt(nc, nr)) continue;
+      while (set.length < n && guard++ < 2000) {
+        // cresce o lago preferindo células com vários vizinhos de água (forma compacta, borda orgânica)
+        const [c, r] = set[R() * set.length | 0], d = DIR4[R() * 4 | 0], nc = c + d[0], nr = r + d[1];
+        if (nc < 1 || nc >= COLS - 1 || nr < RMIN || nr > RMAX || kAt(nc, nr)) continue;
+        let nb = 0; for (const [dx, dy] of DIR4) if (kAt(nc + dx, nr + dy) === 2) nb++;
+        if (nb < 2 && R() < 0.65) continue;
         kind[nr * COLS + nc] = 2; set.push([nc, nr]);
       }
     }
-    const nR = Math.round((10 + (R() * 6 | 0)) * k);
+    const around = (cx, cy, rad, fn, tries = 40) => { for (let i = 0; i < tries; i++) { const a = R() * 6.283, d = Math.sqrt(R()) * rad; if (fn(Math.round(cx + Math.cos(a) * d), Math.round(cy + Math.sin(a) * d))) return true; } return false; };
+    // afloramentos de pedras
+    const nR = Math.max(2, Math.round(2 + k * 0.4));
     for (let i = 0; i < nR; i++) {
-      const s = R() < 0.35 ? 2 : 1, c = R() * (COLS - s + 1) | 0, r = RMIN + (R() * (RMAX - RMIN) | 0);
-      if (!okArea(c, r, s, s)) continue;
-      for (let a = 0; a < s; a++) for (let b = 0; b < s; b++) kind[(r + b) * COLS + c + a] = 1;
-      rocks.push({ c, r, s });
+      const [cx, cy] = rc(), cnt = 4 + (R() * 4 | 0);
+      for (let j = 0; j < cnt; j++) around(cx, cy, 3.5, (c, r) => {
+        const s = R() < 0.5 ? 2 : 1; if (!okArea(c, r, s, s)) return false;
+        for (let a = 0; a < s; a++) for (let b = 0; b < s; b++) kind[(r + b) * COLS + c + a] = 1;
+        rocks.push({ c, r, s }); return true; });
     }
-    const nLog = Math.round((4 + (R() * 4 | 0)) * k);
-    for (let i = 0; i < nLog; i++) {
-      const hz = R() < 0.6, len = R() < 0.3 ? 3 : 2, w = hz ? len : 1, h = hz ? 1 : len;
-      const c = R() * (COLS - w + 1) | 0, r = RMIN + (R() * (RMAX - RMIN) | 0);
-      if (!okArea(c, r, w, h)) continue;
-      for (let a = 0; a < w; a++) for (let b = 0; b < h; b++) kind[(r + b) * COLS + c + a] = 5;
-      logs.push({ c, r, hz, len, flip: R() < 0.5 });
+    // bosques (árvores com no mínimo 4 tiles de distância, para as copas não se sobreporem)
+    const nG = Math.max(3, Math.round(2 + k * 1.1)), groves = [];
+    for (let i = 0; i < nG; i++) {
+      const [cx, cy] = rc(), cnt = 4 + (R() * 3 | 0); groves.push([cx, cy]);
+      for (let j = 0; j < cnt; j++) around(cx, cy, 9, (c, r) => {
+        if (!okArea(c, r, 1, 1) || trees.some(t => Math.abs(t.c - c) < 4 && Math.abs(t.r - r) < 4)) return false;
+        kind[r * COLS + c] = 3; trees.push({ c, r, y: r * TS + 7 }); return true; }, 30);
     }
-    const nS = Math.round((4 + (R() * 4 | 0)) * k);
-    for (let i = 0; i < nS; i++) {
-      const c = R() * COLS | 0, r = RMIN + (R() * (RMAX - RMIN + 1) | 0);
-      if (!okArea(c, r, 1, 1)) continue;
-      kind[r * COLS + c] = 6; stumps.push({ c, r });
-    }
-    const nT = Math.round((14 + (R() * 9 | 0)) * k);
-    // árvores espaçadas: copas de ~3 tiles não podem se sobrepor
-    for (let i = 0, ok = 0; i < nT * 12 && ok < nT; i++) {
-      const c = R() * COLS | 0, r = RMIN + (R() * (RMAX - RMIN + 1) | 0);
-      if (!okArea(c, r, 1, 1)) continue;
-      if (trees.some(t => Math.abs(t.c - c) < 4 && Math.abs(t.r - r) < 4)) continue;
-      kind[r * COLS + c] = 3; trees.push({ c, r, y: r * TS + 7 }); ok++;
+    // troncos caídos e tocos perto dos bosques
+    for (const [cx, cy] of groves) {
+      const nl = R() < 0.7 ? 1 + (R() * 2 | 0) : 0;
+      for (let j = 0; j < nl; j++) around(cx, cy, 8, (c, r) => {
+        const hz = R() < 0.6, len = R() < 0.3 ? 3 : 2, w = hz ? len : 1, h = hz ? 1 : len;
+        if (!okArea(c, r, w, h)) return false;
+        for (let a = 0; a < w; a++) for (let b = 0; b < h; b++) kind[(r + b) * COLS + c + a] = 5;
+        logs.push({ c, r, hz, len, flip: R() < 0.5 }); return true; });
+      const ns = 1 + (R() * 3 | 0);
+      for (let j = 0; j < ns; j++) around(cx, cy, 8, (c, r) => { if (!okArea(c, r, 1, 1)) return false; kind[r * COLS + c] = 6; stumps.push({ c, r }); return true; });
     }
     if (connected()) return;
   }
