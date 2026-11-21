@@ -1158,9 +1158,33 @@ function drawSide() {
   }
   for (let i = 0; i < CARDS.length; i++) drawCard(i);
 }
-function banner(s, col = C.goldL) {
-  rect(0, MID - 9, MW, 18, 'rgba(27,20,22,0.8)'); rect(0, MID - 10, MW, 1, C.rust); rect(0, MID + 8, MW, 1, C.rust);
-  drawText(s, MW / 2, MID - 2, col, 'center', C.ink);
+// Pergaminho: corpo com pontilhado, bordas queimadas e rolos nas pontas
+function scroll(x0, y0, w, h) {
+  const RW = 8, PA = ['#fff4d0', C.cream, C.parch, C.parch2, '#a8682c'];
+  rect(x0 + 3, y0 + h - 1, w - 4, 3, 'rgba(27,20,22,0.32)');
+  for (let py = 1; py < h - 1; py++) for (let px = RW - 2; px < w - RW + 2; px++) {
+    const n = hash(px + x0, py + y0);
+    let col = n < 0.05 ? PA[3] : n > 0.97 ? PA[1] : PA[2];
+    if (py < 3) col = PA[1]; if (py === 1) col = PA[0]; if (py >= h - 4) col = PA[3]; if (py === h - 3) col = PA[4];
+    if (py > 2 && py < h - 4 && (px < RW + 1 || px > w - RW - 2) && n < 0.5) col = PA[3];
+    rect(x0 + px, y0 + py, 1, 1, col);
+  }
+  rect(x0 + RW - 2, y0, w - 2 * RW + 4, 1, C.ink); rect(x0 + RW - 2, y0 + h - 1, w - 2 * RW + 4, 1, C.ink);
+  const roll = rx => {
+    for (let py = 0; py < h; py++) for (let px = 0; px < RW; px++) {
+      const corner = (py === 0 || py === h - 1) && (px === 0 || px === RW - 1); if (corner) continue;
+      const edge = px === 0 || px === RW - 1 || py === 0 || py === h - 1;
+      const u = px / (RW - 1); const lu = rx === 0 ? u : 1 - u;
+      rect(x0 + rx + px, y0 + py, 1, 1, edge ? C.ink : lu < 0.3 ? PA[0] : lu < 0.55 ? PA[1] : lu < 0.8 ? PA[2] : PA[3]);
+    }
+    for (const py of [3, h - 4]) { rect(x0 + rx + 2, y0 + py, RW - 4, 1, PA[4]); rect(x0 + rx + 3, y0 + py + (py < h / 2 ? 1 : -1), RW - 6, 1, PA[3]); }
+  };
+  roll(0); roll(w - RW);
+}
+function banner(s, col = C.ink) {
+  const w = Math.max(96, textW(String(s)) + 40), h = 22;
+  scroll(Math.round(MW / 2 - w / 2), MID - 11, w, h);
+  drawText(s, MW / 2, MID - 3, col, 'center');
 }
 function render() {
   g.drawImage(bgCanvas, 0, 0);
@@ -1204,20 +1228,20 @@ function render() {
   drawSide();
   if (phase === 'setup' && !over) {
     if (msg) banner(msg.s);
-    else banner(((time / 3) | 0) % 2 ? 'TOQUE NUM BONECO PARA TIRAR' : 'DEPOIS TOQUE EM PRONTO', C.cream);
+    else banner(((time / 3) | 0) % 2 ? 'TOQUE NUM BONECO PARA TIRAR' : 'DEPOIS TOQUE EM PRONTO', C.ember);
     drawText('?', MW / 2, 140, C.cream, 'center', C.ink);
   } else if (msg) { g.globalAlpha = clamp(msg.t, 0, 1); banner(msg.s); g.globalAlpha = 1; }
   if (phase === 'count') {
     const n = Math.ceil(countT - 1);
-    rect(0, MID - 12, MW, 24, 'rgba(27,20,22,0.7)');
-    drawBig(n > 0 ? n : 'BATALHA!', MW / 2, MID - 3, C.goldL, C.orange);
+    const cw = n > 0 ? 64 : 120; scroll(Math.round(MW / 2 - cw / 2), MID - 16, cw, 32);
+    drawBig(n > 0 ? n : 'BATALHA!', MW / 2, MID - 4, C.rust, C.ember);
   }
   if (over) {
     rect(0, 0, W, H, `rgba(27,20,22,${clamp(over.t, 0, 0.65)})`);
     if (over.t > 0.4) {
-      rect(0, H / 2 - 30, W, 52, 'rgba(27,20,22,0.7)'); rect(0, H / 2 - 31, W, 1, C.rust); rect(0, H / 2 + 22, W, 1, C.rust);
-      drawBig(over.win ? 'VITÓRIA!' : 'DERROTA', W / 2, H / 2 - 18, over.win ? C.goldL : '#f0784a', over.win ? C.gold : '#c8361e');
-      if (over.t > 1.2 && Math.sin(time * 5) > -0.4) drawText('TOQUE PARA JOGAR DE NOVO', W / 2, H / 2 + 6, C.cream, 'center', C.ink);
+      const sw = Math.min(W - 16, 200); scroll(Math.round(W / 2 - sw / 2), H / 2 - 32, sw, 62);
+      drawBig(over.win ? 'VITÓRIA!' : 'DERROTA', W / 2, H / 2 - 20, over.win ? '#2f8a3a' : '#c8361e', over.win ? '#1d5a2a' : C.ember);
+      if (over.t > 1.2 && Math.sin(time * 5) > -0.4) drawText('TOQUE PARA JOGAR DE NOVO', W / 2, H / 2 + 12, C.ink, 'center');
     }
   }
   ctx.imageSmoothingEnabled = false;
