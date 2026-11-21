@@ -573,8 +573,7 @@ function fenceOk(c, r) {
   const x0 = c * TS - 6, x1 = (c + 3) * TS + 6, y0 = r * TS - 6, y1 = (r + 1) * TS + 6;
   return !units.some(u => u.x > x0 && u.x < x1 && u.y > y0 && u.y < y1);
 }
-function placeFence(team, x, y, d) {
-  const { c, r } = fenceSpot(x, y);
+function placeFence(team, c, r, d) {
   if (!fenceOk(c, r)) return 'blocked';
   purse()[team] -= d.cost;
   for (let i = 0; i < 3; i++) kind[r * COLS + c + i] = 7;
@@ -584,31 +583,62 @@ function placeFence(team, x, y, d) {
   return f;
 }
 function clearFence(f) { for (let i = 0; i < 3; i++) kind[f.r * COLS + f.c + i] = 0; }
+const zoneY = team => team === 0 ? [MID + 8, H - 72] : [100, MID - 8];
+// Lugar permitido mais próximo do ponto pedido: nunca recusa, sempre ajusta.
+function findSpot(team, type, x, y) {
+  const d = DEF[type];
+  if (type === 'farmer') {
+    const fm = farms[team]; if (!fm) return null;
+    const crowded = (px, py) => units.some(o => !o.dead && Math.hypot(o.x - px, o.y - py) < o.d.r + d.r);
+    if (fm.cells.some(c => x >= c.x && x < c.x + 8 && y >= c.y && y < c.y + 8) && !crowded(x, y)) return { x, y: clamp(y, fm.ry + 7, fm.ry + fm.h - 2) };
+    let best = null, bd = 1e9, bestFree = null, bfd = 1e9;
+    for (const c of fm.cells) {
+      const cx = c.x + 4, cy = c.y + 6, dd = Math.hypot(cx - x, cy - y);
+      if (dd < bd) { bd = dd; best = { x: cx, y: cy }; }
+      if (dd < bfd && !crowded(cx, cy)) { bfd = dd; bestFree = { x: cx, y: cy }; }
+    }
+    return bestFree || best;
+  }
+  const [ymin, ymax] = zoneY(team);
+  if (type === 'fence') {
+    const ty = clamp(y, ymin, ymax), c0 = fenceSpot(x, ty).c, r0 = fenceSpot(x, ty).r;
+    let best = null, bd = 1e9;
+    for (let rad = 0; rad <= 40; rad++) {
+      for (let dr = -rad; dr <= rad; dr++) for (let dc = -rad; dc <= rad; dc++) {
+        if (Math.max(Math.abs(dc), Math.abs(dr)) !== rad) continue;
+        const c = c0 + dc, r = r0 + dr;
+        if (c < 0 || c > COLS - 3 || r < 0 || r >= ROWS) continue;
+        const yc = r * TS + 4; if (yc < ymin || yc > ymax) continue;
+        const dd = Math.hypot(dc, dr); if (dd >= bd || !fenceOk(c, r)) continue;
+        bd = dd; best = { c, r };
+      }
+      if (best && rad >= Math.ceil(bd)) break;
+    }
+    return best;
+  }
+  const xmin = 5, xmax = MW - 5, tx = clamp(x, xmin, xmax), ty = clamp(y, ymin, ymax);
+  const ok = (px, py) => px >= xmin && px <= xmax && py >= ymin && py <= ymax && free(px, py) && !units.some(o => !o.dead && Math.hypot(o.x - px, o.y - py) < o.d.r + d.r + 1);
+  if (ok(tx, ty)) return { x: tx, y: ty };
+  for (let rad = 2; rad <= 300; rad += 2) {
+    const n = Math.max(8, Math.ceil(2 * Math.PI * rad / 3)); let best = null, bd = 1e9;
+    for (let k = 0; k < n; k++) {
+      const a = k / n * Math.PI * 2, px = tx + Math.cos(a) * rad, py = ty + Math.sin(a) * rad;
+      if (!ok(px, py)) continue;
+      const dd = Math.hypot(px - tx, py - ty) + Math.abs(py - y) * 0.001; if (dd < bd) { bd = dd; best = { x: px, y: py }; }
+    }
+    if (best) return best;
+  }
+  return null;
+}
 function deploy(team, type, x, y) {
   const d = DEF[type], P = purse();
   if (P[team] < d.cost) return null;
-  let [ymin, ymax] = team === 0 ? [MID + 8, H - 72] : [100, MID - 8], xmin = 5, xmax = MW - 5;
-  if (type === 'farmer') {
-    const fm = farms[team]; if (!fm) return 'blocked';
-    if (units.filter(o => o.team === team && o.type === 'farmer' && !o.dead).length >= MAX_FARMERS) return 'maxfarm';
-    if (team === 0 && !fm.cells.some(c => x >= c.x && x < c.x + 8 && y >= c.y && y < c.y + 8)) return 'farm';
-    xmin = fm.rx + 4; xmax = fm.rx + fm.w - 4; ymin = fm.ry + 7; ymax = fm.ry + fm.h - 2;
-    y = clamp(y, ymin, ymax);
-  } else if (y < ymin || y > ymax) { if (team === 0) return 'zone'; y = clamp(y, ymin, ymax); }
-  x = clamp(x, xmin, xmax);
-  if (type === 'fence') return placeFence(team, x, y, d);
-  const crowded = (px, py) => phase === 'setup' && units.some(o => Math.hypot(o.x - px, o.y - py) < o.d.r + d.r);
-  if (!free(x, y) || crowded(x, y)) {
-    let found = false;
-    for (let rad = 3; rad <= 12 && !found; rad += 3)
-      for (let a = 0; a < 8 && !found; a++) {
-        const nx = x + Math.cos(a / 8 * Math.PI * 2) * rad, ny = y + Math.sin(a / 8 * Math.PI * 2) * rad;
-        if (ny >= ymin && ny <= ymax && nx >= xmin && nx <= xmax && free(nx, ny) && !crowded(nx, ny)) { x = nx; y = ny; found = true; }
-      }
-    if (!found) return 'blocked';
-  }
+  if (type === 'farmer' && units.filter(o => o.team === team && o.type === 'farmer' && !o.dead).length >= MAX_FARMERS) return 'maxfarm';
+  const sp = findSpot(team, type, x, y);
+  if (!sp) return 'blocked';
+  if (type === 'fence') return placeFence(team, sp.c, sp.r, d);
   P[team] -= d.cost;
-  return spawn(team, type, x, y);
+  return spawn(team, type, sp.x, sp.y);
 }
 // ---- fazenda ----
 const cellRate = age => age < 2 ? 0 : age < 6 ? 0.007 : age < 10 ? 0.013 : 0.02;
@@ -799,20 +829,33 @@ function warrior(u, dt) {
 function bishopAI(u, dt) {
   const d = u.d, fwd = u.team === 0 ? -1 : 1; // sentido do inimigo no eixo y
   u.hcd -= dt; u.thinkT = (u.thinkT || 0) - dt;
-  // 1) escolhe quem curar: o mais necessitado dentro de um raio grande, sem empilhar bispos no mesmo alvo
+  // 1) cura: sempre quem está com menos vida (proporção) entre os que estão ao alcance
+  if (u.hcd <= 0) {
+    let best = null, br = 2, bh = 1e9;
+    for (const a of units) {
+      if (a.dead || a.team !== u.team || a === u || a.hp >= a.max) continue;
+      if (Math.hypot(a.x - u.x, a.y - u.y) > d.healRange) continue;
+      const ratio = a.hp / a.max; if (ratio < br || (ratio === br && a.hp < bh)) { br = ratio; bh = a.hp; best = a; }
+    }
+    if (best) {
+      u.hcd = d.healCd; u.atkT = 0.3;
+      const L = Math.hypot(best.x - u.x, best.y - u.y); if (L > 0.5) face(u, (best.x - u.x) / L, (best.y - u.y) / L, 0.6);
+      projs.push({ kind: 'heal', x: u.x + 4, y: u.y - 16, t: best, sp: 70, dmg: d.heal, team: u.team });
+    }
+  }
+  // 2) quem seguir: o ferido com menos vida (proporção), sem empilhar mais de 2 clérigos no mesmo alvo
   if (u.healT && (u.healT.dead || u.healT.hp >= u.healT.max)) u.healT = null;
   if (u.thinkT <= 0 || !u.healT) {
-    u.thinkT = 0.35 + R() * 0.2;
+    u.thinkT = 0.3 + R() * 0.2;
     let best = null, bs = -1e9;
     for (const a of units) {
       if (a.dead || a.team !== u.team || a === u || a.hp >= a.max) continue;
-      const dist = Math.hypot(a.x - u.x, a.y - u.y); if (dist > 170) continue;
+      const dist = Math.hypot(a.x - u.x, a.y - u.y); if (dist > 190) continue;
       const ratio = a.hp / a.max;
-      let sc = (1 - ratio) * 100 + (a.max - a.hp) * 0.15 - dist * 0.25;
-      if (a === u.healT) sc += 15;
+      let sc = (1 - ratio) * 1000 - dist * 0.08 + (a === u.healT ? 8 : 0);
       const claims = units.reduce((n, o) => n + (o !== u && !o.dead && o.type === 'bishop' && o.team === u.team && o.healT === a ? 1 : 0), 0);
       if (claims >= 2 || (claims === 1 && ratio >= 0.4)) continue;
-      if (claims === 1) sc -= 30;
+      if (claims === 1) sc -= 150;
       if (sc > bs) { bs = sc; best = a; }
     }
     u.healT = best;
@@ -820,14 +863,10 @@ function bishopAI(u, dt) {
   const t = u.healT;
   if (t) {
     const dist = Math.hypot(t.x - u.x, t.y - u.y);
-    if (Math.abs(t.x - u.x) > 0.5) u.face = t.x > u.x ? 1 : -1;
-    if (dist > 0.5) face(u, (t.x - u.x) / dist, (t.y - u.y) / dist, 0.5);
-    if (dist <= d.healRange) {
-      if (u.hcd <= 0) { u.hcd = d.healCd; u.atkT = 0.3; projs.push({ kind: 'heal', x: u.x + 4, y: u.y - 16, t, sp: 70, dmg: d.heal, team: u.team }); }
-    } else if (dist > d.healRange * 0.8) moveTo(u, t.x, t.y, dt);
+    if (dist > d.healRange * 0.8) { if (Math.abs(t.x - u.x) > 0.5) u.face = t.x > u.x ? 1 : -1; moveTo(u, t.x, t.y, dt); }
     return;
   }
-  // 2) sem ninguém ferido: acompanha o grupo, sem nunca recuar
+  // 3) sem ninguém ferido: acompanha o grupo, sem nunca recuar
   let lead = null, ld = 1e9, anyAlly = false;
   for (const a of units) {
     if (a.dead || a.team !== u.team || a.type === 'bishop' || a.deployT > 0) continue;
@@ -1492,15 +1531,14 @@ function render() {
   list.sort((a, b) => a.y - b.y);
   for (const o of list) { if (o.u) drawUnit(o.u); else if (o.f) drawFence(o.f); else { const im = treeImgs[o.t.v | 0]; g.drawImage(im, o.t.c * TS + 4 - (im.width >> 1), o.t.y - im.height + 2); }; }
   if (sel >= 0 && hover && hover.x >= 0 && hover.x < MW && !over && phase !== 'count' && (!hoverTouch || (drag && drag.moved))) {
-    const fm0 = farms[0], isF = CARDS[sel] === 'farmer';
-    const ok = (isF ? (fm0 && fm0.cells.some(c => hover.x >= c.x && hover.x < c.x + 8 && hover.y >= c.y && hover.y < c.y + 8)) : (hover.y >= MID + 8 && hover.y <= H - 72)) && purse()[0] >= DEF[CARDS[sel]].cost;
-    if (CARDS[sel] === 'fence') {
-      const sp = fenceSpot(hover.x, hover.y), good = ok && fenceOk(sp.c, sp.r);
-      drawFence({ team: 0, rx: sp.c * TS, ry: sp.r * TS, hp: 1, max: 1, hitT: 0 }, good ? 0.65 : 0.25);
-      rect(sp.c * TS, sp.r * TS + 9, 24, 1, good ? C.cream : C.rust);
-    } else {
-    drawUnit({ type: CARDS[sel], d: DEF[CARDS[sel]], x: hover.x, y: hover.y, team: 0, face: 1, fx: 1, fy: 0, moving: false, atkT: 0, hitT: 0, healFx: 0, deployT: 0, hp: 1, max: 1 }, ok ? 0.6 : 0.25);
-    rect(Math.round(hover.x) - 6, Math.round(hover.y) + 3, 12, 1, ok ? C.cream : C.rust); }
+    const ty0 = CARDS[sel], can = purse()[0] >= DEF[ty0].cost, sp = findSpot(0, ty0, hover.x, hover.y), ok = can && !!sp;
+    if (sp && ty0 === 'fence') {
+      drawFence({ team: 0, rx: sp.c * TS, ry: sp.r * TS, hp: 1, max: 1, hitT: 0 }, ok ? 0.65 : 0.25);
+      rect(sp.c * TS, sp.r * TS + 9, 24, 1, ok ? C.cream : C.rust);
+    } else if (sp) {
+      drawUnit({ type: ty0, d: DEF[ty0], x: sp.x, y: sp.y, team: 0, face: 1, fx: 1, fy: 0, moving: false, atkT: 0, hitT: 0, healFx: 0, deployT: 0, hp: 1, max: 1 }, ok ? 0.6 : 0.25);
+      rect(Math.round(sp.x) - 6, Math.round(sp.y) + 3, 12, 1, ok ? C.cream : C.rust);
+    }
   }
   for (const p of projs) {
     const px = Math.round(p.x), py = Math.round(p.y);
@@ -1547,10 +1585,8 @@ const inBtn = p => inRect(p, BTN);
 function tryDeploy(p) {
   const r = deploy(0, CARDS[sel], p.x, p.y);
   if (r && typeof r === 'object' && phase === 'setup') hist.push(r);
-  if (r === 'farm') msg = { s: 'SÓ NA ÁREA DE CULTIVO', t: 1.2 };
-  else if (r === 'maxfarm') msg = { s: 'LIMITE DE ' + MAX_FARMERS + ' CAMPONESES', t: 1.4 };
-  else if (r === 'zone') msg = { s: 'SÓ NO SEU LADO DO CAMPO', t: 1.2 };
-  else if (r === 'blocked') msg = { s: 'LUGAR BLOQUEADO', t: 1 };
+  if (r === 'maxfarm') msg = { s: 'LIMITE DE ' + MAX_FARMERS + ' CAMPONESES', t: 1.4 };
+  else if (r === 'blocked') msg = { s: 'SEM ESPAÇO LIVRE', t: 1 };
   else if (!r) msg = { s: phase === 'setup' ? 'MOEDAS INSUFICIENTES' : 'OURO INSUFICIENTE', t: 1 };
 }
 cv.addEventListener('pointerdown', e => {
