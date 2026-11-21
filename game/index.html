@@ -1159,8 +1159,7 @@ function buildBackground() {
       if (edge) { P(px, py, '#241e1a'); continue; }
       const lit = (ht(px - 1, py - 1) - ht(px + 1, py + 1)) * 0.35, hgt = Math.min(dist[i], 10) / 10;
       const L = lit * 0.8 + (hgt - 0.5) * 0.55 + (bay(px, py) - 0.5) * 0.3;
-      const lvl = L > 0.5 ? 0 : L > 0.22 ? 1 : L > -0.05 ? 2 : L > -0.32 ? 3 : L > -0.6 ? 4 : 5;
-      let c = blockAt(px, py, lvl, 5 + mi);
+      let c = facetAt(px, py, L - 0.02, 5 + mi);
       if (hgt < 0.3 && hash(px * 3, py * 5) > 0.7 && L > -0.5) c = hash(px, py) > 0.5 ? '#7a9a48' : '#5e7e38';
       P(px, py, c);
     }
@@ -1206,6 +1205,22 @@ function buildBackground() {
   for (const t of trees) { const w = t.v < 3 ? 5 : 8; const bx = t.c * TS + 4, by = t.r * TS + 7; x.fillRect(bx - w, by - 1, w * 2 + 1, 2); x.fillRect(bx - w + 2, by + 1, w * 2 - 3, 1); }
   paveCourtyards(x);
   buildCompound(x);
+}
+// rocha natural em facetas: cada faceta tem uma inclinação própria; fendas escuras entre algumas delas
+function facetAt(px, py, L, seed) {
+  const S = 10, cx = Math.floor(px / S), cy = Math.floor(py / S); let m1 = 1e9, m2 = 1e9, id = 0, ccx = 0, ccy = 0;
+  for (let dy = -1; dy <= 1; dy++) for (let dx = -1; dx <= 1; dx++) {
+    const gx = cx + dx, gy = cy + dy, ox = gx * S + 1 + hash(gx + seed, gy) * (S - 2), oy = gy * S + 1 + hash(gy + seed, gx + 7) * (S - 2), d = Math.hypot(px - ox, (py - oy) * 1.2);
+    if (d < m1) { m2 = m1; m1 = d; id = gx * 211 + gy * 17 + seed; ccx = ox; ccy = oy; } else if (d < m2) m2 = d;
+  }
+  const tilt = (hash(id, 1) - 0.5) * 0.34 + (hash(id, 2) - 0.5) * 0.12;
+  const local = -((px - ccx) * 0.035 + (py - ccy) * 0.05);
+  const v = L + tilt + local + (hash(px * 3 + seed, py * 5) - 0.5) * 0.12;
+  const edge = m2 - m1;
+  if (edge < 0.9 && hash(id, 9) < 0.5) return STN[4];
+  if (edge < 1.9 && local > 0.02 && hash(id, 9) < 0.6) return STN[Math.max(0, (v > 0.3 ? 0 : 1))];
+  const k = v > 0.55 ? 0 : v > 0.3 ? 1 : v > 0.08 ? 2 : v > -0.2 ? 3 : 4;
+  return STN[k];
 }
 // pedra de montanha: blocos irregulares na mesma paleta das muralhas do castelo
 function blockAt(px, py, level, seed) {
