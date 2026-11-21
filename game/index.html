@@ -620,27 +620,51 @@ function warrior(u, dt) {
   if (u.moving && mv < d.speed * dt * 0.25) u.stuckT = (u.stuckT || 0) + dt; else u.stuckT = Math.max(0, (u.stuckT || 0) - dt * 2);
 }
 function bishopAI(u, dt) {
-  const d = u.d;
-  u.hcd -= dt;
-  if (u.hcd <= 0) {
-    let best = null, br = 1;
+  const d = u.d, fwd = u.team === 0 ? -1 : 1; // sentido do inimigo no eixo y
+  u.hcd -= dt; u.thinkT = (u.thinkT || 0) - dt;
+  // 1) escolhe quem curar: o mais necessitado dentro de um raio grande, sem empilhar bispos no mesmo alvo
+  if (u.healT && (u.healT.dead || u.healT.hp >= u.healT.max)) u.healT = null;
+  if (u.thinkT <= 0 || !u.healT) {
+    u.thinkT = 0.35 + R() * 0.2;
+    let best = null, bs = -1e9;
     for (const a of units) {
       if (a.dead || a.team !== u.team || a === u || a.hp >= a.max) continue;
-      if (Math.hypot(a.x - u.x, a.y - u.y) > d.healRange) continue;
-      const rt = a.hp / a.max; if (rt < br) { br = rt; best = a; }
+      const dist = Math.hypot(a.x - u.x, a.y - u.y); if (dist > 170) continue;
+      const ratio = a.hp / a.max;
+      let sc = (1 - ratio) * 100 + (a.max - a.hp) * 0.15 - dist * 0.25;
+      if (a === u.healT) sc += 15;
+      const claims = units.reduce((n, o) => n + (o !== u && !o.dead && o.type === 'bishop' && o.team === u.team && o.healT === a ? 1 : 0), 0);
+      if (claims >= 2 || (claims === 1 && ratio >= 0.4)) continue;
+      if (claims === 1) sc -= 30;
+      if (sc > bs) { bs = sc; best = a; }
     }
-    if (best) { u.hcd = d.healCd; u.atkT = 0.3; projs.push({ kind: 'heal', x: u.x + 4, y: u.y - 16, t: best, sp: 70, dmg: d.heal, team: u.team }); }
+    u.healT = best;
   }
-  // segue o aliado (não-bispo) mais próximo
-  let lead = null, ld = 120;
+  const t = u.healT;
+  if (t) {
+    const dist = Math.hypot(t.x - u.x, t.y - u.y);
+    if (Math.abs(t.x - u.x) > 0.5) u.face = t.x > u.x ? 1 : -1;
+    if (dist <= d.healRange) {
+      if (u.hcd <= 0) { u.hcd = d.healCd; u.atkT = 0.3; projs.push({ kind: 'heal', x: u.x + 4, y: u.y - 16, t, sp: 70, dmg: d.heal, team: u.team }); }
+    } else if (dist > d.healRange * 0.8) moveTo(u, t.x, t.y, dt);
+    return;
+  }
+  // 2) sem ninguém ferido: acompanha o grupo, sem nunca recuar
+  let lead = null, ld = 1e9, anyAlly = false;
   for (const a of units) {
     if (a.dead || a.team !== u.team || a.type === 'bishop' || a.deployT > 0) continue;
-    const dd = Math.hypot(a.x - u.x, a.y - u.y); if (dd < ld) { ld = dd; lead = a; }
+    const dd = Math.hypot(a.x - u.x, a.y - u.y);
+    if (dd < 170) anyAlly = true;
+    if ((a.y - u.y) * fwd >= -10 && dd < ld) { ld = dd; lead = a; }
   }
-  if (!lead) return warrior(u, dt);
+  if (!anyAlly) return warrior(u, dt);
   u.target = null;
-  const bx = lead.x + ((u.id % 3) - 1) * 7, by = lead.y + (u.team === 0 ? 13 : -13);
-  if (Math.hypot(bx - u.x, by - u.y) > 4) moveTo(u, bx, by, dt);
+  if (lead) {
+    const bx = lead.x + ((u.id % 3) - 1) * 9;
+    let by = lead.y - fwd * 10;
+    by = fwd < 0 ? Math.min(by, u.y) : Math.max(by, u.y);
+    if (Math.hypot(bx - u.x, by - u.y) > 5) moveTo(u, bx, by, dt);
+  }
   const e = nearestEnemy(u, d.range);
   if (e) attack(u, e);
   else { const ec = castles[1 - u.team]; if (distTo(u, ec) <= d.range) attack(u, ec); }
