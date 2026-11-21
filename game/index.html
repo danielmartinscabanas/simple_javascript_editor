@@ -283,7 +283,7 @@ function markCastles() {
     for (let r = c.y / TS; r < (c.y + c.h) / TS; r++)
       for (let q = c.x / TS; q < (c.x + c.w) / TS; q++) kind[r * COLS + q] = 4;
 }
-const FARM_TILES = 30, MAX_FARMERS = 4;
+const FARM_TILES = 30, LAKE_TILES = 48, MAX_FARMERS = 4;
 function makeFarms() {
   // Área de cultivo: forma irregular com número fixo de tiles, entre o castelo e o meio do campo.
   farms = castles.map(c => {
@@ -324,26 +324,28 @@ function genMap() {
     // Obstáculos concentrados: poucos lagos grandes, afloramentos de pedras, bosques com clareiras.
     const rc = () => [2 + (R() * (COLS - 4) | 0), RMIN + 3 + (R() * (RMAX - RMIN - 6) | 0)];
     const sq = Math.sqrt(k);
-    const nL = R() < 0.5 ? 1 : 2, centers = [];
-    for (let l = 0; l < nL; l++) {
-      let [c0, r0] = rc();
-      if (l === 1) { // segundo lago na outra metade do campo
-        const first = centers[0]; r0 = first[1] < (RMIN + RMAX) / 2 ? (RMIN + RMAX) / 2 + (R() * (RMAX - RMIN) / 2.5 | 0) : RMIN + 3 + (R() * (RMAX - RMIN) / 2.5 | 0);
-        r0 = clamp(r0 | 0, RMIN + 3, RMAX - 3);
+    // Um lago por jogador, sempre com a mesma área (LAKE_TILES); só forma e posição variam
+    let lakesOk = true;
+    for (const t of [0, 1]) {
+      const a0 = t === 0 ? Math.ceil((MID + 16) / TS) : Math.ceil((castles[1].y + castles[1].h + 16) / TS);
+      const a1 = t === 0 ? Math.floor((castles[0].y - 44) / TS) : Math.floor((MID - 16) / TS);
+      let done = false;
+      for (let tr = 0; tr < 40 && !done; tr++) {
+        const c0 = 3 + (R() * (COLS - 6) | 0), r0 = a0 + 2 + (R() * Math.max(1, a1 - a0 - 4) | 0);
+        if (kAt(c0, r0)) continue;
+        const set = [[c0, r0]]; kind[r0 * COLS + c0] = 2;
+        for (let guard = 0; set.length < LAKE_TILES && guard < 4000; guard++) {
+          const [c, r] = set[R() * set.length | 0], d = DIR4[R() * 4 | 0], nc = c + d[0], nr = r + d[1];
+          if (nc < 1 || nc >= COLS - 1 || nr < a0 || nr > a1 || kAt(nc, nr)) continue;
+          let nb = 0; for (const [dx, dy] of DIR4) if (kAt(nc + dx, nr + dy) === 2) nb++;
+          if (nb < 2 && R() < 0.65) continue;
+          kind[nr * COLS + nc] = 2; set.push([nc, nr]);
+        }
+        if (set.length === LAKE_TILES) done = true; else for (const [c, r] of set) kind[r * COLS + c] = 0;
       }
-      if (kAt(c0, r0)) continue;
-      centers.push([c0, r0]);
-      const n = Math.round((nL === 1 ? 46 + R() * 30 : 28 + R() * 22) * sq), set = [[c0, r0]]; kind[r0 * COLS + c0] = 2;
-      let guard = 0;
-      while (set.length < n && guard++ < 2000) {
-        // cresce o lago preferindo células com vários vizinhos de água (forma compacta, borda orgânica)
-        const [c, r] = set[R() * set.length | 0], d = DIR4[R() * 4 | 0], nc = c + d[0], nr = r + d[1];
-        if (nc < 1 || nc >= COLS - 1 || nr < RMIN || nr > RMAX || kAt(nc, nr)) continue;
-        let nb = 0; for (const [dx, dy] of DIR4) if (kAt(nc + dx, nr + dy) === 2) nb++;
-        if (nb < 2 && R() < 0.65) continue;
-        kind[nr * COLS + nc] = 2; set.push([nc, nr]);
-      }
+      if (!done) lakesOk = false;
     }
+    if (!lakesOk) continue;
     const around = (cx, cy, rad, fn, tries = 40) => { for (let i = 0; i < tries; i++) { const a = R() * 6.283, d = Math.sqrt(R()) * rad; if (fn(Math.round(cx + Math.cos(a) * d), Math.round(cy + Math.sin(a) * d))) return true; } return false; };
     // afloramentos de pedras
     const nR = Math.max(2, Math.round(2 + k * 0.4));
@@ -355,9 +357,9 @@ function genMap() {
         rocks.push({ c, r, s }); return true; });
     }
     // bosques (árvores com no mínimo 4 tiles de distância, para as copas não se sobreporem)
-    const nG = Math.max(3, Math.round(2 + k * 1.1)), groves = [];
+    const nG = Math.max(3, Math.round(1.5 + k * 0.6)), groves = [];
     for (let i = 0; i < nG; i++) {
-      const [cx, cy] = rc(), cnt = 4 + (R() * 3 | 0); groves.push([cx, cy]);
+      const [cx, cy] = rc(), cnt = 3 + (R() * 3 | 0); groves.push([cx, cy]);
       for (let j = 0; j < cnt; j++) around(cx, cy, 9, (c, r) => {
         if (!okArea(c, r, 1, 1) || trees.some(t => Math.abs(t.c - c) < 4 && Math.abs(t.r - r) < 4)) return false;
         kind[r * COLS + c] = 3; trees.push({ c, r, y: r * TS + 7 }); return true; }, 30);
