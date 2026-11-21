@@ -149,14 +149,18 @@ function makeFence() {
 }
 const FENCE_A = makeFence();
 
+const FARMER_BODY = ['....yyyy....', '...yyyyyy...', '.yyyyyyyyyy.', '..ssssssss..', '..sksssks...', '...ssssss...', '..wwwttwww..', '.wwwwttwwww.', '.wsswttwwss.', '.wwwwttwwww.', '..tttttttt..', '..tttttttt..', '..tttttttt..', '..tttttttt..'];
+const FARMER_A = compose(15, 18, [[0, 0, FARMER_BODY], [13, 5, vline(13, 'd')], [12, 3, ['mmm', 'mm.']], [2, 14, ['tt....tt']], [2, 15, ['tt....tt']], [2, 16, ['bb....bb']], [1, 17, ['bbb..bbb']]]);
+const FARMER_B = compose(15, 18, [[0, 0, FARMER_BODY], [13, 5, vline(13, 'd')], [12, 3, ['mmm', 'mm.']], [3, 14, ['tt..tt']], [3, 15, ['tt..tt']], [2, 16, ['bb..bb']], [2, 17, ['bbb.bbb']]]);
+
 const SP = {};
 function bakeAll() {
-  const defs = { pawn: [PAWN_A, PAWN_B], knight: [KNIGHT_A, KNIGHT_B], bishop: [BISHOP_A, BISHOP_B], archer: [ARCHER_A, ARCHER_B], fence: [FENCE_A] };
+  const defs = { pawn: [PAWN_A, PAWN_B], knight: [KNIGHT_A, KNIGHT_B], bishop: [BISHOP_A, BISHOP_B], archer: [ARCHER_A, ARCHER_B], fence: [FENCE_A], farmer: [FARMER_A, FARMER_B] };
   for (const k in defs) {
     SP[k] = { img: [], white: [] };
     for (let t = 0; t < 2; t++) {
       const pal = { m: '#b9c2ce', s: '#f2b27a', t: TEAM[t].t, T: TEAM[t].T, p: TEAM[t].h, g: C.gold, G: C.goldD, b: '#a0582a', d: '#5e3218',
-        h: t ? '#8a5430' : '#b97a42', H: t ? '#63391f' : '#8e5a2e', w: '#f3ead6', c: '#e8d4a0', k: C.ink };
+        h: t ? '#8a5430' : '#b97a42', H: t ? '#63391f' : '#8e5a2e', w: '#f3ead6', c: '#e8d4a0', y: '#e8c060', k: C.ink };
       SP[k].img[t] = defs[k].map(gr => { const cc = renderGrid(gr, pal); const f = mk(cc.width, cc.height), fx = f.getContext('2d');
         fx.translate(cc.width, 0); fx.scale(-1, 1); fx.drawImage(cc, 0, 0); return [cc, f]; });
     }
@@ -248,10 +252,11 @@ const DEF = {
             ranged: true, heal: 18, healCd: 1.4, healRange: 36 },
   archer: { name: 'ARQUEIRO',  cost: 3, hp: 90,  dmg: 9,  cd: 1.5, range: 62, speed: 10, r: 5, mass: 1, aggro: 72, ranged: true, arrow: true },
   fence:  { name: 'CERCA',     cost: 2, hp: 260, r: 4, structure: true },
+  farmer: { name: 'AGRICULT.', cost: 3, hp: 80, dmg: 0, cd: 1, range: 0, speed: 7, r: 4, mass: 1, aggro: 0, worker: true },
 };
-const CARDS = ['pawn', 'archer', 'knight', 'bishop', 'fence'];
+const CARDS = ['pawn', 'archer', 'knight', 'bishop', 'fence', 'farmer'];
 const CARD_X = MW + 4, CARD_W = 42, CARD_H = 50;
-const CARD_Y = CARDS.map((_, i) => H - 262 + i * 52);
+const CARD_Y = CARDS.map((_, i) => H - 2 - (CARDS.length - i) * 52);
 const BAR = { y0: 16, y1: 64 };
 const UNDO = { x: MW + 4, y: 86, w: 42, h: 18 };
 const BTN = { x: MW + 4, y: 108, w: 42, h: 22 };
@@ -269,8 +274,8 @@ const free = (x, y) => freeAt(x - 2.5, y - 2.5) && freeAt(x + 2.5, y - 2.5) && f
 
 function makeCastles() {
   castles = [
-    { team: 0, x: (MW - 104) / 2, y: H - 64, w: 104, h: 48, hp: 2600, max: 2600, cd: 0, shot: 0, hitT: 0, isCastle: true },
-    { team: 1, x: (MW - 104) / 2, y: 48,  w: 104, h: 48, hp: 2600, max: 2600, cd: 0, shot: 0, hitT: 0, isCastle: true },
+    { team: 0, x: Math.round((MW - 104) / 16) * 8, y: H - 64, w: 104, h: 48, hp: 2600, max: 2600, cd: 0, shot: 0, hitT: 0, isCastle: true },
+    { team: 1, x: Math.round((MW - 104) / 16) * 8, y: 48,  w: 104, h: 48, hp: 2600, max: 2600, cd: 0, shot: 0, hitT: 0, isCastle: true },
   ];
 }
 function markCastles() {
@@ -278,11 +283,24 @@ function markCastles() {
     for (let r = c.y / TS; r < (c.y + c.h) / TS; r++)
       for (let q = c.x / TS; q < (c.x + c.w) / TS; q++) kind[r * COLS + q] = 4;
 }
+function makeFarms() {
+  farms = castles.map(c => {
+    const left = Math.floor((c.x - 16) / 8) * 8, right = Math.floor((MW - (c.x + c.w) - 16) / 8) * 8, sides = [];
+    if (left >= 40) sides.push('L'); if (right >= 40) sides.push('R');
+    const side = sides[R() * sides.length | 0] || 'L', avail = side === 'L' ? left : right;
+    const w = Math.min(72, avail), gap = Math.floor(R() * ((avail - w) / 8 + 1)) * 8, h = 48;
+    const x = side === 'L' ? c.x - 8 - w - gap : c.x + c.w + 8 + gap, y = c.y + (R() * 3 | 0) * 8 - 8;
+    const f = { team: c.team, isFarm: true, rx: x, ry: y, w, h, x: x + w / 2, y: y + h / 2, cols: w / 8, rows: h / 8, cells: [], planted: 0, dmgAcc: 0, hitT: 0, d: { r: 0 } };
+    for (let j = 0; j < f.rows; j++) for (let i = 0; i < f.cols; i++) f.cells.push({ i, j, age: -1, claim: null });
+    return f;
+  });
+}
 function genMap() {
   // 0 grama, 1 pedra, 2 água, 3 árvore, 4 castelo, 5 tronco caído, 6 toco
   for (let attempt = 0; attempt < 150; attempt++) {
     kind = new Uint8Array(COLS * ROWS); rocks = []; trees = []; logs = []; stumps = [];
     markCastles();
+    for (const f of farms) for (let j = 0; j < f.rows; j++) for (let i = 0; i < f.cols; i++) kind[(f.ry / TS + j) * COLS + f.rx / TS + i] = 8;
     const RMIN = 12, RMAX = ROWS - 12, k = (RMAX - RMIN) / 42 * MW / 216;
     const okArea = (c, r, w, h) => { for (let a = 0; a < w; a++) for (let b = 0; b < h; b++) if (kAt(c + a, r + b) || r + b < RMIN || r + b > RMAX) return false; return true; };
     // Obstáculos concentrados: poucos lagos grandes, afloramentos de pedras, bosques com clareiras.
@@ -337,6 +355,7 @@ function genMap() {
       const ns = 1 + (R() * 3 | 0);
       for (let j = 0; j < ns; j++) around(cx, cy, 8, (c, r) => { if (!okArea(c, r, 1, 1)) return false; kind[r * COLS + c] = 6; stumps.push({ c, r }); return true; });
     }
+    for (let i = 0; i < kind.length; i++) if (kind[i] === 8) kind[i] = 0;
     if (connected()) return;
   }
   kind = new Uint8Array(COLS * ROWS); rocks = []; trees = []; logs = []; stumps = []; markCastles();
@@ -415,10 +434,10 @@ function lineClear(x0, y0, x1, y1) {
 }
 
 // ===================== ESTADO =====================
-let hist = [], units, fences, projs, parts, texts, gold, coins, phase, countT, over, time, uid, sel, drag, hover, hoverTouch, bot, msg, bgCanvas, castleImg, sideCanvas, treeImg;
+let farms = [], farmAcc = [0, 0], hist = [], units, fences, projs, parts, texts, gold, coins, phase, countT, over, time, uid, sel, drag, hover, hoverTouch, bot, msg, bgCanvas, castleImg, sideCanvas, treeImg;
 
 function reset() {
-  makeCastles(); genMap();
+  makeCastles(); makeFarms(); farmAcc = [0, 0]; genMap();
   hist = []; units = []; fences = []; projs = []; parts = []; texts = []; gold = [5, 5]; coins = [SETUP_COINS, SETUP_COINS];
   phase = 'setup'; countT = 0; over = null; time = 0; uid = 0;
   sel = 0; drag = null; hover = null; msg = { s: 'MONTE SUA FORMAÇÃO', t: 4 };
@@ -440,6 +459,7 @@ function spawn(team, type, x, y) {
 const fenceSpot = (x, y) => ({ c: clamp(Math.round(x / TS - 1.5), 0, COLS - 3), r: clamp(Math.floor(y / TS), 0, ROWS - 1) });
 function fenceOk(c, r) {
   for (let i = 0; i < 3; i++) if (kAt(c + i, r) !== 0) return false;
+  if (farms.some(f => c * TS < f.rx + f.w + 4 && (c + 3) * TS > f.rx - 4 && r * TS < f.ry + f.h + 4 && (r + 1) * TS > f.ry - 4)) return false;
   const x0 = c * TS - 6, x1 = (c + 3) * TS + 6, y0 = r * TS - 6, y1 = (r + 1) * TS + 6;
   return !units.some(u => u.x > x0 && u.x < x1 && u.y > y0 && u.y < y1);
 }
@@ -457,9 +477,14 @@ function clearFence(f) { for (let i = 0; i < 3; i++) kind[f.r * COLS + f.c + i] 
 function deploy(team, type, x, y) {
   const d = DEF[type], P = purse();
   if (P[team] < d.cost) return null;
-  const [ymin, ymax] = team === 0 ? [MID + 8, H - 72] : [100, MID - 8];
-  x = clamp(x, 5, MW - 5);
-  if (y < ymin || y > ymax) { if (team === 0) return 'zone'; y = clamp(y, ymin, ymax); }
+  let [ymin, ymax] = team === 0 ? [MID + 8, H - 72] : [100, MID - 8], xmin = 5, xmax = MW - 5;
+  if (type === 'farmer') {
+    const fm = farms[team]; if (!fm) return 'blocked';
+    if (team === 0 && (x < fm.rx || x > fm.rx + fm.w || y < fm.ry || y > fm.ry + fm.h)) return 'farm';
+    xmin = fm.rx + 5; xmax = fm.rx + fm.w - 5; ymin = fm.ry + 8; ymax = fm.ry + fm.h - 3;
+    y = clamp(y, ymin, ymax);
+  } else if (y < ymin || y > ymax) { if (team === 0) return 'zone'; y = clamp(y, ymin, ymax); }
+  x = clamp(x, xmin, xmax);
   if (type === 'fence') return placeFence(team, x, y, d);
   const crowded = (px, py) => phase === 'setup' && units.some(o => Math.hypot(o.x - px, o.y - py) < o.d.r + d.r);
   if (!free(x, y) || crowded(x, y)) {
@@ -467,12 +492,42 @@ function deploy(team, type, x, y) {
     for (let rad = 3; rad <= 12 && !found; rad += 3)
       for (let a = 0; a < 8 && !found; a++) {
         const nx = x + Math.cos(a / 8 * Math.PI * 2) * rad, ny = y + Math.sin(a / 8 * Math.PI * 2) * rad;
-        if (ny >= ymin && ny <= ymax && nx > 4 && nx < MW - 4 && free(nx, ny) && !crowded(nx, ny)) { x = nx; y = ny; found = true; }
+        if (ny >= ymin && ny <= ymax && nx >= xmin && nx <= xmax && free(nx, ny) && !crowded(nx, ny)) { x = nx; y = ny; found = true; }
       }
     if (!found) return 'blocked';
   }
   P[team] -= d.cost;
   return spawn(team, type, x, y);
+}
+// ---- fazenda ----
+const cellRate = age => age < 2 ? 0 : age < 6 ? 0.004 : age < 10 ? 0.008 : 0.012;
+const farmIncome = t => { const f = farms[t]; let v = 0; if (f) for (const c of f.cells) if (c.age >= 0) v += cellRate(c.age); return v; };
+function farmHit(fm, dmg) {
+  fm.hitT = 0.12; fm.dmgAcc += dmg;
+  while (fm.dmgAcc >= 6 && fm.planted > 0) {
+    fm.dmgAcc -= 6;
+    const pl = fm.cells.filter(c => c.age >= 0), c = pl[R() * pl.length | 0]; c.age = -1; fm.planted--;
+    for (let i = 0; i < 6; i++) parts.push({ x: fm.rx + c.i * 8 + 4, y: fm.ry + c.j * 8 + 4, vx: (R() - 0.5) * 24, vy: -R() * 22, life: 0.5, max: 0.5, gr: 50, c: i % 2 ? '#5aa032' : '#a87840' });
+  }
+}
+function farmerAI(u, dt) {
+  const fm = farms[u.team]; u.working = false; if (!fm) return;
+  const alive = c => c && !c.dead && units.includes(c);
+  if (u.job && (u.job.age >= 0 || u.job.claim !== u)) u.job = null;
+  if (!u.job) {
+    let best = null, bd = 1e9;
+    for (const c of fm.cells) {
+      if (c.age >= 0 || (c.claim && c.claim !== u && alive(c.claim))) continue;
+      const dd = Math.hypot(fm.rx + c.i * 8 + 4 - u.x, fm.ry + c.j * 8 + 6 - u.y) + R() * 4; if (dd < bd) { bd = dd; best = c; }
+    }
+    if (best) { best.claim = u; u.job = best; u.workT = 2.4; }
+  }
+  if (u.job) {
+    const cx = fm.rx + u.job.i * 8 + 4, cy = fm.ry + u.job.j * 8 + 6;
+    if (Math.hypot(cx - u.x, cy - u.y) > 2) step(u, cx, cy, dt);
+    else { u.working = true; u.workT -= dt; if (u.workT <= 0) { u.job.age = 0; u.job.claim = null; u.job = null; } }
+  }
+  u.x = clamp(u.x, fm.rx + 4, fm.rx + fm.w - 4); u.y = clamp(u.y, fm.ry + 7, fm.ry + fm.h - 2);
 }
 function refund(e) {
   coins[0] += e.d.cost;
@@ -496,6 +551,7 @@ function botFormation() {
   // gasta as moedas da preparação numa formação aleatória
   let c = SETUP_COINS; const front = [], back = [];
   const nf = R() < 0.55 ? 1 + (R() * 2 | 0) : 0; c -= nf * 2;
+  const nfa = 1 + (R() * 2 | 0); c -= nfa * 3;
   const nk = 1 + (R() * 3 | 0);
   for (let i = 0; i < nk && c >= 5; i++) { front.push('knight'); c -= 5; }
   const nb = Math.min(nk, R() * 3 | 0);
@@ -516,6 +572,7 @@ function botFormation() {
   const ks = placed.filter(u => u.type === 'knight');
   back.forEach((t, i) => { const k = ks[i % Math.max(1, ks.length)] || placed[i % Math.max(1, placed.length)];
     if (k) deploy(1, t, k.x + (R() - 0.5) * 14, k.y - 22); else deploy(1, t, MW / 2 + (R() - 0.5) * 40, 150); });
+  const fb = farms[1]; for (let i = 0; i < nfa && fb; i++) deploy(1, 'farmer', fb.rx + 8 + R() * (fb.w - 16), fb.ry + 10 + R() * (fb.h - 14));
   for (let i = 0; i < nf; i++) deploy(1, 'fence', 30 + R() * (MW - 60), 236 + R() * 12);
 }
 function startBattle() {
@@ -526,12 +583,12 @@ function startBattle() {
 }
 
 // ===================== COMBATE =====================
-const isAlive = t => t && (t.isCastle ? t.hp > 0 : !t.dead);
+const isAlive = t => t && (t.isFarm ? t.planted > 0 : t.isCastle ? t.hp > 0 : !t.dead);
 function rectDist(x, y, c) {
   const dx = Math.max(c.x - x, 0, x - (c.x + c.w)), dy = Math.max(c.y - y, 0, y - (c.y + c.h));
   return Math.hypot(dx, dy);
 }
-function distTo(u, t) { if (t.isFence) return rectDist(u.x, u.y, { x: t.rx, y: t.ry, w: t.w, h: t.h }) - u.d.r; return t.isCastle ? rectDist(u.x, u.y, t) - u.d.r : Math.hypot(t.x - u.x, t.y - u.y) - u.d.r - t.d.r; }
+function distTo(u, t) { if (t.isFence || t.isFarm) return rectDist(u.x, u.y, { x: t.rx, y: t.ry, w: t.w, h: t.h }) - u.d.r; return t.isCastle ? rectDist(u.x, u.y, t) - u.d.r : Math.hypot(t.x - u.x, t.y - u.y) - u.d.r - t.d.r; }
 function aimPoint(t, fx, fy) {
   if (!t.isCastle) return { x: t.x, y: t.y - 4 };
   return { x: clamp(fx, t.x + 2, t.x + t.w - 2), y: clamp(fy, t.y + 2, t.y + t.h - 2) };
@@ -552,6 +609,7 @@ function nearestEnemy(u, radius) {
 }
 function damage(t, dmg, team) {
   if (!isAlive(t)) return;
+  if (t.isFarm) { farmHit(t, dmg); return; }
   t.hp -= dmg; t.hitT = 0.06;
   const p = t.isCastle ? null : t;
   if (p) for (let i = 0; i < 4; i++) parts.push({ x: p.x, y: p.y - 5, vx: (R() - 0.5) * 30, vy: -R() * 25, life: 0.35, max: 0.35, c: i % 2 ? '#ffffff' : '#c83030', gr: 60 });
@@ -605,13 +663,14 @@ function moveTo(u, gx, gy, dt) {
 }
 function warrior(u, dt) {
   const d = u.d, ec = castles[1 - u.team];
-  if (u.target && (u.target.dead || Math.hypot(u.target.x - u.x, u.target.y - u.y) > d.aggro * 1.6)) u.target = null;
+  if (u.target && (u.target.dead || (u.target.isFarm && u.target.planted === 0) || Math.hypot(u.target.x - u.x, u.target.y - u.y) > d.aggro * 1.6 + (u.target.isFarm ? 40 : 0))) u.target = null;
   u.retT -= dt;
   if (u.retT <= 0) {
     u.retT = 0.3 + R() * 0.2;
     const e = nearestEnemy(u, d.aggro);
     if (e && (!u.target || Math.hypot(e.x - u.x, e.y - u.y) < Math.hypot(u.target.x - u.x, u.target.y - u.y) * 0.6)) u.target = e;
   }
+  if (!u.target) { const fm = farms[1 - u.team]; if (fm && fm.planted > 0 && distTo(u, fm) < 20) u.target = fm; }
   if (u.stuckT > 0.9 && !u.target) { let bf = null, bd = 12; for (const f of fences) { if (f.dead || f.team === u.team) continue; const dd = distTo(u, f); if (dd < bd) { bd = dd; bf = f; } } if (bf) u.target = bf; }
   const t = u.target || ec;
   if (distTo(u, t) <= d.range) attack(u, t);
@@ -679,6 +738,7 @@ function botUpdate(dt) {
   let threat = null;
   for (const u of units) if (!u.dead && u.team === 0 && u.y < MID + 40 && (!threat || u.y < threat.y)) threat = u;
   if (threat && gl >= 4 && R() < 0.16 && fences.filter(f => f.team === 1).length < 4) { const f = deploy(1, 'fence', threat.x, threat.y - 26); if (f && typeof f === 'object') return; }
+  if (gl >= 3 && farms[1] && R() < 0.14 && units.filter(u => !u.dead && u.team === 1 && u.type === 'farmer').length < 5) { const fb = farms[1]; const f = deploy(1, 'farmer', fb.rx + 8 + R() * (fb.w - 16), fb.ry + 10 + R() * (fb.h - 14)); if (f && typeof f === 'object') return; }
   if (threat && gl >= 2) {
     const type = gl >= 5 && (threat.type === 'knight' || R() < 0.5) ? 'knight' : 'pawn';
     const r = deploy(1, type, threat.x + (R() - 0.5) * 30, threat.y - 35);
@@ -702,14 +762,20 @@ function update(dt) {
   if (phase === 'count' && (countT -= dt) <= 0) { phase = 'battle'; for (const u of units) u.deployT = 0; }
   const rdt = dt; dt *= SPEED;
   if (!over && phase === 'battle') {
-    for (let t = 0; t < 2; t++) gold[t] = Math.min(10, gold[t] + dt / 1.5);
+    for (let t = 0; t < 2; t++) {
+      const f = farms[t]; let inc = 0;
+      if (f) { f.hitT -= dt; f.planted = 0; for (const c of f.cells) if (c.age >= 0) { c.age += dt; f.planted++; inc += cellRate(c.age); } }
+      gold[t] = Math.min(10, gold[t] + dt / 1.5 + inc * dt);
+      farmAcc[t] += inc * dt;
+      if (farmAcc[t] >= 1) { farmAcc[t] -= 1; const rp = f.cells.filter(c => c.age >= 10); if (t === 0 && rp.length) { const c = rp[R() * rp.length | 0]; texts.push({ x: f.rx + c.i * 8 + 4, y: f.ry + c.j * 8, s: '+1', c: C.goldL, life: 0.9 }); } }
+    }
     botUpdate(dt);
     for (const u of units) {
       if (u.dead) continue;
-      u.hitT -= dt; u.atkT -= dt; u.cd -= dt; u.moving = false;
+      u.hitT -= dt; u.atkT -= dt; u.cd -= dt; u.moving = false; u.working = false;
       if (u.deployT > 0) { u.deployT -= dt; continue; }
-      if (u.type === 'bishop') bishopAI(u, dt); else warrior(u, dt);
-      if (u.moving) u.walk += dt;
+      if (u.type === 'bishop') bishopAI(u, dt); else if (u.type === 'farmer') farmerAI(u, dt); else warrior(u, dt);
+      if (u.moving || u.working) u.walk += dt;
     }
     for (const f of fences) f.hitT -= dt;
     // separação entre unidades
@@ -803,7 +869,7 @@ function buildBackground() {
   for (let i = 0; i < 34; i++) { const px = R() * (MW - 3) | 0, py = R() * H | 0; P(px, py, '#e6dcc6'); P(px + 1, py, '#c8bca4'); P(px, py + 1, '#9a8e78'); P(px + 1, py + 1, '#9a8e78'); P(px + 2, py + 1, GRASS.dk2); }
   // estrada de terra
   for (const c of castles) {
-    const cxm = MW / 2, dir = c.team === 1 ? 1 : -1, gy = c.team === 1 ? c.y + c.h : c.y - 10;
+    const cxm = c.x + 52, dir = c.team === 1 ? 1 : -1, gy = c.team === 1 ? c.y + c.h : c.y - 10;
     for (let k = 0; k < 18; k++) for (let px = cxm - 15; px < cxm + 15; px++) {
       const py = gy + dir * k, hw = 12 - k * 0.55, d = Math.abs(px - cxm);
       if (d > hw + 1) continue;
@@ -813,6 +879,15 @@ function buildBackground() {
   }
   x.fillStyle = 'rgba(27,20,22,0.32)';
   for (const c of castles) x.fillRect(c.x + 3, c.y + c.h - 1, c.w - 2, 4);
+  for (const fm of farms) { // terra arada com sulcos e cerca baixa
+    for (let py = 0; py < fm.h; py++) for (let px = 0; px < fm.w; px++) {
+      const ly = py % 8, n = hash(px + fm.rx, py + fm.ry);
+      P(fm.rx + px, fm.ry + py, ly === 0 ? '#6a4020' : ly === 1 ? '#a87840' : ly === 7 ? '#76492a' : n < 0.12 ? '#7a4e28' : n > 0.9 ? '#b88850' : '#8c5c30');
+    }
+    for (let px = -2; px < fm.w + 2; px++) { P(fm.rx + px, fm.ry - 3, WOOD[2]); P(fm.rx + px, fm.ry - 2, WOOD[1]); P(fm.rx + px, fm.ry + fm.h + 1, WOOD[2]); P(fm.rx + px, fm.ry + fm.h, WOOD[1]); }
+    for (let py = -2; py < fm.h + 2; py++) { P(fm.rx - 3, fm.ry + py, WOOD[2]); P(fm.rx - 2, fm.ry + py, WOOD[1]); P(fm.rx + fm.w + 1, fm.ry + py, WOOD[2]); P(fm.rx + fm.w, fm.ry + py, WOOD[1]); }
+    for (let px = -3; px <= fm.w + 1; px += 12) for (const yy of [-4, fm.h]) { P(fm.rx + px, fm.ry + yy, WOOD[0]); P(fm.rx + px + 1, fm.ry + yy, WOOD[1]); P(fm.rx + px, fm.ry + yy + 1, WOOD[2]); P(fm.rx + px + 1, fm.ry + yy + 1, WOOD[3]); }
+  }
   // lagos
   for (let py = 0; py < H; py++) for (let px = 0; px < MW; px++) {
     if (!isWater(px, py)) { if (isWater(px + 1, py) || isWater(px - 1, py) || isWater(px, py + 1) || isWater(px, py - 1)) P(px, py, hash(px, py) < 0.5 ? C.parch : C.parch2);
@@ -1091,9 +1166,10 @@ function drawCastle(c) {
 }
 function drawUnit(u, ghost) {
   const sp = SP[u.type];
-  const fr = u.moving ? ((u.walk * 5) | 0) % 2 : 0, flip = u.face < 0 ? 1 : 0;
+  const fr = (u.moving || u.working) ? ((u.walk * (u.working ? 3 : 5)) | 0) % 2 : 0, flip = u.face < 0 ? 1 : 0;
   let ox = 0, oy = 0;
   if (u.moving && fr) oy = -1;
+  if (u.working && fr) oy = 1;
   if (u.atkT > 0) ox = u.face * (u.atkT > 0.11 ? 2 : 1);
   const dx = Math.round(u.x - sp.w / 2 + ox), dy = Math.round(u.y - sp.h + 3 + oy);
   const r = u.d.r + 1, ux = Math.round(u.x), uy = Math.round(u.y);
@@ -1179,6 +1255,8 @@ function drawSide() {
     drawText('OURO', MW + 25, 5, C.gold, 'center', C.ink);
     drawBar(BAR.y0, BAR.y1, gold[0], 10);
     drawBig(Math.floor(gold[0]), MW + 25, BAR.y1 + 8, C.goldL, C.gold);
+    const rate = (1 / 1.5 + farmIncome(0)) * SPEED;
+    drawText('+' + rate.toFixed(1) + '/S', MW + 25, BAR.y1 + 24, C.goldL, 'center', C.ink);
   }
   for (let i = 0; i < CARDS.length; i++) drawCard(i);
 }
@@ -1210,13 +1288,35 @@ function banner(s, col = C.ink) {
   scroll(Math.round(MW / 2 - w / 2), MID - 11, w, h);
   drawText(s, MW / 2, MID - 3, col, 'center');
 }
+function drawCrop(x, y, age, seed) {
+  if (age < 2) { rect(x + 3, y + 5, 2, 1, '#c8894a'); rect(x + 3, y + 4, 1, 1, '#e8c088'); return; }
+  const sway = Math.round(Math.sin(time * 2.5 + seed) * 0.6);
+  for (const dx of [1, 3, 5]) {
+    if (age < 6) { rect(x + dx, y + 5, 1, 2, '#5aa032'); rect(x + dx + 1, y + 4, 1, 1, '#8cd04c'); rect(x + dx - 1, y + 4, 1, 1, '#8cd04c'); }
+    else if (age < 10) { rect(x + dx, y + 3, 1, 4, '#5aa032'); rect(x + dx + sway, y + 2, 1, 1, '#a8d84c'); rect(x + dx - 1 + sway, y + 4, 1, 1, '#8cd04c'); }
+    else { rect(x + dx, y + 2, 1, 5, '#c89030'); rect(x + dx + sway, y, 1, 3, C.gold); rect(x + dx + sway - 1, y + 1, 1, 1, '#e8a028'); rect(x + dx + sway + 1, y + 1, 1, 1, '#e8a028'); rect(x + dx + sway, y - 1, 1, 1, C.goldL); }
+  }
+}
+function drawFarms() {
+  for (const fm of farms) {
+    if (fm.hitT > 0) rect(fm.rx, fm.ry, fm.w, fm.h, 'rgba(200,54,30,0.22)');
+    for (const c of fm.cells) if (c.age >= 0) drawCrop(fm.rx + c.i * 8, fm.ry + c.j * 8, c.age, c.i * 7 + c.j * 3);
+  }
+}
 function render() {
   g.drawImage(bgCanvas, 0, 0);
   for (const s of shimmer) { const v = Math.sin(time * s.sp + s.ph); if (v > 0.55) rect(s.x, s.y, v > 0.85 ? 3 : 2, 1, v > 0.85 ? '#e8ffff' : C.tealL); }
+  drawFarms();
   const placing = (sel >= 0 && phase !== 'count') || phase === 'setup';
   if (placing && !over) {
     rect(0, 0, MW, MID + 8, phase === 'setup' ? 'rgba(27,20,22,0.35)' : 'rgba(200,54,30,0.18)');
     g.fillStyle = C.cream; for (let px = (time * 12 | 0) % 6; px < MW; px += 6) g.fillRect(px, MID + 8, 3, 1);
+  }
+  if (sel >= 0 && CARDS[sel] === 'farmer' && phase !== 'count' && !over && farms[0]) {
+    const f = farms[0], pulse = Math.sin(time * 6) > 0;
+    rect(f.rx, f.ry, f.w, f.h, 'rgba(255,240,184,0.18)');
+    for (let px = 0; px < f.w; px += 4) { rect(f.rx + px, f.ry - 1, 2, 1, pulse ? C.goldL : C.cream); rect(f.rx + px, f.ry + f.h, 2, 1, pulse ? C.goldL : C.cream); }
+    for (let py = 0; py < f.h; py += 4) { rect(f.rx - 1, f.ry + py, 1, 2, pulse ? C.goldL : C.cream); rect(f.rx + f.w, f.ry + py, 1, 2, pulse ? C.goldL : C.cream); }
   }
   for (const c of castles) drawCastle(c);
   const list = [];
@@ -1226,7 +1326,8 @@ function render() {
   list.sort((a, b) => a.y - b.y);
   for (const o of list) { if (o.u) drawUnit(o.u); else if (o.f) drawFence(o.f); else g.drawImage(treeImg, o.t.c * TS + 4 - 12, o.t.y - 29); }
   if (sel >= 0 && hover && hover.x >= 0 && hover.x < MW && !over && phase !== 'count' && (!hoverTouch || (drag && drag.moved))) {
-    const ok = hover.y >= MID + 8 && hover.y <= H - 72 && purse()[0] >= DEF[CARDS[sel]].cost;
+    const fm0 = farms[0], isF = CARDS[sel] === 'farmer';
+    const ok = (isF ? (fm0 && hover.x >= fm0.rx && hover.x <= fm0.rx + fm0.w && hover.y >= fm0.ry && hover.y <= fm0.ry + fm0.h) : (hover.y >= MID + 8 && hover.y <= H - 72)) && purse()[0] >= DEF[CARDS[sel]].cost;
     if (CARDS[sel] === 'fence') {
       const sp = fenceSpot(hover.x, hover.y), good = ok && fenceOk(sp.c, sp.r);
       drawFence({ team: 0, rx: sp.c * TS, ry: sp.r * TS, hp: 1, max: 1, hitT: 0 }, good ? 0.65 : 0.25);
@@ -1280,7 +1381,8 @@ const inBtn = p => inRect(p, BTN);
 function tryDeploy(p) {
   const r = deploy(0, CARDS[sel], p.x, p.y);
   if (r && typeof r === 'object' && phase === 'setup') hist.push(r);
-  if (r === 'zone') msg = { s: 'SÓ NO SEU LADO DO CAMPO', t: 1.2 };
+  if (r === 'farm') msg = { s: 'SÓ NA ÁREA DE CULTIVO', t: 1.2 };
+  else if (r === 'zone') msg = { s: 'SÓ NO SEU LADO DO CAMPO', t: 1.2 };
   else if (r === 'blocked') msg = { s: 'LUGAR BLOQUEADO', t: 1 };
   else if (!r) msg = { s: phase === 'setup' ? 'MOEDAS INSUFICIENTES' : 'OURO INSUFICIENTE', t: 1 };
 }
