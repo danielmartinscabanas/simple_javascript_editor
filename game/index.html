@@ -1043,18 +1043,20 @@ function buildBackground() {
     const h = hash(px, py);
     const n = Math.sin(px * 0.045 + Math.sin(py * 0.035 + off) * 2) + Math.sin(py * 0.06 - px * 0.025 + off * 1.7) + Math.sin((px + py) * 0.03 + off) + (bay(px, py) - 0.5) * 0.25;
     const m = Math.sin(px * 0.035 - off) + Math.sin(py * 0.05 + px * 0.02 + off * 2.3) + (bay(px + 2, py + 1) - 0.5) * 0.9;
-    let col = A; // gramado liso e sólido; só um leve salpico de tom próximo
-    if (h < 0.02) col = B;
+    let col = A; // gramado sólido, com salpico fino de tons próximos
+    if (h < 0.07) col = B; else if (h > 0.985) col = PL; else if (h > 0.95 && bay(px, py) > 0.6) col = PD;
     const i = (py * MW + px) * 4; D[i] = col[0]; D[i + 1] = col[1]; D[i + 2] = col[2]; D[i + 3] = 255;
   }
   x.putImageData(id, 0, 0);
   const P = (px, py, c) => { x.fillStyle = c; x.fillRect(px, py, 1, 1); };
-  // poucos detalhes, de baixo contraste
-  for (let i = 0; i < 24; i++) { const px = R() * MW | 0, py = R() * H | 0;
-    P(px, py, '#72a830'); P(px + 2, py, '#72a830'); P(px + 1, py + 1, '#72a830'); P(px + 1, py, '#8cbc3e'); }
+  // detalhes de baixo contraste: tufos, grama seca, flores e pedrinhas
+  for (let i = 0; i < 150; i++) { const px = R() * MW | 0, py = R() * H | 0;
+    P(px, py, '#6aa22c'); P(px + 2, py, '#6aa22c'); P(px + 1, py + 1, '#6aa22c'); P(px + 1, py, '#92c444'); if (R() < 0.5) { P(px + 3, py - 1, '#92c444'); P(px + 3, py, '#6aa22c'); } }
+  for (let i = 0; i < 22; i++) { const px = R() * MW | 0, py = R() * H | 0; P(px, py, '#a8b84e'); P(px, py + 1, '#8a9a3e'); P(px + 1, py + 1, '#788a34'); }
   const petals = [C.cream, C.goldL, '#f2a0b8'];
-  for (let i = 0; i < 4; i++) { const px = 3 + R() * (MW - 6) | 0, py = 3 + R() * (H - 8) | 0, pc = petals[R() * 3 | 0];
-    P(px - 1, py, pc); P(px + 1, py, pc); P(px, py - 1, pc); P(px, py + 1, mixc(pc, '#2a2418', 0.4)); P(px, py, C.gold); P(px, py + 2, GRASS.dk2); }
+  for (let i = 0; i < 14; i++) { const px = 3 + R() * (MW - 6) | 0, py = 3 + R() * (H - 8) | 0, pc = petals[R() * 3 | 0];
+    P(px, py + 2, GRASS.dk2); P(px, py + 3, GRASS.dk2); P(px - 1, py, pc); P(px + 1, py, pc); P(px, py - 1, pc); P(px, py + 1, mixc(pc, '#2a2418', 0.4)); P(px, py, C.gold); }
+  for (let i = 0; i < 12; i++) { const px = R() * (MW - 3) | 0, py = R() * H | 0; P(px, py, '#a8a290'); P(px + 1, py, '#888272'); P(px, py + 1, '#686254'); P(px + 1, py + 1, '#686254'); P(px + 2, py + 1, GRASS.dk2); }
   // estrada de terra batida
   for (const c of castles) {
     const cxm = c.x + 52, dir = c.team === 1 ? 1 : -1, gy = c.team === 1 ? c.y + c.h : c.y - 10;
