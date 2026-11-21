@@ -320,13 +320,12 @@ function genMap() {
       kind[r * COLS + c] = 6; stumps.push({ c, r });
     }
     const nT = Math.round((14 + (R() * 9 | 0)) * k);
-    for (let i = 0; i < nT; i++) {
-      // árvores tendem a formar pequenos bosques
-      let c, r;
-      if (trees.length && R() < 0.5) { const t = trees[R() * trees.length | 0]; c = t.c + (R() * 3 | 0) - 1; r = t.r + (R() * 3 | 0) - 1; }
-      else { c = R() * COLS | 0; r = RMIN + (R() * (RMAX - RMIN + 1) | 0); }
-      if (c < 0 || c >= COLS || !okArea(c, r, 1, 1)) continue;
-      kind[r * COLS + c] = 3; trees.push({ c, r, y: r * TS + 7 });
+    // árvores espaçadas: copas de ~3 tiles não podem se sobrepor
+    for (let i = 0, ok = 0; i < nT * 12 && ok < nT; i++) {
+      const c = R() * COLS | 0, r = RMIN + (R() * (RMAX - RMIN + 1) | 0);
+      if (!okArea(c, r, 1, 1)) continue;
+      if (trees.some(t => Math.abs(t.c - c) < 4 && Math.abs(t.r - r) < 4)) continue;
+      kind[r * COLS + c] = 3; trees.push({ c, r, y: r * TS + 7 }); ok++;
     }
     if (connected()) return;
   }
