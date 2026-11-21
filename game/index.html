@@ -18,14 +18,14 @@ canvas { display: block; flex: none; image-rendering: pixelated; image-rendering
 'use strict';
 // ===================== CONSTANTES =====================
 const SW = 52, TS = 8; // coluna lateral: 4px de moldura de cada lado, miolo de 44px centrado em MW + 26
-let MW = 216, W = MW + SW, H = 584, COLS = 27, ROWS = 66, MID = 264;
+let MW = 216, W = MW + SW, H = 600, COLS = 27, ROWS = 66, MID = 264;
 // O campo se estica para preencher a tela (largura e altura), sempre com escala inteira.
 (function fit() {
   if (!innerWidth || !innerHeight) return;
   const dpr = window.devicePixelRatio || 1, dw = Math.floor(innerWidth * dpr), dh = Math.floor(innerHeight * dpr);
-  const sc = Math.max(1, Math.floor(Math.min(dw / (SW + 226), dh / 594)));
+  const sc = Math.max(1, Math.floor(Math.min(dw / (SW + 226), dh / 610)));
   MW = Math.min(336, Math.max(216, Math.floor((dw / sc - 10 - SW) / 8) * 8));
-  H = Math.min(840, Math.max(584, Math.floor((dh / sc - 10) / 8) * 8));
+  H = Math.min(840, Math.max(600, Math.floor((dh / sc - 10) / 8) * 8));
   W = MW + SW; COLS = MW / 8; ROWS = H / 8; MID = H / 2;
 })();
 let R = Math.random;
@@ -324,6 +324,7 @@ function splashPotion(p) {
   puddles.push({ x: sx, y: sy, r: R2 * 0.8, t: 2.2, col });
 }
 let puddles = [];
+let stats = { dmg: [0, 0], kills: [0, 0], t: 0 }, surrenderT = 0;
 const VIEWS = {
   alchemist: { E: [alchE(0), alchE(1)], S: [alchS(0), alchS(1)], N: [alchN(0), alchN(1)] },
   necro: { E: [NECRO_A, NECRO_B], N: [backOf(NECRO_A, 3, 8, 'v', { glow: true }), backOf(NECRO_B, 3, 8, 'v', { glow: true })] },
@@ -380,7 +381,7 @@ const FONT = {
   S:'011100010001110',T:'111010010010010',U:'101101101101111',V:'101101101101010',W:'101101111111101',X:'101101010101101',
   Y:'101101010010010',Z:'111001010100111','0':'111101101101111','1':'010110010010111','2':'110001010100111','3':'110001010001110',
   '4':'101101111001001','5':'111100110001110','6':'011100111101111','7':'111001010010010','8':'111101111101111','9':'111101111001110',
-  '!':'010010010000010',':':'000010000010000','.':'000000000000010','-':'000000111000000','+':'000010111010000','/':'001001010100100',' ':'000000000000000',
+  '!':'010010010000010','?':'110001010000010',':':'000010000010000','.':'000000000000010','-':'000000111000000','+':'000010111010000','/':'001001010100100',' ':'000000000000000',
 };
 const BIG = {
   A:'01110100011000111111100011000110001',B:'11110100011000111110100011000111110',C:'01110100011000010000100001000101110',
@@ -726,7 +727,7 @@ function drawConfetti() {
   for (const c of confetti) { const flip = Math.sin(c.t * 8 + c.ph) > 0; rect(Math.round(c.x), Math.round(c.y), flip ? c.w : c.h, flip ? c.h : c.w, c.c); }
 }
 function reset() {
-  puddles = [];
+  puddles = []; stats = { dmg: [0, 0], kills: [0, 0], t: 0 }; surrenderT = 0;
   makeCastles(); makeFarms(); farmAcc = [0, 0]; genMap();
   hist = []; units = []; fences = []; projs = []; parts = []; texts = []; gold = [5, 5]; coins = [SETUP_COINS, SETUP_COINS];
   phase = 'setup'; countT = 0; over = null; time = 0; uid = 0;
@@ -935,6 +936,7 @@ function nearestEnemy(u, radius) {
 }
 function damage(t, dmg, team) {
   if (!isAlive(t)) return;
+  if (team === 0 || team === 1) stats.dmg[team] += t.isFarm ? dmg : Math.min(dmg, Math.max(0, t.hp));
   if (t.isFarm) { farmHit(t, dmg); return; }
   t.hp -= dmg; t.hitT = t.isCastle ? 0.06 : FX_T;
   const p = t.isCastle ? null : t;
@@ -943,7 +945,7 @@ function damage(t, dmg, team) {
     if (t.hp <= 0 && !over) { t.hp = 0; over = { win: t.team === 1, t: 0 };
       for (let i = 0; i < 60; i++) parts.push({ x: t.x + R() * t.w, y: t.y + R() * t.h, vx: (R() - 0.5) * 40, vy: -R() * 40, life: 1.5, max: 1.5, c: R() < 0.5 ? '#ff9a30' : '#6a645c', gr: 20 }); }
   } else if (t.hp <= 0) {
-    t.dead = true;
+    t.dead = true; if ((team === 0 || team === 1) && !t.isFence && t.type !== 'skeleton') stats.kills[team]++;
     for (let i = 0; i < 12; i++) parts.push({ x: t.x + (R() - 0.5) * 6, y: t.y - R() * 8, vx: (R() - 0.5) * 20, vy: -R() * 20, life: 0.7, max: 0.7, c: i % 3 ? '#bdb6a6' : '#7a7468' });
   }
 }
@@ -1128,13 +1130,14 @@ function botUpdate(dt) {
 
 // ===================== UPDATE =====================
 function update(dt) {
-  time += dt;
+  time += dt; if (surrenderT > 0) surrenderT -= dt;
   updateAmbient(dt);
   for (const pd of puddles) pd.t -= dt; puddles = puddles.filter(pd => pd.t > 0);
   if (msg && (msg.t -= dt) <= 0) msg = null;
   if (phase === 'count' && (countT -= dt) <= 0) { phase = 'battle'; for (const u of units) u.deployT = 0; }
   const rdt = dt; dt *= SPEED;
   if (!over && phase === 'battle') {
+    stats.t += dt / SPEED;
     for (let t = 0; t < 2; t++) {
       const f = farms[t]; let inc = 0;
       if (f) { f.hitT -= dt; f.planted = 0; for (const c of f.cells) if (c.age >= 0) { c.age += dt; f.planted++; inc += cellRate(c.age); } }
@@ -1806,8 +1809,6 @@ function buildSide() {
     }
     for (const px of [9, 25, 41]) { x.fillStyle = '#c8a050'; x.fillRect(px, y + 3, 2, 2); x.fillStyle = '#f0d890'; x.fillRect(px, y + 3, 1, 1); }
   };
-  if (BTN.y + BTN.h + 14 + 8 < CARD_Y[0] - 2) strap(BTN.y + BTN.h + 14);
-  if (CARD_Y[0] - 22 > BTN.y + BTN.h + 32) strap(CARD_Y[0] - 22);
   for (let py = 6; py < H; py += 64) for (const px of [7, 16, 25, 34, 43]) { x.fillStyle = '#1b1416'; x.fillRect(px, py, 2, 2); x.fillStyle = C.goldL; x.fillRect(px, py, 1, 1); }
 }
 let frameCanvas, vigCanvas;
@@ -1996,6 +1997,30 @@ function button(b, label, base, light, pressed, dim, tcol) {
   for (const sx of [b.x + 4, b.x + b.w - 5]) rect(sx, y + (b.h >> 1), 1, 1, dim ? '#8a7a6a' : C.goldL);
   drawText(label, b.x + Math.floor((b.w - textW(label)) / 2), y + Math.floor((b.h - 6) / 2), tc, 'left'); // centralizado em pixels inteiros
 }
+const fmtN = n => { n = Math.round(n); return n < 10000 ? String(n) : (n / 1000).toFixed(1) + 'K'; };
+function statRow(x, y, w, a, b, icon) {
+  // dois contadores lado a lado: sua cor e a cor do inimigo
+  const half = (w - 3) >> 1;
+  [[x, a, TEAM[0].t], [x + half + 3, b, TEAM[1].t]].forEach(([rx, v, col], i) => {
+    rect(rx, y, 2, 7, C.ink); rect(rx, y + 1, 1, 5, col); rect(rx + 1, y + 1, 1, 5, mixc(col, '#000000', 0.25));
+    drawText(fmtN(v), rx + half - 1 - textW(fmtN(v)) + 1, y + 1, C.goldL, 'left', C.ink);
+  });
+}
+function drawStats() {
+  const x = MW + 4, w = SW - 8, y0 = BTN.y + BTN.h + 5, y1 = CARD_Y[0] - 5, h = y1 - y0;
+  if (h < 24) return;
+  plate(x, y0, w, h);
+  const alive = t => units.filter(u => !u.dead && u.team === t && u.type !== 'skeleton').length;
+  const blocks = [['DANO', stats.dmg[0], stats.dmg[1]], ['ABATES', stats.kills[0], stats.kills[1]], ['TROPAS', alive(0), alive(1)], ['TEMPO']];
+  const cap = Math.max(1, Math.floor((h - 4) / 17)), n = Math.min(blocks.length, cap);
+  for (let i = 0; i < n; i++) {
+    const by = y0 + 5 + i * 17;
+    drawText(blocks[i][0], x + (w >> 1), by, C.cream, 'center');
+    if (blocks[i][0] === 'TEMPO') { const sec = Math.floor(stats.t), tt = String((sec / 60) | 0).padStart(2, '0') + ':' + String(sec % 60).padStart(2, '0'); drawText(tt, x + (w >> 1), by + 9, C.goldL, 'center', C.ink); }
+    else statRow(x + 4, by + 8, w - 8, blocks[i][1], blocks[i][2]);
+    if (i < n - 1) rect(x + 6, by + 15, w - 12, 1, '#4a3626');
+  }
+}
 function drawSide() {
   g.drawImage(sideCanvas, MW, 0);
   plate(MW + 4, 1, SW - 8, 11);
@@ -2010,11 +2035,11 @@ function drawSide() {
     const warn = gold[0] >= 9.98 && !over && Math.sin(time * 10) > 0; // ouro cheio: pisca para avisar que está sobrando
     drawBar(BAR.y0, BAR.y1, gold[0], 10, warn);
     plate(MW + 14, BAR.y1 + 6, 24, 14); drawBig(Math.floor(gold[0]), MW + 26, BAR.y1 + 9, warn ? '#ffb090' : C.goldL, warn ? '#ff5a2a' : C.gold);
+    if (phase === 'battle' && !over) { const conf = surrenderT > 0; button(BTN, conf ? 'CONFIRMA?' : 'RENDER-SE', conf ? '#7a1a1a' : '#4a3a34', conf ? ['#b02a22', '#e8584a'] : ['#6a5a50', '#8a7a6e'], conf && Math.sin(time * 12) > 0, false, C.cream); }
     const rate = (BASE_GOLD + farmIncome(0)) * SPEED;
     drawText('+' + rate.toFixed(1) + '/S', MW + 26, BAR.y1 + 26, C.goldL, 'center', C.ink);
   }
-  if (BTN.y + BTN.h + 8 < CARD_Y[0] - 6) chain(MW + 7, MW + 46, BTN.y + BTN.h + 8);
-  if (CARD_Y[0] - 8 > BTN.y + BTN.h + 24) chain(MW + 7, MW + 46, CARD_Y[0] - 8);
+  drawStats();
   for (let i = 0; i < CARDS.length; i++) if (i !== sel) drawCard(i);
   if (sel >= 0) drawCard(sel);
 }
@@ -2233,7 +2258,7 @@ function render() {
   if (over) {
     rect(0, 0, W, H, `rgba(27,20,22,${clamp(over.t, 0, 0.65)})`);
     if (over.t > 0.4) {
-      const sw = Math.min(W - 8, 250), sub = medWrap('TOQUE PARA JOGAR DE NOVO', sw - 60), sh = 46 + 15 * sub.length, sy = Math.round(H / 2 - sh / 2), sx = Math.round(W / 2 - sw / 2);
+      const sw = Math.min(W - 8, 250), sub = medWrap(over.surrender ? 'VOCÊ SE RENDEU. TOQUE PARA JOGAR DE NOVO' : 'TOQUE PARA JOGAR DE NOVO', sw - 60), sh = 46 + 15 * sub.length, sy = Math.round(H / 2 - sh / 2), sx = Math.round(W / 2 - sw / 2);
       scroll(sx, sy, sw, sh);
       const tc = over.win ? '#1d5a2a' : '#7a1818';
       drawMed(over.win ? 'VITÓRIA!' : 'DERROTA', W / 2, sy + 12, tc, over.win ? '#b8862a' : '#a02222');
@@ -2275,6 +2300,7 @@ cv.addEventListener('pointerdown', e => {
   try { cv.setPointerCapture(e.pointerId); } catch (_) {}
   if (p.x >= MW) {
     if (phase === 'setup' && inBtn(p)) { startBattle(); return; }
+    if (phase === 'battle' && !over && inBtn(p)) { if (surrenderT > 0) { over = { win: false, t: 0, surrender: true }; sel = -1; surrenderT = 0; } else surrenderT = 3; return; }
     if (phase === 'setup' && inRect(p, UNDO)) { if (!undo()) msg = { s: 'NADA PARA DESFAZER', t: 1 }; return; }
     const i = cardAt(p); if (i >= 0) { sel = sel === i ? -1 : i; drag = { i, moved: false }; }
   } else if (phase === 'setup' && sel < 0 && removeAt(p)) { /* sem carta selecionada: toque remove */ }
