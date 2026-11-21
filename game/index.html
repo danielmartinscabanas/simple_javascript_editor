@@ -17,13 +17,13 @@ canvas { display: block; flex: none; image-rendering: pixelated; image-rendering
 <script>
 'use strict';
 // ===================== CONSTANTES =====================
-const SW = 48, TS = 8;
+const SW = 52, TS = 8; // coluna lateral: 4px de moldura de cada lado, miolo de 44px centrado em MW + 26
 let MW = 216, W = MW + SW, H = 528, COLS = 27, ROWS = 66, MID = 264;
 // O campo se estica para preencher a tela (largura e altura), sempre com escala inteira.
 (function fit() {
   if (!innerWidth || !innerHeight) return;
   const dpr = window.devicePixelRatio || 1, dw = Math.floor(innerWidth * dpr), dh = Math.floor(innerHeight * dpr);
-  const sc = Math.max(1, Math.floor(Math.min(dw / 274, dh / 538)));
+  const sc = Math.max(1, Math.floor(Math.min(dw / (SW + 226), dh / 538)));
   MW = Math.min(336, Math.max(216, Math.floor((dw / sc - 10 - SW) / 8) * 8));
   H = Math.min(840, Math.max(528, Math.floor((dh / sc - 10) / 8) * 8));
   W = MW + SW; COLS = MW / 8; ROWS = H / 8; MID = H / 2;
@@ -343,11 +343,11 @@ const DEF = {
   farmer: { name: 'CAMPONÊS', cost: 6, hp: 80, dmg: 0, cd: 1, range: 0, speed: 7, r: 4, mass: 1, aggro: 0, worker: true },
 };
 const CARDS = ['pawn', 'archer', 'knight', 'bishop', 'fence', 'farmer'];
-const CARD_X = MW + 4, CARD_W = 42, CARD_H = 50;
+const CARD_X = MW + 5, CARD_W = 42, CARD_H = 50;
 const CARD_Y = CARDS.map((_, i) => H - 2 - (CARDS.length - i) * 52);
 const BAR = { y0: 16, y1: 64 };
-const UNDO = { x: MW + 4, y: 86, w: 42, h: 18 };
-const BTN = { x: MW + 4, y: 108, w: 42, h: 22 };
+const UNDO = { x: MW + 5, y: 86, w: 42, h: 18 };
+const BTN = { x: MW + 5, y: 108, w: 42, h: 22 };
 const SETUP_COINS = 30;
 
 // ===================== MAPA =====================
@@ -1580,21 +1580,20 @@ function buildSide() {
     const plank = ((px - 3) / 9) | 0, seam = (px - 3) % 9 === 0, lx = (px - 3) % 9;
     let c = seam ? C.ink : lx === 1 ? WD[0] : lx > 6 ? WD[3] : WD[1 + ((hash(plank, (py / 5) | 0) * 2) | 0)];
     if (!seam && hash(px, (py / 3) | 0 + plank * 9) < 0.07) c = WD[3];
-    if (px === 0 || px === 2) c = C.ink; if (px === 1) c = C.rust;
-    if (px === 3) c = '#e0782a';
+    { const q = px < SW / 2 ? px : SW - 1 - px; if (q === 0 || q === 2) c = C.ink; if (q === 1) c = C.rust; if (q === 3) c = '#e0782a'; }
     x.fillStyle = c; x.fillRect(px, py, 1, 1);
   }
   // cintas de ferro com rebites e cantos arredondados
   const strap = y => {
-    for (let py = 0; py < 8; py++) for (let px = 4; px < SW - 3; px++) {
-      const corner = (px === 4 || px === SW - 4) && (py === 0 || py === 7); if (corner) continue;
-      const edge = py === 0 || py === 7 || px === 4 || px === SW - 4;
+    for (let py = 0; py < 8; py++) for (let px = 4; px < SW - 4; px++) {
+      const corner = (px === 4 || px === SW - 5) && (py === 0 || py === 7); if (corner) continue;
+      const edge = py === 0 || py === 7 || px === 4 || px === SW - 5;
       x.fillStyle = edge ? C.ink : py < 3 ? '#6a6a78' : py < 5 ? '#4a4a56' : '#34343e'; x.fillRect(px, y + py, 1, 1);
     }
-    for (const px of [8, 24, 40]) { x.fillStyle = '#c8a050'; x.fillRect(px, y + 3, 2, 2); x.fillStyle = '#f0d890'; x.fillRect(px, y + 3, 1, 1); }
+    for (const px of [9, 25, 41]) { x.fillStyle = '#c8a050'; x.fillRect(px, y + 3, 2, 2); x.fillStyle = '#f0d890'; x.fillRect(px, y + 3, 1, 1); }
   };
   strap(BTN.y + BTN.h + 14); strap(CARD_Y[0] - 22);
-  for (let py = 6; py < H; py += 64) for (const px of [8, 17, 26, 35, 44]) { x.fillStyle = '#1b1416'; x.fillRect(px, py, 2, 2); x.fillStyle = C.goldL; x.fillRect(px, py, 1, 1); }
+  for (let py = 6; py < H; py += 64) for (const px of [7, 16, 25, 34, 43]) { x.fillStyle = '#1b1416'; x.fillRect(px, py, 2, 2); x.fillStyle = C.goldL; x.fillRect(px, py, 1, 1); }
 }
 let frameCanvas, vigCanvas;
 function buildVignette() {
@@ -1754,7 +1753,7 @@ function drawFence(f, ghost) {
   if (!ghost && f.hp < f.max) { const bx = f.rx + 2, by = f.ry - 10, w = 20; rect(bx - 1, by - 1, w + 2, 3, C.ink); rect(bx, by, Math.max(1, Math.round(w * f.hp / f.max)), 1, TEAM[f.team].bar); }
 }
 function drawBar(y0, y1, val, max) {
-  const bw = 12, bx = MW + 24 - bw / 2, bh = y1 - y0;
+  const bw = 12, bx = MW + 26 - bw / 2, bh = y1 - y0;
   rr(bx - 3, y0 - 3, bw + 6, bh + 6, 6, C.ink); rr(bx - 2, y0 - 2, bw + 4, bh + 4, 6, '#b8923e'); rr(bx - 1, y0 - 1, bw + 2, bh + 2, 5, C.ink); rr(bx, y0, bw, bh, 5, '#24171a');
   const fill = Math.round(bh * clamp(val / max, 0, 1));
   for (let j = 0; j < fill; j++) {
@@ -1781,22 +1780,22 @@ function button(b, label, base, light, pressed, dim, tcol) {
 }
 function drawSide() {
   g.drawImage(sideCanvas, MW, 0);
-  plate(MW + 2, 1, SW - 4, 11);
+  plate(MW + 4, 1, SW - 8, 11);
   if (phase === 'setup') {
-    drawText('MOEDAS', MW + 25, 4, C.goldL, 'center', C.ink);
+    drawText('MOEDAS', MW + 26, 4, C.goldL, 'center', C.ink);
     drawBar(BAR.y0, BAR.y1, coins[0], SETUP_COINS);
-    plate(MW + 12, BAR.y1 + 6, 24, 14); drawBig(coins[0], MW + 25, BAR.y1 + 9, C.goldL, C.gold);
+    plate(MW + 14, BAR.y1 + 6, 24, 14); drawBig(coins[0], MW + 26, BAR.y1 + 9, C.goldL, C.gold);
     button(UNDO, 'DESFAZER', C.rust, [C.orange, '#f6a060'], false, !hist.length);
     button(BTN, 'PRONTO', '#2c6a38', ['#3e8a4c', '#74c07c'], Math.sin(time * 4) > 0.6, false, C.cream);
   } else {
-    drawText('OURO', MW + 25, 4, C.goldL, 'center', C.ink);
+    drawText('OURO', MW + 26, 4, C.goldL, 'center', C.ink);
     drawBar(BAR.y0, BAR.y1, gold[0], 10);
-    plate(MW + 12, BAR.y1 + 6, 24, 14); drawBig(Math.floor(gold[0]), MW + 25, BAR.y1 + 9, C.goldL, C.gold);
+    plate(MW + 14, BAR.y1 + 6, 24, 14); drawBig(Math.floor(gold[0]), MW + 26, BAR.y1 + 9, C.goldL, C.gold);
     const rate = (BASE_GOLD + farmIncome(0)) * SPEED;
-    drawText('+' + rate.toFixed(1) + '/S', MW + 25, BAR.y1 + 26, C.goldL, 'center', C.ink);
+    drawText('+' + rate.toFixed(1) + '/S', MW + 26, BAR.y1 + 26, C.goldL, 'center', C.ink);
   }
-  chain(MW + 6, MW + 43, BTN.y + BTN.h + 8);
-  chain(MW + 6, MW + 43, CARD_Y[0] - 8);
+  chain(MW + 7, MW + 46, BTN.y + BTN.h + 8);
+  chain(MW + 7, MW + 46, CARD_Y[0] - 8);
   for (let i = 0; i < CARDS.length; i++) drawCard(i);
 }
 function drawCorners() { // arabescos dourados nos quatro cantos do campo
