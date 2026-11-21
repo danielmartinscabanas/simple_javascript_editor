@@ -17,7 +17,17 @@ canvas { display: block; flex: none; image-rendering: pixelated; image-rendering
 <script>
 'use strict';
 // ===================== CONSTANTES =====================
-const MW = 216, SW = 48, W = MW + SW, H = 528, TS = 8, COLS = 27, ROWS = 66, MID = 264;
+const SW = 48, TS = 8;
+let MW = 216, W = MW + SW, H = 528, COLS = 27, ROWS = 66, MID = 264;
+// O campo se estica para preencher a tela (largura e altura), sempre com escala inteira.
+(function fit() {
+  if (!innerWidth || !innerHeight) return;
+  const dpr = window.devicePixelRatio || 1, dw = Math.floor(innerWidth * dpr), dh = Math.floor(innerHeight * dpr);
+  const sc = Math.max(1, Math.floor(Math.min(dw / 274, dh / 538)));
+  MW = Math.min(336, Math.max(216, Math.floor((dw / sc - 10 - SW) / 8) * 8));
+  H = Math.min(840, Math.max(528, Math.floor((dh / sc - 10) / 8) * 8));
+  W = MW + SW; COLS = MW / 8; ROWS = H / 8; MID = H / 2;
+})();
 const R = Math.random;
 const cv = document.getElementById('c'), ctx = cv.getContext('2d');
 const mk = (w, h) => { const c = document.createElement('canvas'); c.width = w; c.height = h; return c; };
@@ -217,7 +227,7 @@ const DEF = {
             ranged: true, heal: 18, healCd: 1.4, healRange: 36 },
 };
 const CARDS = ['pawn', 'knight', 'bishop'];
-const CARD_Y = [326, 393, 460], CARD_X = MW + 4, CARD_W = 42, CARD_H = 64;
+const CARD_Y = [H - 202, H - 135, H - 68], CARD_X = MW + 4, CARD_W = 42, CARD_H = 64;
 const BTN = { x: MW + 4, y: 268, w: 42, h: 22 };
 const SETUP_COINS = 30;
 
@@ -233,8 +243,8 @@ const free = (x, y) => freeAt(x - 2.5, y - 2.5) && freeAt(x + 2.5, y - 2.5) && f
 
 function makeCastles() {
   castles = [
-    { team: 0, x: 56, y: 464, w: 104, h: 48, hp: 2600, max: 2600, cd: 0, shot: 0, hitT: 0, isCastle: true },
-    { team: 1, x: 56, y: 24,  w: 104, h: 48, hp: 2600, max: 2600, cd: 0, shot: 0, hitT: 0, isCastle: true },
+    { team: 0, x: (MW - 104) / 2, y: H - 64, w: 104, h: 48, hp: 2600, max: 2600, cd: 0, shot: 0, hitT: 0, isCastle: true },
+    { team: 1, x: (MW - 104) / 2, y: 24,  w: 104, h: 48, hp: 2600, max: 2600, cd: 0, shot: 0, hitT: 0, isCastle: true },
   ];
 }
 function markCastles() {
@@ -247,11 +257,11 @@ function genMap() {
   for (let attempt = 0; attempt < 150; attempt++) {
     kind = new Uint8Array(COLS * ROWS); rocks = []; trees = []; logs = []; stumps = [];
     markCastles();
-    const RMIN = 12, RMAX = 54;
+    const RMIN = 12, RMAX = ROWS - 12, k = (RMAX - RMIN) / 42 * MW / 216;
     const okArea = (c, r, w, h) => { for (let a = 0; a < w; a++) for (let b = 0; b < h; b++) if (kAt(c + a, r + b) || r + b < RMIN || r + b > RMAX) return false; return true; };
-    const nL = 3 + (R() * 2 | 0);
+    const nL = Math.round((3 + (R() * 2 | 0)) * k);
     for (let l = 0; l < nL; l++) {
-      const c0 = 2 + (R() * 23 | 0), r0 = RMIN + 2 + (R() * (RMAX - RMIN - 4) | 0);
+      const c0 = 2 + (R() * (COLS - 4) | 0), r0 = RMIN + 2 + (R() * (RMAX - RMIN - 4) | 0);
       if (kAt(c0, r0)) continue;
       const n = 6 + (R() * 12 | 0), set = [[c0, r0]]; kind[r0 * COLS + c0] = 2;
       let guard = 0;
@@ -262,14 +272,14 @@ function genMap() {
         kind[nr * COLS + nc] = 2; set.push([nc, nr]);
       }
     }
-    const nR = 10 + (R() * 6 | 0);
+    const nR = Math.round((10 + (R() * 6 | 0)) * k);
     for (let i = 0; i < nR; i++) {
       const s = R() < 0.35 ? 2 : 1, c = R() * (COLS - s + 1) | 0, r = RMIN + (R() * (RMAX - RMIN) | 0);
       if (!okArea(c, r, s, s)) continue;
       for (let a = 0; a < s; a++) for (let b = 0; b < s; b++) kind[(r + b) * COLS + c + a] = 1;
       rocks.push({ c, r, s });
     }
-    const nLog = 4 + (R() * 4 | 0);
+    const nLog = Math.round((4 + (R() * 4 | 0)) * k);
     for (let i = 0; i < nLog; i++) {
       const hz = R() < 0.6, len = R() < 0.3 ? 3 : 2, w = hz ? len : 1, h = hz ? 1 : len;
       const c = R() * (COLS - w + 1) | 0, r = RMIN + (R() * (RMAX - RMIN) | 0);
@@ -277,13 +287,13 @@ function genMap() {
       for (let a = 0; a < w; a++) for (let b = 0; b < h; b++) kind[(r + b) * COLS + c + a] = 5;
       logs.push({ c, r, hz, len, flip: R() < 0.5 });
     }
-    const nS = 4 + (R() * 4 | 0);
+    const nS = Math.round((4 + (R() * 4 | 0)) * k);
     for (let i = 0; i < nS; i++) {
       const c = R() * COLS | 0, r = RMIN + (R() * (RMAX - RMIN + 1) | 0);
       if (!okArea(c, r, 1, 1)) continue;
       kind[r * COLS + c] = 6; stumps.push({ c, r });
     }
-    const nT = 14 + (R() * 9 | 0);
+    const nT = Math.round((14 + (R() * 9 | 0)) * k);
     for (let i = 0; i < nT; i++) {
       // árvores tendem a formar pequenos bosques
       let c, r;
@@ -297,7 +307,7 @@ function genMap() {
   kind = new Uint8Array(COLS * ROWS); rocks = []; trees = []; logs = []; stumps = []; markCastles();
 }
 function connected() {
-  const seen = new Uint8Array(COLS * ROWS), q = [57 * COLS + 13]; seen[q[0]] = 1;
+  const seen = new Uint8Array(COLS * ROWS), q = [((H - 72) / TS) * COLS + (COLS >> 1)]; seen[q[0]] = 1;
   let n = 0;
   while (q.length) {
     const i = q.pop(); n++;
@@ -395,7 +405,7 @@ function spawn(team, type, x, y) {
 function deploy(team, type, x, y) {
   const d = DEF[type], P = purse();
   if (P[team] < d.cost) return null;
-  const [ymin, ymax] = team === 0 ? [MID + 8, 456] : [80, MID - 8];
+  const [ymin, ymax] = team === 0 ? [MID + 8, H - 72] : [80, MID - 8];
   x = clamp(x, 5, MW - 5);
   if (y < ymin || y > ymax) { if (team === 0) return 'zone'; y = clamp(y, ymin, ymax); }
   const crowded = (px, py) => phase === 'setup' && units.some(o => Math.hypot(o.x - px, o.y - py) < o.d.r + d.r);
@@ -689,8 +699,8 @@ function buildBackground() {
   // estrada de terra que sai dos portões
   for (const c of castles) {
     const gy = c.y + c.h, dir = 1;
-    for (let k = 0; k < 16; k++) for (let px = 94; px < 122; px++) {
-      const py = gy + dir * k, hw = 11 - k * 0.55, d = Math.abs(px - 108);
+    for (let k = 0; k < 16; k++) for (let px = MW / 2 - 14; px < MW / 2 + 14; px++) {
+      const py = gy + dir * k, hw = 11 - k * 0.55, d = Math.abs(px - MW / 2);
       if (d > hw + 1) continue;
       P(px, py, d > hw ? '#a86a34' : hash(px * 3, py) < 0.18 ? '#c8894a' : C.parch2);
     }
@@ -972,7 +982,7 @@ function render() {
   list.sort((a, b) => a.y - b.y);
   for (const o of list) { if (o.u) drawUnit(o.u); else g.drawImage(treeImg, o.t.c * TS + 4 - 9, o.t.y - 23); }
   if (sel >= 0 && hover && hover.x >= 0 && hover.x < MW && !over && phase !== 'count' && (!hoverTouch || (drag && drag.moved))) {
-    const ok = hover.y >= MID + 8 && hover.y <= 456 && purse()[0] >= DEF[CARDS[sel]].cost;
+    const ok = hover.y >= MID + 8 && hover.y <= H - 72 && purse()[0] >= DEF[CARDS[sel]].cost;
     drawUnit({ type: CARDS[sel], d: DEF[CARDS[sel]], x: hover.x, y: hover.y, team: 0, face: 1, moving: false, atkT: 0, hitT: 0, deployT: 0, hp: 1, max: 1 }, ok ? 0.6 : 0.25);
     rect(Math.round(hover.x) - 6, Math.round(hover.y) + 3, 12, 1, ok ? C.cream : C.rust);
   }
