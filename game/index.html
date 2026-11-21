@@ -1530,6 +1530,16 @@ function buildSide() {
     if (px === 3) c = '#e0782a';
     x.fillStyle = c; x.fillRect(px, py, 1, 1);
   }
+  // cintas de ferro com rebites e cantos arredondados
+  const strap = y => {
+    for (let py = 0; py < 8; py++) for (let px = 4; px < SW - 3; px++) {
+      const corner = (px === 4 || px === SW - 4) && (py === 0 || py === 7); if (corner) continue;
+      const edge = py === 0 || py === 7 || px === 4 || px === SW - 4;
+      x.fillStyle = edge ? C.ink : py < 3 ? '#6a6a78' : py < 5 ? '#4a4a56' : '#34343e'; x.fillRect(px, y + py, 1, 1);
+    }
+    for (const px of [8, 24, 40]) { x.fillStyle = '#c8a050'; x.fillRect(px, y + 3, 2, 2); x.fillStyle = '#f0d890'; x.fillRect(px, y + 3, 1, 1); }
+  };
+  strap(BTN.y + BTN.h + 14); strap(CARD_Y[0] - 22);
   for (let py = 6; py < H; py += 64) for (const px of [8, 17, 26, 35, 44]) { x.fillStyle = '#1b1416'; x.fillRect(px, py, 2, 2); x.fillStyle = C.goldL; x.fillRect(px, py, 1, 1); }
 }
 let frameCanvas, vigCanvas;
@@ -1628,35 +1638,57 @@ function bevel(x, y, w, h, base) {
   rect(x + 1, y + 1, w - 2, 1, lightc(base)); rect(x + 1, y + 1, 1, h - 2, lightc(base));
   rect(x + 1, y + h - 2, w - 2, 1, darkc(base)); rect(x + w - 2, y + 1, 1, h - 2, darkc(base));
 }
+// retângulo com cantos arredondados (raio r), em pixels inteiros
+function rr(x, y, w, h, r, col) {
+  g.fillStyle = col;
+  for (let j = 0; j < h; j++) {
+    const k = Math.min(j, h - 1 - j); let inset = 0;
+    if (k < r) inset = Math.round(r - Math.sqrt(Math.max(0, r * r - (r - k - 0.5) * (r - k - 0.5))));
+    g.fillRect(x + inset, y + j, w - inset * 2, 1);
+  }
+}
 function drawCard(i) {
   const type = CARDS[i], d = DEF[type], x = CARD_X, isSel = sel === i, y = CARD_Y[i] - (isSel ? 2 : 0);
   const P = purse(), can = P[0] >= d.cost && phase !== 'count';
-  rect(x, y, CARD_W, CARD_H, C.ink);
-  rect(x + 1, y + 1, CARD_W - 2, CARD_H - 2, isSel ? (Math.sin(time * 8) > 0 ? C.goldL : C.gold) : C.goldD);
-  rect(x + 1, y + 1, CARD_W - 2, 1, isSel ? C.goldL : C.gold);
-  rect(x + 2, y + 2, CARD_W - 4, CARD_H - 4, C.ink);
-  rect(x + 3, y + 3, CARD_W - 6, CARD_H - 6, C.parch);
-  rect(x + 3, y + 3, CARD_W - 6, 1, C.cream); rect(x + 3, y + 3, 1, CARD_H - 6, C.cream);
-  rect(x + 3, y + CARD_H - 4, CARD_W - 6, 1, C.parch2); rect(x + CARD_W - 4, y + 3, 1, CARD_H - 6, C.parch2);
-  const ax = x + 5, ay = y + 5, aw = CARD_W - 10, ah = 25;
-  rect(ax - 1, ay - 1, aw + 2, ah + 2, C.ink);
-  for (let py = 0; py < ah; py++) for (let px = 0; px < aw; px++) {
+  const rim = isSel ? (Math.sin(time * 8) > 0 ? C.goldL : C.gold) : '#9a7a44';
+  rr(x, y, CARD_W, CARD_H, 5, C.ink);
+  rr(x + 1, y + 1, CARD_W - 2, CARD_H - 2, 4, rim);
+  rr(x + 2, y + 2, CARD_W - 4, CARD_H - 4, 4, C.ink);
+  rr(x + 3, y + 3, CARD_W - 6, CARD_H - 6, 3, C.parch);
+  rect(x + 6, y + 3, CARD_W - 12, 1, C.cream); rect(x + 3, y + 6, 1, CARD_H - 16, C.cream);
+  rect(x + 6, y + CARD_H - 4, CARD_W - 12, 1, C.parch2); rect(x + CARD_W - 4, y + 6, 1, CARD_H - 16, C.parch2);
+  // filigrana dourada nos cantos
+  for (const [cx, cy, sx, sy] of [[x + 4, y + 4, 1, 1], [x + CARD_W - 5, y + 4, -1, 1]]) { rect(cx, cy, 3 * sx > 0 ? 3 : -3, 1, 0); }
+  for (const [cx, cy, sx] of [[x + 5, y + 5, 1], [x + CARD_W - 6, y + 5, -1]]) { rect(cx, cy, 1, 1, '#b8863a'); rect(cx + sx, cy, 1, 1, '#d8a850'); rect(cx, cy + 1, 1, 1, '#d8a850'); }
+  // janela em arco (estilo vitral gótico)
+  const ax = x + 5, ay = y + 5, aw = CARD_W - 10, ah = 25, ar = aw / 2;
+  const inside = (px, py) => { if (py < 0 || py >= ah) return false; if (py < ar) { const dy = ar - py - 0.5, hw = Math.sqrt(Math.max(0, ar * ar - dy * dy)); return Math.abs(px + 0.5 - ar) <= hw; } return px >= 0 && px < aw; };
+  for (let py = -1; py <= ah; py++) for (let px = -1; px <= aw; px++) {
+    const ins = inside(px, py);
+    if (!ins) { if (inside(px + 1, py) || inside(px - 1, py) || inside(px, py + 1) || inside(px, py - 1)) rect(ax + px, ay + py, 1, 1, C.ink); continue; }
     const t = py / ah; let col;
     if (py < 16) col = t + (bay(px, py) - 0.5) * 0.25 < 0.35 ? C.tealL : '#6cd0dc'; else col = (py + (bay(px, py) > 0.5 ? 1 : 0)) % 4 === 0 ? GRASS.dk : py < 19 ? GRASS.lt : GRASS.a;
     rect(ax + px, ay + py, 1, 1, col);
   }
-  rect(ax, ay + 16, aw, 1, GRASS.dk);
+  for (let py = 0; py < 8; py++) { const dy = ar - py - 0.5, hw = Math.sqrt(Math.max(0, ar * ar - dy * dy)); if (py < ar) { rect(ax + Math.round(ar - hw) + 1, ay + py + 1, 1, 1, '#b8e8f0'); } }
   const sp = SP[type];
   rect(Math.round(x + CARD_W / 2 - 7), ay + ah - 4, 15, 2, 'rgba(27,20,22,0.3)');
   g.drawImage(sp.img[0][0][0], Math.round(x + CARD_W / 2 - sp.w / 2), ay + ah - sp.h + 1);
-  drawText(d.name, x + CARD_W / 2, y + 33, C.ink, 'center');
-  circ(x + CARD_W / 2, y + 43, 5, C.ink);
-  circ(x + CARD_W / 2, y + 43, 4, can ? C.gold : C.parch2);
-  circ(x + CARD_W / 2 - 1, y + 42, 1, can ? C.goldL : C.parch);
-  drawText(d.cost, x + CARD_W / 2 + 1, y + 41, C.ink, 'center');
+  // faixa com o nome (extremidades em "V", como uma flâmula)
+  const ry = y + 31, rx = x + 2, rw = CARD_W - 4;
+  rect(rx, ry, rw, 8, C.ink); rect(rx + 1, ry + 1, rw - 2, 6, '#8a2222'); rect(rx + 1, ry + 1, rw - 2, 1, '#c04a3a'); rect(rx + 1, ry + 6, rw - 2, 1, '#5a1212');
+  for (const sx of [rx, rx + rw - 2]) { rect(sx, ry + 3, 2, 2, C.parch); rect(sx + (sx === rx ? 2 : -1), ry + 3, 1, 2, C.ink); }
+  rect(rx + 4, ry + 3, 1, 2, C.gold); rect(rx + rw - 5, ry + 3, 1, 2, C.gold);
+  drawText(d.name, x + CARD_W / 2, ry + 2, C.cream, 'center', '#2a0808');
+  // medalhão de custo
+  const mx = x + CARD_W / 2, my = y + CARD_H - 4;
+  circ(mx, my, 5, C.ink); circ(mx, my, 4, can ? C.gold : C.parch2); circ(mx - 1, my - 1, 2, can ? C.goldL : C.parch);
+  rect(mx - 3, my - 3, 1, 1, '#fff6c8');
+  drawText(d.cost, mx + 1, my - 2, C.ink, 'center');
+  if (isSel) { for (const [gx, gy] of [[x + 2, y + 2], [x + CARD_W - 3, y + 2]]) { rect(gx, gy, 1, 1, C.goldL); rect(gx - 1, gy, 3, 1, 'rgba(255,230,140,0.4)'); } }
   if (!can) {
-    rect(x, y, CARD_W, CARD_H, 'rgba(27,20,22,0.6)');
-    const f = clamp(P[0] / d.cost, 0, 1); rect(x, Math.round(y + CARD_H * (1 - f)), CARD_W, Math.round(CARD_H * f), 'rgba(244,183,64,0.18)');
+    rr(x, y, CARD_W, CARD_H, 5, 'rgba(27,20,22,0.6)');
+    const f = clamp(P[0] / d.cost, 0, 1); rect(x + 1, Math.round(y + CARD_H * (1 - f)), CARD_W - 2, Math.round(CARD_H * f), 'rgba(244,183,64,0.18)');
   }
 }
 function drawFence(f, ghost) {
@@ -1669,56 +1701,83 @@ function drawFence(f, ghost) {
 }
 function drawBar(y0, y1, val, max) {
   const bw = 12, bx = MW + 24 - bw / 2, bh = y1 - y0;
-  rect(bx - 2, y0 - 2, bw + 4, bh + 4, C.ink); rect(bx - 1, y0 - 1, bw + 2, bh + 2, C.rust); rect(bx, y0, bw, bh, '#24171a');
+  rr(bx - 3, y0 - 3, bw + 6, bh + 6, 6, C.ink); rr(bx - 2, y0 - 2, bw + 4, bh + 4, 6, '#b8923e'); rr(bx - 1, y0 - 1, bw + 2, bh + 2, 5, C.ink); rr(bx, y0, bw, bh, 5, '#24171a');
   const fill = Math.round(bh * clamp(val / max, 0, 1));
-  if (fill > 0) { rect(bx, y1 - fill, bw, fill, C.gold); rect(bx + 1, y1 - fill, 2, fill, C.goldL); rect(bx, y1 - fill, bw, 1, C.goldL); }
+  for (let j = 0; j < fill; j++) {
+    const py = y1 - 1 - j, k = Math.min(py - y0, y1 - 1 - py); let inset = 0;
+    if (k < 5) inset = Math.round(5 - Math.sqrt(Math.max(0, 25 - (5 - k - 0.5) ** 2)));
+    rect(bx + inset, py, bw - inset * 2, 1, C.gold); rect(bx + inset + 1, py, 2, 1, C.goldL); rect(bx + bw - inset - 2, py, 1, 1, C.goldD);
+  }
+  if (fill > 0) rect(bx + 3, y1 - fill, bw - 6, 1, C.goldL);
   const step = max > 12 ? 5 : 1;
-  for (let i = step; i < max; i += step) rect(bx, Math.round(y1 - i * bh / max), bw, 1, C.ink);
+  for (let i = step; i < max; i += step) { const yy = Math.round(y1 - i * bh / max); rect(bx + bw - 3, yy, 3, 1, C.ink); rect(bx, yy, 2, 1, C.ink); }
+  rect(bx + 2, y0 + 5, 1, bh - 10, 'rgba(255,255,255,0.22)');
+  rect(bx - 1, y0 - 4, bw + 2, 2, '#d8b050'); rect(bx - 1, y1 + 2, bw + 2, 2, '#d8b050'); rect(bx, y0 - 4, bw, 1, '#f0d890');
 }
-function button(b, label, base, light, pressed, dim) {
-  const tc = dim ? '#8a7a6a' : C.ink;
-  bevel(b.x, b.y, b.w, b.h, dim ? '#4a3a34' : base);
-  rect(b.x + 2, b.y + 2, b.w - 4, b.h - (pressed ? 4 : 6), dim ? '#5a4a42' : light[0]);
-  rect(b.x + 2, b.y + 2, b.w - 4, 1, dim ? '#6a5a50' : light[1]); rect(b.x + 2, b.y + 3, 1, b.h - (pressed ? 6 : 8), dim ? '#6a5a50' : light[1]);
-  drawText(label, b.x + b.w / 2 + 1, b.y + Math.floor((b.h - 6) / 2) - (pressed ? 0 : 1), tc, 'center');
+function plate(x, y, w, h) { rr(x, y, w, h, 4, C.ink); rr(x + 1, y + 1, w - 2, h - 2, 3, '#b8923e'); rr(x + 2, y + 2, w - 4, h - 4, 3, C.ink); rr(x + 3, y + 3, w - 6, h - 6, 2, '#2a1c14'); rect(x + 4, y + 3, w - 8, 1, '#4a3626'); }
+function chain(x0, x1, y) { for (let px = x0, k = 0; px < x1; px += 5, k++) { rect(px, y, 4, 1, '#8a8a96'); rect(px, y + 2, 4, 1, '#5a5a66'); rect(px, y + 1, 1, 1, '#a8a8b4'); rect(px + 3, y + 1, 1, 1, '#4a4a54'); if (k & 1) rect(px + 1, y + 1, 2, 1, '#2a2a30'); } }
+function button(b, label, base, light, pressed, dim, tcol) {
+  const tc = dim ? '#8a7a6a' : (tcol || C.ink), y = b.y + (pressed ? 1 : 0);
+  rr(b.x, y, b.w, b.h, 5, C.ink); rr(b.x + 1, y + 1, b.w - 2, b.h - 2, 4, dim ? '#6a5a50' : '#d8b050'); rr(b.x + 2, y + 2, b.w - 4, b.h - 4, 4, C.ink);
+  rr(b.x + 3, y + 3, b.w - 6, b.h - 6, 3, dim ? '#4a3a34' : base);
+  rect(b.x + 5, y + 3, b.w - 10, 1, dim ? '#6a5a50' : light[1]); rect(b.x + 4, y + 4, 1, b.h - 9, dim ? '#5a4a42' : light[0]);
+  rect(b.x + b.w - 5, y + 4, 1, b.h - 9, dim ? '#3a2e2a' : darkc(base)); rect(b.x + 5, y + b.h - 4, b.w - 10, 1, dim ? '#3a2e2a' : darkc(base));
+  for (const sx of [b.x + 4, b.x + b.w - 5]) rect(sx, y + (b.h >> 1), 1, 1, dim ? '#8a7a6a' : C.goldL);
+  drawText(label, b.x + b.w / 2 + 1, y + Math.floor((b.h - 6) / 2), tc, 'center');
 }
 function drawSide() {
   g.drawImage(sideCanvas, MW, 0);
+  plate(MW + 2, 1, SW - 4, 11);
   if (phase === 'setup') {
-    drawText('MOEDAS', MW + 25, 5, C.gold, 'center', C.ink);
+    drawText('MOEDAS', MW + 25, 4, C.goldL, 'center', C.ink);
     drawBar(BAR.y0, BAR.y1, coins[0], SETUP_COINS);
-    drawBig(coins[0], MW + 25, BAR.y1 + 8, C.goldL, C.gold);
+    plate(MW + 12, BAR.y1 + 6, 24, 14); drawBig(coins[0], MW + 25, BAR.y1 + 9, C.goldL, C.gold);
     button(UNDO, 'DESFAZER', C.rust, [C.orange, '#f6a060'], false, !hist.length);
-    button(BTN, 'PRONTO', C.tealD, [C.teal, C.tealL], Math.sin(time * 4) > 0.6, false);
+    button(BTN, 'PRONTO', '#2c6a38', ['#3e8a4c', '#74c07c'], Math.sin(time * 4) > 0.6, false, C.cream);
   } else {
-    drawText('OURO', MW + 25, 5, C.gold, 'center', C.ink);
+    drawText('OURO', MW + 25, 4, C.goldL, 'center', C.ink);
     drawBar(BAR.y0, BAR.y1, gold[0], 10);
-    drawBig(Math.floor(gold[0]), MW + 25, BAR.y1 + 8, C.goldL, C.gold);
+    plate(MW + 12, BAR.y1 + 6, 24, 14); drawBig(Math.floor(gold[0]), MW + 25, BAR.y1 + 9, C.goldL, C.gold);
     const rate = (BASE_GOLD + farmIncome(0)) * SPEED;
-    drawText('+' + rate.toFixed(1) + '/S', MW + 25, BAR.y1 + 24, C.goldL, 'center', C.ink);
+    drawText('+' + rate.toFixed(1) + '/S', MW + 25, BAR.y1 + 26, C.goldL, 'center', C.ink);
   }
+  chain(MW + 6, MW + 43, BTN.y + BTN.h + 8);
+  chain(MW + 6, MW + 43, CARD_Y[0] - 8);
   for (let i = 0; i < CARDS.length; i++) drawCard(i);
 }
-// Pergaminho: corpo com pontilhado, bordas queimadas e rolos nas pontas
+function drawCorners() { // arabescos dourados nos quatro cantos do campo
+  const arc = (ox, oy, sx, sy) => {
+    for (let a = 0; a <= 90; a += 3) { const px = Math.round(12 - 11 * Math.cos(a * Math.PI / 180)), py = Math.round(12 - 11 * Math.sin(a * Math.PI / 180)); for (const [dx, dy] of [[1, 0], [0, 1], [-1, 0], [0, -1]]) rect(ox + sx * (px + dx) - (sx < 0 ? 1 : 0), oy + sy * (py + dy) - (sy < 0 ? 1 : 0), 1, 1, C.ink); }
+    for (let a = 0; a <= 90; a += 3) { const px = Math.round(12 - 11 * Math.cos(a * Math.PI / 180)), py = Math.round(12 - 11 * Math.sin(a * Math.PI / 180)); rect(ox + sx * px - (sx < 0 ? 1 : 0), oy + sy * py - (sy < 0 ? 1 : 0), 1, 1, a % 9 === 0 ? C.goldL : C.gold); }
+    rect(ox + sx * 3 - (sx < 0 ? 1 : 0), oy + sy * 3 - (sy < 0 ? 1 : 0), 2, 2, '#b83a2a'); rect(ox + sx * 3 - (sx < 0 ? 1 : 0), oy + sy * 3 - (sy < 0 ? 1 : 0), 1, 1, '#f08a6a');
+  };
+  arc(0, 0, 1, 1); arc(MW, 0, -1, 1); arc(0, H, 1, -1); arc(MW, H, -1, -1);
+}
+// Pergaminho: bordas onduladas e rolos nas pontas
 function scroll(x0, y0, w, h) {
   const RW = 8, PA = ['#fff4d0', C.cream, C.parch, C.parch2, '#a8682c'];
+  const top = px => 1 + Math.round(Math.sin(px * 0.55 + x0) * 0.8 + 0.8), bot = px => h - 2 - Math.round(Math.sin(px * 0.5 + x0 * 2) * 0.8 + 0.8);
   rect(x0 + 3, y0 + h - 1, w - 4, 3, 'rgba(20,12,16,0.44)');
-  for (let py = 1; py < h - 1; py++) for (let px = RW - 2; px < w - RW + 2; px++) {
-    const n = hash(px + x0, py + y0);
-    let col = n < 0.05 ? PA[3] : n > 0.97 ? PA[1] : PA[2];
-    if (py < 3) col = PA[1]; if (py === 1) col = PA[0]; if (py >= h - 4) col = PA[3]; if (py === h - 3) col = PA[4];
-    if (py > 2 && py < h - 4 && (px < RW + 1 || px > w - RW - 2) && n < 0.5) col = PA[3];
-    rect(x0 + px, y0 + py, 1, 1, col);
+  for (let px = RW - 2; px < w - RW + 2; px++) {
+    const t = top(px), b = bot(px);
+    for (let py = t; py <= b; py++) {
+      const n = hash(px + x0, py + y0);
+      let col = n < 0.05 ? PA[3] : n > 0.97 ? PA[1] : PA[2];
+      if (py <= t + 1) col = PA[1]; if (py === t) col = PA[0]; if (py >= b - 2) col = PA[3]; if (py === b) col = PA[4];
+      if (py > t + 1 && py < b - 2 && (px < RW + 1 || px > w - RW - 2) && n < 0.5) col = PA[3];
+      rect(x0 + px, y0 + py, 1, 1, col);
+    }
+    rect(x0 + px, y0 + t - 1, 1, 1, C.ink); rect(x0 + px, y0 + b + 1, 1, 1, C.ink);
   }
-  rect(x0 + RW - 2, y0, w - 2 * RW + 4, 1, C.ink); rect(x0 + RW - 2, y0 + h - 1, w - 2 * RW + 4, 1, C.ink);
   const roll = rx => {
     for (let py = 0; py < h; py++) for (let px = 0; px < RW; px++) {
       const corner = (py === 0 || py === h - 1) && (px === 0 || px === RW - 1); if (corner) continue;
       const edge = px === 0 || px === RW - 1 || py === 0 || py === h - 1;
-      const u = px / (RW - 1); const lu = rx === 0 ? u : 1 - u;
+      const u = px / (RW - 1), lu = rx === 0 ? u : 1 - u;
       rect(x0 + rx + px, y0 + py, 1, 1, edge ? C.ink : lu < 0.3 ? PA[0] : lu < 0.55 ? PA[1] : lu < 0.8 ? PA[2] : PA[3]);
     }
     for (const py of [3, h - 4]) { rect(x0 + rx + 2, y0 + py, RW - 4, 1, PA[4]); rect(x0 + rx + 3, y0 + py + (py < h / 2 ? 1 : -1), RW - 6, 1, PA[3]); }
+    rect(x0 + rx + 3, y0 + (h >> 1) - 1, 2, 3, C.gold); rect(x0 + rx + 3, y0 + (h >> 1) - 1, 1, 1, C.goldL);
   };
   roll(0); roll(w - RW);
 }
@@ -1786,6 +1845,7 @@ function render() {
   g.globalAlpha = 1;
   for (const t of texts) { g.globalAlpha = clamp(t.life * 2, 0, 1); drawText(t.s, t.x, t.y, t.c, 'center', C.ink); }
   g.globalAlpha = 1;
+  drawCorners();
   drawSide();
   if (phase === 'setup' && !over) {
     if (msg) banner(msg.s);
