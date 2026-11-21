@@ -1034,6 +1034,11 @@ const hex = hx;
 const GRASS = { a: '#80b838', b: '#76ac32', dk: '#5c8a26', dk2: '#42701e', lt: '#a2cc4c', lt2: '#c4e65e', pl: '#98cc44', pd: '#649a2a', straw: '#b6bc5a' };
 const WOOD = ['#e0a868', '#b87a40', '#8e5128', '#5e3218'];
 const WATER = { edge: '#134a5c', top: '#17788a', deep: '#1f93a8', mid: '#2bb0c0', shallow: '#7ad8e2', hi: '#8fe0e8' };
+function vnoise(x, y, seed) {
+  const ix = Math.floor(x), iy = Math.floor(y); let fx = x - ix, fy = y - iy; fx = fx * fx * (3 - 2 * fx); fy = fy * fy * (3 - 2 * fy);
+  const a = hash(ix + seed, iy), b = hash(ix + 1 + seed, iy), c = hash(ix + seed, iy + 1), d = hash(ix + 1 + seed, iy + 1);
+  return a + (b - a) * fx + (c - a) * fy + (a - b - c + d) * fx * fy;
+}
 function buildBackground() {
   bgCanvas = mk(MW, H); const x = bgCanvas.getContext('2d');
   const id = x.createImageData(MW, H), D = id.data;
@@ -1092,13 +1097,14 @@ function buildBackground() {
       return v + (hash(px >> 1, py >> 1) - 0.5) * 0.16 > 0.5;
     };
     for (let py = 0; py < H; py++) for (let px = 0; px < MW; px++) {
-      if (!isSw(px, py)) { if ((isSw(px + 2, py) || isSw(px - 2, py) || isSw(px, py + 2) || isSw(px, py - 2)) && hash(px * 5, py * 3) < 0.4) P(px, py, '#7a6a40'); continue; }
+      if (!isSw(px, py)) { if ((isSw(px + 2, py) || isSw(px - 2, py) || isSw(px, py + 2) || isSw(px, py - 2)) && hash(px * 5, py * 3) < 0.4) P(px, py, '#4e4128'); continue; }
       const edge = !isSw(px + 1, py) || !isSw(px - 1, py) || !isSw(px, py + 1) || !isSw(px, py - 1);
-      if (edge) { P(px, py, '#3a301e'); continue; }
-      const n = Math.sin(px * 0.31 + py * 0.17) + Math.sin(py * 0.23 - px * 0.11) + (bay(px, py) - 0.5) * 0.8;
-      let col = n > 0.95 ? '#718060' : n > 0.15 ? '#6e5f3c' : n < -0.9 ? '#463a26' : '#5a4c32';
-      if (hash(px * 3, py) < 0.035) col = '#8e7e52';
-      if (n > 0.95 && hash(px, py * 7) < 0.12) col = '#a8b890';
+      if (edge) { P(px, py, '#1f180e'); continue; }
+      const wx = px + (vnoise(px / 9, py / 9, 31) - 0.5) * 8, wy = py + (vnoise(px / 9, py / 9, 77) - 0.5) * 8; // distorção para formas orgânicas
+      const v = vnoise(wx / 7, wy / 7, 11) * 0.55 + vnoise(wx / 3, wy / 10, 23) * 0.27 + vnoise(wx / 12, wy / 4, 41) * 0.18;
+      let col = v > 0.74 ? (v > 0.84 ? '#5a6a4a' : '#47553a') : v > 0.55 ? '#4a3c26' : v > 0.38 ? '#3c301c' : '#2c2415';
+      const hh = hash(px * 7, py * 13);
+      if (hh < 0.05) col = '#221b10'; else if (hh > 0.992) col = '#7a6a44'; else if (hh > 0.985 && v > 0.55) col = '#6a5a38';
       P(px, py, col);
     }
     for (let i = 0, n = 0; i < 3000 && n < 24; i++) {
@@ -1217,9 +1223,9 @@ function facetAt(px, py, L, seed) {
   const local = -((px - ccx) * 0.035 + (py - ccy) * 0.05);
   const v = L + tilt + local + (hash(px * 3 + seed, py * 5) - 0.5) * 0.12;
   const edge = m2 - m1;
-  if (edge < 0.9 && hash(id, 9) < 0.5) return STN[4];
-  if (edge < 1.9 && local > 0.02 && hash(id, 9) < 0.6) return STN[Math.max(0, (v > 0.3 ? 0 : 1))];
-  const k = v > 0.55 ? 0 : v > 0.3 ? 1 : v > 0.08 ? 2 : v > -0.2 ? 3 : 4;
+  if (edge < 0.9 && hash(id, 9) < 0.5) return '#2e2a26';
+  if (edge < 1.9 && local > 0.02 && hash(id, 9) < 0.6) return STN[v > 0.3 ? 2 : 3];
+  const k = v > 0.55 ? 2 : v > 0.3 ? 3 : v > 0.05 ? 3 : v > -0.25 ? 4 : 5;
   return STN[k];
 }
 // pedra de montanha: blocos irregulares na mesma paleta das muralhas do castelo
