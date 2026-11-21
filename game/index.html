@@ -1815,7 +1815,7 @@ function button(b, label, base, light, pressed, dim, tcol) {
   rect(b.x + 5, y + 3, b.w - 10, 1, dim ? '#6a5a50' : light[1]); rect(b.x + 4, y + 4, 1, b.h - 9, dim ? '#5a4a42' : light[0]);
   rect(b.x + b.w - 5, y + 4, 1, b.h - 9, dim ? '#3a2e2a' : darkc(base)); rect(b.x + 5, y + b.h - 4, b.w - 10, 1, dim ? '#3a2e2a' : darkc(base));
   for (const sx of [b.x + 4, b.x + b.w - 5]) rect(sx, y + (b.h >> 1), 1, 1, dim ? '#8a7a6a' : C.goldL);
-  drawText(label, b.x + b.w / 2 + 1, y + Math.floor((b.h - 6) / 2), tc, 'center');
+  drawText(label, b.x + Math.floor((b.w - textW(label)) / 2), y + Math.floor((b.h - 6) / 2), tc, 'left'); // centralizado em pixels inteiros
 }
 function drawSide() {
   g.drawImage(sideCanvas, MW, 0);
