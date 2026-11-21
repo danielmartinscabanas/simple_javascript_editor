@@ -351,7 +351,7 @@ const BTN = { x: MW + 4, y: 108, w: 42, h: 22 };
 const SETUP_COINS = 30;
 
 // ===================== MAPA =====================
-let kind, rocks, trees, logs, stumps, mts = [], castles, shimmer;
+let kind, rocks, trees, logs, stumps, mts = [], swp = new Uint8Array(1), castles, shimmer;
 const DIR4 = [[1,0],[-1,0],[0,1],[0,-1]];
 const kAt = (c, r) => (c < 0 || r < 0 || c >= COLS || r >= ROWS) ? 9 : kind[r * COLS + c];
 function freeAt(x, y) {
@@ -371,7 +371,8 @@ function markCastles() {
     for (let r = c.y / TS; r < (c.y + c.h) / TS; r++)
       for (let q = c.x / TS; q < (c.x + c.w) / TS; q++) kind[r * COLS + q] = 4;
 }
-const FARM_TILES = 30, LAKE_TILES = FARM_TILES * 2, MAX_FARMERS = 4; // lago = dobro da área de cultivo, sempre
+const FARM_TILES = 30, LAKE_TILES = FARM_TILES * 2, SWAMP_TILES = 44, SWAMP_SLOW = 0.5, MAX_FARMERS = 4;
+const swampAt = (x, y) => x >= 0 && y >= 0 && x < MW && y < H && swp[((y / TS) | 0) * COLS + ((x / TS) | 0)] === 1; // lago = dobro da área de cultivo, sempre
 // Cresce uma forma de N tiles: elipse com proporção sorteada (de redonda a bem alongada) e borda irregular.
 function growShape(N, cx, cy, b, free, maxRho = 3.6) {
   const rho = 1 + R() * (maxRho - 1), area = N / Math.PI, ax = Math.sqrt(area * rho), ay = Math.sqrt(area / rho);
@@ -413,7 +414,7 @@ const nearFarm = (c, r) => farms.some(f => { for (let dy = -1; dy <= 1; dy++) fo
 function genMap() {
   // 0 grama, 1 pedra, 2 água, 3 árvore, 4 castelo, 5 tronco caído, 6 toco
   for (let attempt = 0; attempt < 150; attempt++) {
-    kind = new Uint8Array(COLS * ROWS); rocks = []; trees = []; logs = []; stumps = []; mts = [];
+    kind = new Uint8Array(COLS * ROWS); rocks = []; trees = []; logs = []; stumps = []; mts = []; swp = new Uint8Array(COLS * ROWS);
     markCastles();
     for (const f of farms) for (const q of f.cells) for (let dy = -1; dy <= 1; dy++) for (let dx = -1; dx <= 1; dx++) { const cc = q.x / TS + dx, rr = q.y / TS + dy; if (kAt(cc, rr) === 0) kind[rr * COLS + cc] = 8; }
     const RMIN = 12, RMAX = ROWS - 12, k = (RMAX - RMIN) / 42 * MW / 216;
@@ -450,10 +451,25 @@ function genMap() {
       if (!done) mtOk = false;
     }
     if (!mtOk) continue;
+    // Brejos: um por jogador, mesma área; terreno que deixa todos mais lentos
+    let swOk = true;
+    for (const t of [0, 1]) {
+      const a0 = t === 0 ? Math.ceil((MID + 16) / TS) : Math.ceil((castles[1].y + castles[1].h + 16) / TS);
+      const a1 = t === 0 ? Math.floor((castles[0].y - 44) / TS) : Math.floor((MID - 16) / TS);
+      let done = false;
+      for (let tr = 0; tr < 60 && !done; tr++) {
+        const c0 = 3 + (R() * (COLS - 6) | 0), r0 = a0 + 2 + (R() * Math.max(1, a1 - a0 - 4) | 0);
+        if (kAt(c0, r0) !== 0) continue;
+        const shape = growShape(SWAMP_TILES, c0, r0, { c0: 1, c1: COLS - 2, r0: a0, r1: a1 }, (c, r) => kAt(c, r) === 0 && !swp[r * COLS + c], 2.2);
+        if (shape) { for (const [c, r] of shape) swp[r * COLS + c] = 1; done = true; }
+      }
+      if (!done) swOk = false;
+    }
+    if (!swOk) continue;
     for (let i = 0; i < kind.length; i++) if (kind[i] === 8) kind[i] = 0;
     if (connected()) return;
   }
-  kind = new Uint8Array(COLS * ROWS); rocks = []; trees = []; logs = []; stumps = []; mts = []; markCastles();
+  kind = new Uint8Array(COLS * ROWS); rocks = []; trees = []; logs = []; stumps = []; mts = []; swp = new Uint8Array(COLS * ROWS); markCastles();
 }
 function solidNear(c, r) { for (let dy = -1; dy <= 1; dy++) for (let dx = -1; dx <= 1; dx++) { const k = kAt(c + dx, r + dy); if (k !== 0 && k !== 9) return true; } return false; }
 function connected() {
@@ -513,7 +529,7 @@ function astar(sc, sr, gc, gr, wide) {
       if (dx && dy && (kAt(c + dx, r) !== 0 || kAt(c, r + dy) !== 0)) continue;
       if (wide && !(nc === gc && nr === gr) && solidNear(nc, nr)) continue;
       const j = nr * COLS + nc; if (closed[j]) continue;
-      const ng = gs[i] + (dx && dy ? 1.414 : 1);
+      const ng = gs[i] + (dx && dy ? 1.414 : 1) * (swp[nr * COLS + nc] ? 1.8 : 1);
       if (ng < gs[j]) { gs[j] = ng; from[j] = i; push(j, ng + hh(nc, nr)); }
     }
   }
@@ -774,7 +790,9 @@ function face(u, nx, ny, k) {
 function step(u, tx, ty, dt) {
   const dx = tx - u.x, dy = ty - u.y, L = Math.hypot(dx, dy);
   if (L < 0.3) return;
-  const s = Math.min(L, u.d.speed * dt);
+  const sl = swampAt(u.x, u.y) ? SWAMP_SLOW : 1; u.slow = sl;
+  if (sl < 1 && R() < dt * 7) parts.push({ x: u.x + (R() - 0.5) * 6, y: u.y, vx: (R() - 0.5) * 10, vy: -4 - R() * 8, life: 0.4, max: 0.4, gr: 40, c: '#6a5a38' });
+  const s = Math.min(L, u.d.speed * dt * sl);
   move(u, dx / L * s, dy / L * s);
   u.moving = true;
   if (Math.abs(dx) > 0.4) u.face = dx > 0 ? 1 : -1;
@@ -932,11 +950,11 @@ function update(dt) {
     botUpdate(dt);
     for (const u of units) {
       if (u.dead) continue;
-      u.hitT -= dt; u.healFx -= dt; u.atkT -= dt; u.cd -= dt; u.moving = false; u.working = false;
+      u.hitT -= dt; u.healFx -= dt; u.atkT -= dt; u.cd -= dt; u.moving = false; u.working = false; u.slow = 1;
       if (u.deployT > 0) { u.deployT -= dt; continue; }
       if (!free(u.x, u.y)) unstick(u);
       if (u.type === 'bishop') bishopAI(u, dt); else if (u.type === 'farmer') farmerAI(u, dt); else warrior(u, dt);
-      if (u.moving || u.working) u.walk += dt;
+      if (u.moving || u.working) u.walk += dt * (u.moving ? (u.slow || 1) : 1);
       { const mv = Math.hypot(u.x - (u.sx ?? u.x), u.y - (u.sy ?? u.y)); u.sx = u.x; u.sy = u.y;
         if (u.moving && mv < u.d.speed * dt * 0.25) u.stuckT = (u.stuckT || 0) + dt; else u.stuckT = Math.max(0, (u.stuckT || 0) - dt * 2);
         if (u.stuckT > 1.2) unstick(u); }
@@ -1025,35 +1043,18 @@ function buildBackground() {
     const h = hash(px, py);
     const n = Math.sin(px * 0.045 + Math.sin(py * 0.035 + off) * 2) + Math.sin(py * 0.06 - px * 0.025 + off * 1.7) + Math.sin((px + py) * 0.03 + off) + (bay(px, py) - 0.5) * 0.25;
     const m = Math.sin(px * 0.035 - off) + Math.sin(py * 0.05 + px * 0.02 + off * 2.3) + (bay(px + 2, py + 1) - 0.5) * 0.9;
-    let col = A;
-    if (n > 1.0) col = PL; else if (n < -1.3) col = PD; else if (n < -0.45) col = B;
-    if (m > 1.35 && bay(px, py) > 0.45) col = SR;
-    if (h < 0.012) col = DK; else if (h > 0.996) col = LT;
+    let col = A; // gramado liso e sólido; só um leve salpico de tom próximo
+    if (h < 0.02) col = B;
     const i = (py * MW + px) * 4; D[i] = col[0]; D[i + 1] = col[1]; D[i + 2] = col[2]; D[i + 3] = 255;
   }
   x.putImageData(id, 0, 0);
   const P = (px, py, c) => { x.fillStyle = c; x.fillRect(px, py, 1, 1); };
-  // poças de lama e terra batida
-  for (let i = 0; i < 3; i++) { const cx = R() * MW | 0, cy = R() * H | 0, rr = 3 + R() * 4;
-    for (let dy = -6; dy <= 6; dy++) for (let dx = -8; dx <= 8; dx++) { const d = Math.sqrt(dx * dx / 1.7 + dy * dy), v = d + (bay(cx + dx, cy + dy) - 0.5) * 1.6;
-      if (v < rr) P(cx + dx, cy + dy, v < rr * 0.55 ? '#3e3022' : hash(cx + dx, cy + dy) < 0.3 ? '#55402a' : '#4a3826'); } }
-  // tufos de grama alta
-  for (let i = 0; i < 50; i++) { const px = R() * MW | 0, py = R() * H | 0;
-    P(px, py, GRASS.dk2); P(px + 2, py, GRASS.dk2); P(px + 1, py + 1, GRASS.dk2); P(px + 1, py, GRASS.lt2); if (R() < 0.5) { P(px + 3, py - 1, GRASS.lt); P(px + 3, py, GRASS.dk2); } }
-  for (let i = 0; i < 12; i++) { const px = R() * MW | 0, py = R() * H | 0; P(px, py, '#b8ab68'); P(px, py + 1, '#8a7e48'); P(px + 1, py + 1, '#6e6438'); }
-  // flores discretas: branca, amarelo-pálido e urze
-  const petals = [C.cream, C.goldL, '#f08a5a', '#f2a0b8'];
-  for (let i = 0; i < 7; i++) { const px = 3 + R() * (MW - 6) | 0, py = 3 + R() * (H - 8) | 0, pc = petals[R() * 4 | 0];
-    P(px, py + 2, GRASS.dk2); P(px, py + 3, GRASS.dk2); P(px - 1, py, pc); P(px + 1, py, pc); P(px, py - 1, pc); P(px, py + 1, mixc(pc, '#2a2418', 0.4)); P(px, py, C.gold); }
-  for (let i = 0; i < 1; i++) { const px = 3 + R() * (MW - 8) | 0, py = 3 + R() * (H - 8) | 0; // cogumelos
-    P(px + 1, py + 2, C.cream); P(px + 1, py + 3, '#d8c8a0'); for (let k = 0; k < 4; k++) P(px + k, py + 1, k === 0 || k === 3 ? '#a82a1e' : '#d8402c'); P(px + 1, py, '#d8402c'); P(px + 2, py, '#d8402c'); P(px + 1, py + 1, C.cream); }
-  for (let i = 0; i < 6; i++) { const px = R() * (MW - 3) | 0, py = R() * H | 0; P(px, py, '#a29c8a'); P(px + 1, py, '#827c6c'); P(px, py + 1, '#625c50'); P(px + 1, py + 1, '#625c50'); P(px + 2, py + 1, GRASS.dk2); }
-  // restos de batalha: flechas cravadas no chão e marcas de queimado
-  for (let i = 0; i < 3; i++) { const px = 4 + R() * (MW - 10) | 0, py = 6 + R() * (H - 14) | 0, dirx = R() < 0.5 ? 1 : -1;
-    for (let k = 0; k < 6; k++) P(px + k * dirx, py - k, k === 5 ? '#c8c4b8' : '#4a3422');
-    P(px + 6 * dirx, py - 6, '#8a2a22'); P(px + 5 * dirx, py - 6, '#6a2018'); }
-  for (let i = 0; i < 2; i++) { const cx = R() * MW | 0, cy = R() * H | 0;
-    for (let dy = -3; dy <= 3; dy++) for (let dx = -5; dx <= 5; dx++) { const d = dx * dx / 2.2 + dy * dy + (bay(cx + dx, cy + dy) - 0.5) * 5; if (d < 8) P(cx + dx, cy + dy, d < 4 ? '#1f1b18' : '#2e2a22'); } }
+  // poucos detalhes, de baixo contraste
+  for (let i = 0; i < 24; i++) { const px = R() * MW | 0, py = R() * H | 0;
+    P(px, py, '#72a830'); P(px + 2, py, '#72a830'); P(px + 1, py + 1, '#72a830'); P(px + 1, py, '#8cbc3e'); }
+  const petals = [C.cream, C.goldL, '#f2a0b8'];
+  for (let i = 0; i < 4; i++) { const px = 3 + R() * (MW - 6) | 0, py = 3 + R() * (H - 8) | 0, pc = petals[R() * 3 | 0];
+    P(px - 1, py, pc); P(px + 1, py, pc); P(px, py - 1, pc); P(px, py + 1, mixc(pc, '#2a2418', 0.4)); P(px, py, C.gold); P(px, py + 2, GRASS.dk2); }
   // estrada de terra batida
   for (const c of castles) {
     const cxm = c.x + 52, dir = c.team === 1 ? 1 : -1, gy = c.team === 1 ? c.y + c.h : c.y - 10;
@@ -1077,6 +1078,31 @@ function buildBackground() {
       if (inF(px, py)) continue;
       let d = 9; for (let dy = -2; dy <= 2; dy++) for (let dx = -2; dx <= 2; dx++) if (inF(px + dx, py + dy)) d = Math.min(d, Math.max(Math.abs(dx), Math.abs(dy)));
       if (d === 1) P(px, py, WOOD[1]); else if (d === 2) P(px, py, WOOD[3]);
+    }
+  }
+  // brejos: lamaçais lentos
+  if (swp.some(v => v)) {
+    const isSw = (px, py) => {
+      const fx = px / TS - 0.5, fy = py / TS - 0.5, c0 = Math.floor(fx), r0 = Math.floor(fy);
+      let tx = fx - c0, ty = fy - r0; tx = tx * tx * (3 - 2 * tx); ty = ty * ty * (3 - 2 * ty);
+      const w = (c, r) => (c >= 0 && r >= 0 && c < COLS && r < ROWS && swp[r * COLS + c]) ? 1 : 0;
+      const v = (w(c0, r0) * (1 - tx) + w(c0 + 1, r0) * tx) * (1 - ty) + (w(c0, r0 + 1) * (1 - tx) + w(c0 + 1, r0 + 1) * tx) * ty;
+      return v + (hash(px >> 1, py >> 1) - 0.5) * 0.16 > 0.5;
+    };
+    for (let py = 0; py < H; py++) for (let px = 0; px < MW; px++) {
+      if (!isSw(px, py)) { if ((isSw(px + 2, py) || isSw(px - 2, py) || isSw(px, py + 2) || isSw(px, py - 2)) && hash(px * 5, py * 3) < 0.4) P(px, py, '#7a6a40'); continue; }
+      const edge = !isSw(px + 1, py) || !isSw(px - 1, py) || !isSw(px, py + 1) || !isSw(px, py - 1);
+      if (edge) { P(px, py, '#3a301e'); continue; }
+      const n = Math.sin(px * 0.31 + py * 0.17) + Math.sin(py * 0.23 - px * 0.11) + (bay(px, py) - 0.5) * 0.8;
+      let col = n > 0.95 ? '#718060' : n > 0.15 ? '#6e5f3c' : n < -0.9 ? '#463a26' : '#5a4c32';
+      if (hash(px * 3, py) < 0.035) col = '#8e7e52';
+      if (n > 0.95 && hash(px, py * 7) < 0.12) col = '#a8b890';
+      P(px, py, col);
+    }
+    for (let i = 0, n = 0; i < 3000 && n < 24; i++) {
+      const px = R() * MW | 0, py = R() * H | 0; if (!isSw(px, py) || isSw(px, py + 1) && isSw(px, py - 3)) continue; n++;
+      const hgt = 4 + (R() * 3 | 0); for (let k = 0; k < hgt; k++) P(px, py - k, k > hgt - 3 ? '#6a5a30' : '#566a34');
+      P(px, py - hgt + 1, '#4a2e1a'); P(px, py - hgt + 2, '#4a2e1a');
     }
   }
   // lagos escuros com juncos
@@ -1402,10 +1428,12 @@ function drawUnit(u, ghost) {
   if (u.moving && fr) oy = -1;
   if (u.working && fr) oy = 1;
   if (u.atkT > 0) { const k = u.atkT > 0.11 ? 2 : 1, fx = u.fx || 0, fy = u.fy === undefined ? 0 : u.fy; ox = Math.round(fx * k); oy += Math.round(fy * k); }
+  if ((u.slow || 1) < 1) oy += 1;
   const dx = Math.round(u.x - vw.w / 2 + ox), dy = Math.round(u.y - vw.h + 3 + oy);
   const r = u.d.r + 1, ux = Math.round(u.x), uy = Math.round(u.y);
   rect(ux - r, uy, r * 2 + 1, 2, 'rgba(20,12,16,0.46)'); rect(ux - r + 1, uy + 2, r * 2 - 1, 1, 'rgba(20,12,16,0.46)');
   if (!ghost) rect(ux - r + 1, uy + 2, r * 2 - 1, 1, TEAM[u.team].t);
+  if (!ghost && (u.slow || 1) < 1) { rect(ux - r - 1, uy - 1, r * 2 + 3, 3, '#4a3d26'); rect(ux - r, uy - 2, r * 2 + 1, 1, '#6e5f3c'); }
   const prevA = g.globalAlpha;
   if (u.deployT > 0 && phase === 'battle') g.globalAlpha = 0.45 + 0.4 * Math.abs(Math.sin(u.deployT * 18));
   if (ghost) g.globalAlpha = ghost;
