@@ -705,9 +705,9 @@ function buildBackground() {
   for (let i = 0; i < 34; i++) { const px = R() * (MW - 3) | 0, py = R() * H | 0; P(px, py, '#e6dcc6'); P(px + 1, py, '#c8bca4'); P(px, py + 1, '#9a8e78'); P(px + 1, py + 1, '#9a8e78'); P(px + 2, py + 1, GRASS.dk2); }
   // estrada de terra
   for (const c of castles) {
-    const gy = c.y + c.h; const cxm = MW / 2;
+    const cxm = MW / 2, dir = c.team === 1 ? 1 : -1, gy = c.team === 1 ? c.y + c.h : c.y - 10;
     for (let k = 0; k < 18; k++) for (let px = cxm - 15; px < cxm + 15; px++) {
-      const py = gy + k, hw = 12 - k * 0.55, d = Math.abs(px - cxm);
+      const py = gy + dir * k, hw = 12 - k * 0.55, d = Math.abs(px - cxm);
       if (d > hw + 1) continue;
       const v = hash(px * 3, py);
       P(px, py, d > hw ? '#9a5e2e' : v < 0.15 ? '#c8894a' : v > 0.93 ? '#e8c088' : (px + py) % 7 === 0 ? '#c99a5c' : C.parch2);
@@ -822,7 +822,7 @@ function buildTree() {
   for (let i = 0; i < 4; i++) { const px = 4 + R() * 14 | 0, py = 6 + R() * 12 | 0; if (x.getImageData(px, py, 1, 1).data[3]) { P(px, py, '#e8453a'); P(px, py - 1, '#ffb0a0'); } }
   treeImg = outlineCanvas(c0);
 }
-function bakeCastle(team) {
+function bakeCastle(team, back) {
   const CW = 104, CH = 84, c = mk(CW + 2, CH + 2), x = c.getContext('2d');
   const T = TEAM[team];
   const Pp = (px, py, col) => { if (px < 0 || py < 0 || px >= CW || py >= CH) return; x.fillStyle = col; x.fillRect(px + 1, py + 1, 1, 1); };
@@ -894,9 +894,14 @@ function bakeCastle(team) {
   }
   parapet(22, 81, 45, px => px < 40 ? 1 : px < 62 ? 2 : 3);
   const cxl = tower(2, 24), cxr = tower(78, 24);
-  // portão
+  // portão (de frente) ou muralha lisa com seteiras (de costas)
   const gcx = 51.5, gr = 10;
-  for (let py = 56; py < 84; py++) for (let px = 40; px < 64; px++) {
+  if (back) {
+    for (const sx of [45, 58]) for (let py = 62; py < 71; py++) { Pp(sx, py, '#1b1416'); Pp(sx - 1, py, ST[2]); Pp(sx + 1, py, ST[0]); }
+    for (const sx of [45, 58]) { Pp(sx, 61, ST[4]); Pp(sx - 1, 61, ST[3]); Pp(sx + 1, 61, ST[3]); Pp(sx, 71, ST[4]); }
+    for (let k = 0; k < 14; k++) { Pp(66 + (k % 3), 83 - k, hash(k, 3) > 0.5 ? '#5a9a30' : '#376e26'); Pp(67 + (k % 2), 82 - k, '#82bc40'); }
+  }
+  if (!back) for (let py = 56; py < 84; py++) for (let px = 40; px < 64; px++) {
     const dx = px - gcx, inArch = py >= 68 ? Math.abs(dx) <= gr : dx * dx + (py - 68) ** 2 <= gr * gr;
     const ring = py >= 68 ? Math.abs(dx) <= gr + 2 : dx * dx + (py - 68) ** 2 <= (gr + 2) ** 2;
     if (inArch) {
@@ -910,9 +915,9 @@ function bakeCastle(team) {
       Pp(px, py, col);
     } else if (ring) Pp(px, py, ((Math.atan2(py - 68, dx) * 5) | 0) % 2 ? ST[0] : ST[2]);
   }
-  Pp(49, 76, C.gold); Pp(54, 76, C.gold);
-  // estandartes na muralha
-  for (const bx of [29, 68]) for (let py = 54; py <= 70; py++) for (let px = bx; px <= bx + 5; px++) {
+  if (!back) { Pp(49, 76, C.gold); Pp(54, 76, C.gold); }
+  // estandartes na muralha (só na frente)
+  if (!back) for (const bx of [29, 68]) for (let py = 54; py <= 70; py++) for (let px = bx; px <= bx + 5; px++) {
     const swallow = py >= 68 && (px === bx + 2 || px === bx + 3) && py > 68 + (px === bx + 2 || px === bx + 3 ? 0 : 1);
     if (swallow || (py === 70 && (px === bx + 2 || px === bx + 3))) continue;
     let col = px === bx ? T.h : px >= bx + 4 ? T.T : T.t;
@@ -1183,7 +1188,7 @@ addEventListener('resize', resize);
 
 // ===================== LOOP =====================
 bakeAll(); buildTree(); buildSide();
-castleImg = [bakeCastle(0), bakeCastle(1)];
+castleImg = [bakeCastle(0, true), bakeCastle(1, false)];
 reset(); resize();
 let last = performance.now();
 function frame(now) {
