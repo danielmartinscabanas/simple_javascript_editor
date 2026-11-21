@@ -252,7 +252,9 @@ const DEF = {
 const CARDS = ['pawn', 'archer', 'knight', 'bishop', 'fence'];
 const CARD_X = MW + 4, CARD_W = 42, CARD_H = 50;
 const CARD_Y = CARDS.map((_, i) => H - 262 + i * 52);
-const BTN = { x: MW + 4, y: CARD_Y[0] - 28, w: 42, h: 22 };
+const BAR = { y0: 16, y1: 64 };
+const UNDO = { x: MW + 4, y: 86, w: 42, h: 18 };
+const BTN = { x: MW + 4, y: 108, w: 42, h: 22 };
 const SETUP_COINS = 30;
 
 // ===================== MAPA =====================
@@ -404,11 +406,11 @@ function lineClear(x0, y0, x1, y1) {
 }
 
 // ===================== ESTADO =====================
-let units, fences, projs, parts, texts, gold, coins, phase, countT, over, time, uid, sel, drag, hover, hoverTouch, bot, msg, bgCanvas, castleImg, sideCanvas, treeImg;
+let hist = [], units, fences, projs, parts, texts, gold, coins, phase, countT, over, time, uid, sel, drag, hover, hoverTouch, bot, msg, bgCanvas, castleImg, sideCanvas, treeImg;
 
 function reset() {
   makeCastles(); genMap();
-  units = []; fences = []; projs = []; parts = []; texts = []; gold = [5, 5]; coins = [SETUP_COINS, SETUP_COINS];
+  hist = []; units = []; fences = []; projs = []; parts = []; texts = []; gold = [5, 5]; coins = [SETUP_COINS, SETUP_COINS];
   phase = 'setup'; countT = 0; over = null; time = 0; uid = 0;
   sel = 0; drag = null; hover = null; msg = { s: 'MONTE SUA FORMAÇÃO', t: 4 };
   bot = { think: 1.5, plan: 'pawn', follow: null };
@@ -463,18 +465,23 @@ function deploy(team, type, x, y) {
   P[team] -= d.cost;
   return spawn(team, type, x, y);
 }
+function refund(e) {
+  coins[0] += e.d.cost;
+  if (e.isFence) { clearFence(e); fences = fences.filter(o => o !== e); } else units = units.filter(u => u !== e);
+  hist = hist.filter(h => h !== e);
+  const cx = e.x, cy = e.isFence ? e.y : e.y - 4;
+  for (let i = 0; i < 8; i++) parts.push({ x: cx + (R() - 0.5) * (e.isFence ? 20 : 4), y: cy, vx: (R() - 0.5) * 20, vy: -R() * 20, life: 0.4, max: 0.4, c: C.cream });
+}
 function removeAt(p) {
-  for (const f of fences) if (f.team === 0 && p.x >= f.rx - 2 && p.x <= f.rx + 26 && p.y >= f.ry - 8 && p.y <= f.ry + 10) {
-    coins[0] += f.d.cost; clearFence(f); fences = fences.filter(o => o !== f);
-    for (let i = 0; i < 8; i++) parts.push({ x: f.x + (R() - 0.5) * 20, y: f.y, vx: (R() - 0.5) * 20, vy: -R() * 20, life: 0.4, max: 0.4, c: C.cream });
-    return true;
-  }
+  for (const f of fences) if (f.team === 0 && p.x >= f.rx - 2 && p.x <= f.rx + 26 && p.y >= f.ry - 8 && p.y <= f.ry + 10) { refund(f); return true; }
   let best = null, bd = 7;
   for (const u of units) { if (u.team !== 0) continue; const d = Math.hypot(u.x - p.x, u.y - 4 - p.y); if (d < bd) { bd = d; best = u; } }
   if (!best) return false;
-  coins[0] += best.d.cost; units = units.filter(u => u !== best);
-  for (let i = 0; i < 8; i++) parts.push({ x: best.x, y: best.y - 4, vx: (R() - 0.5) * 20, vy: -R() * 20, life: 0.4, max: 0.4, c: C.cream });
-  return true;
+  refund(best); return true;
+}
+function undo() {
+  if (phase !== 'setup' || !hist.length) return false;
+  refund(hist[hist.length - 1]); return true;
 }
 function botFormation() {
   // gasta as moedas da preparação numa formação aleatória
@@ -505,7 +512,7 @@ function botFormation() {
 function startBattle() {
   if (phase !== 'setup') return;
   botFormation();
-  phase = 'count'; countT = 3.2; sel = -1; msg = null;
+  phase = 'count'; countT = 3.2; sel = -1; msg = null; hist = [];
   gold = [Math.min(10, 5 + coins[0] * 0.5), 5];
 }
 
@@ -1114,33 +1121,31 @@ function drawFence(f, ghost) {
   if (!ghost && f.hp < f.max) { const bx = f.rx + 2, by = f.ry - 10, w = 20; rect(bx - 1, by - 1, w + 2, 3, C.ink); rect(bx, by, Math.max(1, Math.round(w * f.hp / f.max)), 1, TEAM[f.team].bar); }
 }
 function drawBar(y0, y1, val, max) {
-  const bx = MW + 17, bw = 16, bh = y1 - y0;
+  const bw = 12, bx = MW + 24 - bw / 2, bh = y1 - y0;
   rect(bx - 2, y0 - 2, bw + 4, bh + 4, C.ink); rect(bx - 1, y0 - 1, bw + 2, bh + 2, C.rust); rect(bx, y0, bw, bh, '#24171a');
-  for (let i = 0; i < max; i++) {
-    const s0 = Math.round(y1 - (i + 1) * bh / max), s1 = Math.round(y1 - i * bh / max), sh = s1 - s0 - 1;
-    const f = clamp(val - i, 0, 1); if (f <= 0) continue;
-    const fh = Math.max(1, Math.round(sh * f)), top = s0 + sh - fh;
-    rect(bx, top, bw, fh, f >= 1 ? C.gold : C.goldD);
-    rect(bx + 1, top, 2, fh, f >= 1 ? C.goldL : C.gold);
-    if (fh > 2) rect(bx, top + fh - 1, bw, 1, C.goldD);
-  }
-  for (let i = 1; i < max; i++) rect(bx, Math.round(y1 - i * bh / max) - 1, bw, 1, C.ink);
+  const fill = Math.round(bh * clamp(val / max, 0, 1));
+  if (fill > 0) { rect(bx, y1 - fill, bw, fill, C.gold); rect(bx + 1, y1 - fill, 2, fill, C.goldL); rect(bx, y1 - fill, bw, 1, C.goldL); }
+  const step = max > 12 ? 5 : 1;
+  for (let i = step; i < max; i += step) rect(bx, Math.round(y1 - i * bh / max), bw, 1, C.ink);
+}
+function button(b, label, base, light, pressed, dim) {
+  bevel(b.x, b.y, b.w, b.h, dim ? '#4a3a34' : base);
+  rect(b.x + 2, b.y + 2, b.w - 4, b.h - (pressed ? 4 : 6), dim ? '#5a4a42' : light[0]);
+  rect(b.x + 2, b.y + 2, b.w - 4, 1, dim ? '#6a5a50' : light[1]); rect(b.x + 2, b.y + 3, 1, b.h - (pressed ? 6 : 8), dim ? '#6a5a50' : light[1]);
+  drawText(label, b.x + b.w / 2 + 1, b.y + Math.floor((b.h - 6) / 2) - (pressed ? 0 : 1), dim ? '#8a7a6a' : C.ink, 'center');
 }
 function drawSide() {
   g.drawImage(sideCanvas, MW, 0);
   if (phase === 'setup') {
     drawText('MOEDAS', MW + 25, 5, C.gold, 'center', C.ink);
-    drawBar(16, BTN.y - 20, coins[0], SETUP_COINS);
-    drawBig(coins[0], MW + 25, BTN.y - 14, C.goldL, C.gold);
-    const b = BTN, pressed = Math.sin(time * 4) > 0.6;
-    bevel(b.x, b.y, b.w, b.h, C.tealD);
-    rect(b.x + 2, b.y + 2, b.w - 4, b.h - (pressed ? 4 : 6), C.teal);
-    rect(b.x + 2, b.y + 2, b.w - 4, 1, C.tealL); rect(b.x + 2, b.y + 3, 1, b.h - (pressed ? 6 : 8), C.tealL);
-    drawText('PRONTO', b.x + b.w / 2 + 1, b.y + (pressed ? 9 : 8), C.ink, 'center');
+    drawBar(BAR.y0, BAR.y1, coins[0], SETUP_COINS);
+    drawBig(coins[0], MW + 25, BAR.y1 + 8, C.goldL, C.gold);
+    button(UNDO, 'DESFAZER', C.rust, [C.orange, '#f6a060'], false, !hist.length);
+    button(BTN, 'PRONTO', C.tealD, [C.teal, C.tealL], Math.sin(time * 4) > 0.6, false);
   } else {
     drawText('OURO', MW + 25, 5, C.gold, 'center', C.ink);
-    drawBar(16, BTN.y - 20, gold[0], 10);
-    drawBig(Math.floor(gold[0]), MW + 25, BTN.y - 14, C.goldL, C.gold);
+    drawBar(BAR.y0, BAR.y1, gold[0], 10);
+    drawBig(Math.floor(gold[0]), MW + 25, BAR.y1 + 8, C.goldL, C.gold);
   }
   for (let i = 0; i < CARDS.length; i++) drawCard(i);
 }
@@ -1213,9 +1218,11 @@ function render() {
 // ===================== INPUT =====================
 function toLogical(e) { const r = cv.getBoundingClientRect(); return { x: (e.clientX - r.left) / r.width * LW - OX, y: (e.clientY - r.top) / r.height * LH - OY }; }
 function cardAt(p) { for (let i = 0; i < CARDS.length; i++) if (p.x >= CARD_X && p.x <= CARD_X + CARD_W && p.y >= CARD_Y[i] - 2 && p.y <= CARD_Y[i] + CARD_H) return i; return -1; }
-const inBtn = p => p.x >= BTN.x - 2 && p.x <= BTN.x + BTN.w + 2 && p.y >= BTN.y - 2 && p.y <= BTN.y + BTN.h + 2;
+const inRect = (p, b) => p.x >= b.x - 2 && p.x <= b.x + b.w + 2 && p.y >= b.y - 2 && p.y <= b.y + b.h + 2;
+const inBtn = p => inRect(p, BTN);
 function tryDeploy(p) {
   const r = deploy(0, CARDS[sel], p.x, p.y);
+  if (r && typeof r === 'object' && phase === 'setup') hist.push(r);
   if (r === 'zone') msg = { s: 'SÓ NO SEU LADO DO CAMPO', t: 1.2 };
   else if (r === 'blocked') msg = { s: 'LUGAR BLOQUEADO', t: 1 };
   else if (!r) msg = { s: phase === 'setup' ? 'MOEDAS INSUFICIENTES' : 'OURO INSUFICIENTE', t: 1 };
@@ -1228,6 +1235,7 @@ cv.addEventListener('pointerdown', e => {
   try { cv.setPointerCapture(e.pointerId); } catch (_) {}
   if (p.x >= MW) {
     if (phase === 'setup' && inBtn(p)) { startBattle(); return; }
+    if (phase === 'setup' && inRect(p, UNDO)) { if (!undo()) msg = { s: 'NADA PARA DESFAZER', t: 1 }; return; }
     const i = cardAt(p); if (i >= 0) { sel = sel === i ? -1 : i; drag = { i, moved: false }; }
   } else if (phase === 'setup' && removeAt(p)) { /* removido */ }
   else if (sel >= 0 && phase !== 'count') tryDeploy(p);
@@ -1267,7 +1275,7 @@ function frame(now) {
   requestAnimationFrame(frame);
 }
 requestAnimationFrame(frame);
-window.__game = { get units() { return units; }, deploy, castles: () => castles, gold: () => gold, update, startBattle, get phase() { return phase; } };
+window.__game = { undo, get hist() { return hist; }, get units() { return units; }, deploy, castles: () => castles, gold: () => gold, update, startBattle, get phase() { return phase; } };
 </script>
 </body>
 </html>
