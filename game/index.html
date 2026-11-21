@@ -223,6 +223,67 @@ const NECRO_B = compose(15, 21, [[0, 3, NECRO_ROBE], [1, 20, ['tttttttttt']], [1
 const SKEL_BODY = ['...nnnn.....', '..nTTTTn....', '..nkknkn....', '..nnnnnn....', '...nNNn.....', '....nn......', '..nnnnnn....', '.n.nNNn.n...', '.n.nknN.n...', '.n.nNNn.n...', '...nnnn.....', '...tttt.....'];
 const SKEL_A = compose(12, 15, [[0, 0, SKEL_BODY], [9, 5, ['m', 'm', 'm', 'm', 'd']], [0, 12, ['...n..n.....', '...n..n.....', '..nn..nn....']]]);
 const SKEL_B = compose(12, 15, [[0, 0, SKEL_BODY], [9, 5, ['m', 'm', 'm', 'm', 'd']], [0, 12, ['..n...n.....', '..n...n.....', '.nn...nn....']]]);
+// ---- Paladino: sprites próprios, maiores e mais detalhados (construídos por formas e depois sombreados) ----
+const gNew = (w, h) => Array.from({ length: h }, () => Array(w).fill('.'));
+const gPx = (g, x, y, ch) => { if (y >= 0 && y < g.length && x >= 0 && x < g[0].length) g[y][x] = ch; };
+const gBox = (g, x, y, w, h, ch) => { for (let j = 0; j < h; j++) for (let i = 0; i < w; i++) gPx(g, x + i, y + j, ch); };
+const gEll = (g, cx, cy, rx, ry, ch) => { for (let y = Math.floor(cy - ry); y <= Math.ceil(cy + ry); y++) for (let x = Math.floor(cx - rx); x <= Math.ceil(cx + rx); x++) if (((x - cx) / rx) ** 2 + ((y - cy) / ry) ** 2 <= 1) gPx(g, x, y, ch); };
+const gLn = (g, x0, y0, x1, y1, ch) => { const n = Math.max(Math.abs(x1 - x0), Math.abs(y1 - y0)); for (let i = 0; i <= n; i++) gPx(g, Math.round(x0 + (x1 - x0) * i / (n || 1)), Math.round(y0 + (y1 - y0) * i / (n || 1)), ch); };
+const gKite = (g, cx, top, hw, h, rim, fill, cross) => { // escudo em gota
+  for (let k = 0; k < 2; k++) for (let y = 0; y < h - k * 2; y++) { const w = y < h * 0.55 ? hw : Math.max(0, Math.round(hw * (1 - (y - h * 0.55) / (h * 0.5)))); const ww = w - k * 1;
+    if (ww >= 0) gBox(g, cx - ww, top + y + k, ww * 2 + 1, 1, k ? fill : rim); }
+  if (cross) { gBox(g, cx, top + 3, 1, h - 6, cross); gBox(g, cx - hw + 2, top + 5, hw * 2 - 3, 1, cross); }
+};
+function palE(f) {
+  const g = gNew(46, 38), L = f ? [11, 15, 24, 28] : [9, 13, 26, 30];
+  gLn(g, 8, 19, 4, 26, 'w'); gLn(g, 9, 20, 5, 28, 'w'); gLn(g, 7, 20, 4, 24, 'c'); gLn(g, 5, 27, 4, 31, 'w'); gLn(g, 6, 27, 6, 30, 'c');
+  [0, 2].forEach(i => { gBox(g, L[i], 27, 3, 8, 'H'); gBox(g, L[i], 35, 3, 3, 'D'); });
+  gEll(g, 19, 23, 12, 6, 'h');
+  gEll(g, 30, 17, 4, 6, 'h'); gEll(g, 32, 13, 3, 5, 'h'); gEll(g, 36, 11, 4, 3, 'h'); gEll(g, 40, 13, 3, 2, 'h'); gBox(g, 34, 6, 2, 3, 'h'); gPx(g, 36, 5, 'H');
+  gLn(g, 29, 8, 26, 18, 'w'); gLn(g, 30, 8, 27, 18, 'c'); gPx(g, 36, 8, 'w'); gPx(g, 37, 8, 'w');
+  gBox(g, 36, 9, 4, 3, 'm'); gPx(g, 37, 10, 'k'); gPx(g, 41, 13, 'k'); gBox(g, 38, 12, 2, 1, 'G');
+  gEll(g, 30, 21, 3, 4, 'm'); gPx(g, 29, 21, 'g');
+  [1, 3].forEach(i => { gBox(g, L[i], 26, 3, 9, 'h'); gBox(g, L[i], 35, 3, 3, 'D'); gBox(g, L[i], 33, 3, 1, 'g'); });
+  gBox(g, 8, 20, 22, 9, 't'); for (let x = 8; x < 30; x++) if (x % 4 < 2) gBox(g, x, 29, 1, 2, 't');
+  gBox(g, 8, 20, 22, 1, 'g'); for (let x = 8; x < 30; x++) if (x % 4 < 2) gPx(g, x, 31, 'g'); gBox(g, 8, 28, 22, 1, 'g');
+  gBox(g, 17, 22, 3, 6, 'g'); gBox(g, 15, 24, 7, 2, 'g'); gBox(g, 18, 23, 1, 4, 'w');
+  gBox(g, 16, 19, 10, 2, 'b'); gBox(g, 15, 18, 2, 3, 'b');
+  gBox(g, 19, 17, 4, 8, 'q'); gBox(g, 19, 25, 5, 3, 'Q'); gBox(g, 20, 21, 2, 1, 'm');
+  gEll(g, 21, 12, 5, 6, 'q'); gBox(g, 17, 16, 9, 1, 'g'); gBox(g, 17, 17, 9, 3, 't'); gBox(g, 21, 11, 1, 5, 'm'); gBox(g, 19, 13, 5, 1, 'm');
+  gEll(g, 16, 10, 3, 3, 'm'); gPx(g, 15, 9, 'g');
+  gBox(g, 25, 13, 5, 2, 'q'); gBox(g, 29, 12, 3, 4, 'g');
+  gEll(g, 22, 5, 5, 5, 'q'); gBox(g, 23, 5, 5, 1, 'k'); gBox(g, 26, 7, 2, 1, 'k'); gBox(g, 17, 8, 10, 1, 'g'); gBox(g, 22, 0, 1, 4, 'm');
+  gLn(g, 21, 0, 14, 3, 'p'); gLn(g, 22, 1, 15, 5, 'p'); gLn(g, 20, 0, 13, 2, 'p'); gLn(g, 21, 1, 16, 6, 'p'); gPx(g, 22, 0, 'g');
+  gKite(g, 13, 10, 5, 18, 'g', 't', 'w'); gPx(g, 13, 9, 'g'); gBox(g, 12, 13, 3, 3, 'g');
+  gBox(g, 31, 0, 1, 17, 'd'); gBox(g, 30, 0, 3, 2, 'm'); gBox(g, 31, 2, 1, 1, 'g');
+  for (let i = 0; i < 12; i++) { const hh = 7 - (i > 8 ? (i - 8) * 2 : 0); gBox(g, 33 + i, 2, 1, hh, 't'); } gBox(g, 33, 2, 12, 1, 'g'); gBox(g, 33, 8, 10, 1, 'g'); gPx(g, 37, 5, 'g'); gPx(g, 38, 5, 'g');
+  return g;
+}
+function palS(f) {
+  const g = gNew(30, 38), dy = f ? 1 : 0;
+  gEll(g, 15, 11, 7, 6, 'q'); gEll(g, 15, 6, 4, 5, 'q'); gBox(g, 12, 6, 7, 1, 'k'); gBox(g, 15, 7, 1, 3, 'k'); gBox(g, 11, 9, 9, 1, 'g'); gEll(g, 15, 1, 2, 2, 'p'); gBox(g, 14, 0, 2, 3, 'p'); gPx(g, 15, 0, 'g');
+  gBox(g, 9, 13, 12, 1, 'g'); gBox(g, 9, 14, 12, 4, 't'); gBox(g, 15, 10, 1, 4, 'm');
+  gEll(g, 7, 11, 3, 3, 'm'); gEll(g, 23, 11, 3, 3, 'm');
+  gBox(g, 8, 29 + dy, 4, 6 - dy, 'h'); gBox(g, 8, 35, 4, 3, 'D'); gBox(g, 18, 30 - dy, 4, 6 + dy, 'h'); gBox(g, 18, 36, 4, 2, 'D'); gBox(g, 8, 33, 4, 1, 'g'); gBox(g, 18, 33, 4, 1, 'g');
+  gEll(g, 15, 28, 8, 6, 'h'); gEll(g, 15, 23, 4, 7, 'h'); gBox(g, 11, 14, 2, 4, 'h'); gBox(g, 18, 14, 2, 4, 'h'); gPx(g, 11, 14, 'H'); gPx(g, 19, 14, 'H');
+  gBox(g, 14, 17, 2, 10, 'm'); gPx(g, 12, 20, 'k'); gPx(g, 18, 20, 'k'); gEll(g, 15, 29, 2, 2, 'H'); gPx(g, 14, 29, 'k'); gPx(g, 16, 29, 'k'); gBox(g, 14, 15, 2, 3, 'w');
+  gBox(g, 7, 25, 17, 8, 't'); for (let x = 7; x < 24; x++) if (x % 4 < 2) gBox(g, x, 33, 1, 2, 't'); gBox(g, 7, 25, 17, 1, 'g'); gBox(g, 7, 32, 17, 1, 'g'); for (let x = 7; x < 24; x++) if (x % 4 < 2) gPx(g, x, 35, 'g'); gBox(g, 14, 26, 3, 6, 'g'); gBox(g, 12, 28, 7, 2, 'g'); gBox(g, 15, 27, 1, 4, 'w');
+  gKite(g, 6, 12, 5, 17, 'g', 't', 'w'); gBox(g, 5, 15, 3, 3, 'g');
+  gBox(g, 26, 0, 1, 26, 'd'); gBox(g, 25, 0, 3, 2, 'm'); gBox(g, 27, 1, 3, 5, 't'); gBox(g, 27, 1, 3, 1, 'g'); gBox(g, 24, 12, 2, 3, 'g');
+  return g;
+}
+function palN(f) {
+  const g = gNew(30, 38), dy = f ? 1 : 0;
+  gBox(g, 8, 29 + dy, 4, 6 - dy, 'h'); gBox(g, 8, 35, 4, 3, 'D'); gBox(g, 18, 30 - dy, 4, 6 + dy, 'h'); gBox(g, 18, 36, 4, 2, 'D'); gBox(g, 8, 33, 4, 1, 'g'); gBox(g, 18, 33, 4, 1, 'g');
+  gEll(g, 15, 25, 9, 8, 'h'); gBox(g, 14, 22, 3, 10, 'w'); gBox(g, 13, 28, 5, 4, 'w'); gBox(g, 15, 24, 1, 8, 'c'); gPx(g, 14, 32, 'c'); gPx(g, 16, 32, 'c');
+  gEll(g, 15, 11, 7, 6, 'q'); gEll(g, 7, 11, 3, 3, 'm'); gEll(g, 23, 11, 3, 3, 'm');
+  gBox(g, 8, 14, 15, 14, 't'); for (let x = 8; x < 23; x++) if (x % 4 < 2) gBox(g, x, 28, 1, 2, 't'); gBox(g, 8, 14, 15, 1, 'g'); gBox(g, 8, 27, 15, 1, 'g'); for (let x = 8; x < 23; x++) if (x % 4 < 2) gPx(g, x, 30, 'g');
+  gBox(g, 14, 17, 3, 8, 'g'); gBox(g, 12, 19, 7, 2, 'g'); gBox(g, 15, 18, 1, 6, 'w');
+  gEll(g, 15, 6, 4, 5, 'q'); gBox(g, 11, 9, 9, 1, 'g'); gBox(g, 15, 3, 1, 5, 'm'); gEll(g, 15, 1, 2, 2, 'p'); gBox(g, 14, 0, 3, 3, 'p'); gBox(g, 14, 3, 3, 10, 'p'); gBox(g, 15, 4, 1, 8, 'p');
+  gKite(g, 6, 14, 4, 14, 'm', 'G', null);
+  gBox(g, 26, 0, 1, 26, 'd'); gBox(g, 25, 0, 3, 2, 'm'); gBox(g, 27, 1, 3, 5, 't'); gBox(g, 27, 1, 3, 1, 'g');
+  return g;
+}
 const VIEWS = {
   necro: { E: [NECRO_A, NECRO_B], N: [backOf(NECRO_A, 3, 8, 'v', { glow: true }), backOf(NECRO_B, 3, 8, 'v', { glow: true })] },
   skeleton: { E: [SKEL_A, SKEL_B], N: [backOf(SKEL_A, 2, 4, 'n'), backOf(SKEL_B, 2, 4, 'n')] },
@@ -230,7 +291,7 @@ const VIEWS = {
           NE: [backOf(PAWN_A, 5, 7, 'm', { emblem: true }), backOf(PAWN_B, 5, 7, 'm', { emblem: true })] },
   archer: { E: [ARCHER_A, ARCHER_B], S: [ARCHER_S_A, ARCHER_S_B], N: [backOf(ARCHER_S_A, 3, 6, 'T', { emblem: true }), backOf(ARCHER_S_B, 3, 6, 'T', { emblem: true })],
           NE: [backOf(ARCHER_A, 3, 6, 'T', { emblem: true }), backOf(ARCHER_B, 3, 6, 'T', { emblem: true })] },
-  paladin: { E: [KNIGHT_A, KNIGHT_B], S: [KNIGHT_S_A, KNIGHT_S_B], N: [KNIGHT_N_A, KNIGHT_N_B], NE: [backOf(KNIGHT_A, 5, 7, 'm', { x0: 11, x1: 20, emblem: true }), backOf(KNIGHT_B, 5, 7, 'm', { x0: 11, x1: 20, emblem: true })] },
+  paladin: { E: [palE(0), palE(1)], S: [palS(0), palS(1)], N: [palN(0), palN(1)], NE: [backOf(palE(0), 4, 7, 'q', { x0: 22, x1: 28 }), backOf(palE(1), 4, 7, 'q', { x0: 22, x1: 28 })] },
   knight: { E: [KNIGHT_A, KNIGHT_B], S: [KNIGHT_S_A, KNIGHT_S_B], N: [KNIGHT_N_A, KNIGHT_N_B],
           NE: [backOf(KNIGHT_A, 5, 7, 'm', { x0: 11, x1: 20, emblem: true }), backOf(KNIGHT_B, 5, 7, 'm', { x0: 11, x1: 20, emblem: true })] },
   bishop: { E: [BISHOP_A, BISHOP_B], N: [backOf(BISHOP_A, 5, 7, 'b'), backOf(BISHOP_B, 5, 7, 'b')] },
@@ -254,7 +315,7 @@ function bakeAll() {
         const pal = { m: '#b9c2ce', s: '#f2b27a', t: TEAM[t].t, T: TEAM[t].T, p: TEAM[t].h, g: C.gold, G: C.goldD, b: '#a0582a', d: '#5e3218',
           h: t ? '#8a5430' : '#b97a42', H: t ? '#63391f' : '#8e5a2e', D: '#3e2210', w: '#f3ead6', c: '#e8d4a0', y: '#e8c060', k: C.ink,
           v: '#3c2c52', V: '#5a4378', n: '#e6dfc8', N: '#b8b098', a: '#6bff8a' };
-        if (k === 'paladin') Object.assign(pal, { m: '#f0d060', h: '#f2eee4', H: '#c4beb0', D: '#8a8478', g: '#fff4b8', G: '#c89a2a', p: '#fff4b8' });
+        if (k === 'paladin') Object.assign(pal, { m: '#e8c458', q: '#c8ceda', Q: '#7a8296', h: '#f4f0e6', H: '#c8c2b4', D: '#7a7468', g: '#ffe27a', G: '#c89a2a' });
         view.img[t] = V[name].map(gr => { const cc = renderGrid(gr, pal); const f = mk(cc.width, cc.height), fx = f.getContext('2d');
           fx.translate(cc.width, 0); fx.scale(-1, 1); fx.drawImage(cc, 0, 0); return [cc, f]; });
       }
@@ -1776,9 +1837,9 @@ function drawCard(i) {
     rect(ax + px, ay + py, 1, 1, col);
   }
   for (let py = 0; py < 8; py++) { const dy = ar - py - 0.5, hw = Math.sqrt(Math.max(0, ar * ar - dy * dy)); if (py < ar) { rect(ax + Math.round(ar - hw) + 1, ay + py + 1, 1, 1, '#b8e8f0'); } }
-  const sp = SP[type];
-  rect(Math.round(x + CARD_W / 2 - 7), ay + ah - 4, 15, 2, 'rgba(27,20,22,0.3)');
-  g.drawImage(sp.img[0][0][0], Math.round(x + CARD_W / 2 - sp.w / 2), ay + ah - sp.h + 1);
+  const sp = SP[type], big = sp.h > ah + 2;
+  if (big) { const vv = sp.v.S; g.save(); g.beginPath(); g.rect(ax, ay, aw, ah); g.clip(); g.drawImage(vv.img[0][0][0], Math.round(x + CARD_W / 2 - vv.w / 2), ay + 1); g.restore(); }
+  else { rect(Math.round(x + CARD_W / 2 - 7), ay + ah - 4, 15, 2, 'rgba(27,20,22,0.3)'); g.drawImage(sp.img[0][0][0], Math.round(x + CARD_W / 2 - sp.w / 2), ay + ah - sp.h + 1); }
   // faixa com o nome (extremidades em "V", como uma flâmula)
   const ry = y + 29, rx = x, rw = CARD_W;
   rect(rx, ry, rw, 8, C.ink); rect(rx + 1, ry + 1, rw - 2, 6, '#8a2222'); rect(rx + 1, ry + 1, rw - 2, 1, '#c04a3a'); rect(rx + 1, ry + 6, rw - 2, 1, '#5a1212');
