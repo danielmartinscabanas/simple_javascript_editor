@@ -283,28 +283,37 @@ function markCastles() {
     for (let r = c.y / TS; r < (c.y + c.h) / TS; r++)
       for (let q = c.x / TS; q < (c.x + c.w) / TS; q++) kind[r * COLS + q] = 4;
 }
-const FARM_TILES = 30, LAKE_TILES = 48, MAX_FARMERS = 4;
+const FARM_TILES = 30, LAKE_TILES = FARM_TILES * 2, MAX_FARMERS = 4; // lago = dobro da área de cultivo, sempre
+// Cresce uma forma de N tiles: elipse com proporção sorteada (de redonda a bem alongada) e borda irregular.
+function growShape(N, cx, cy, b, free) {
+  const rho = 1 + R() * 2.6, area = N / Math.PI, ax = Math.sqrt(area * rho), ay = Math.sqrt(area / rho);
+  const [rx, ry] = R() < 0.5 ? [ay, ax] : [ax, ay];
+  const set = [[cx, cy]], has = new Set([cy * COLS + cx]);
+  let lim = 1.0, stall = 0;
+  for (let guard = 0; set.length < N && guard < 8000; guard++) {
+    const [c, r] = set[R() * set.length | 0], d = DIR4[R() * 4 | 0], nc = c + d[0], nr = r + d[1], key = nr * COLS + nc;
+    if (has.has(key) || nc < b.c0 || nc > b.c1 || nr < b.r0 || nr > b.r1 || !free(nc, nr)) { if (++stall > 80) { lim += 0.15; stall = 0; } continue; }
+    const e = ((nc - cx) / rx) ** 2 + ((nr - cy) / ry) ** 2 + (R() - 0.5) * 0.5;
+    if (e > lim) { if (++stall > 80) { lim += 0.15; stall = 0; } continue; }
+    let nb = 0; for (const [dx, dy] of DIR4) if (has.has((nr + dy) * COLS + nc + dx)) nb++;
+    if (nb < 2 && R() < 0.5) continue;
+    set.push([nc, nr]); has.add(key); stall = 0;
+  }
+  return set.length === N ? set : null;
+}
 function makeFarms() {
   // Área de cultivo: forma irregular com número fixo de tiles, entre o castelo e o meio do campo.
   farms = castles.map(c => {
     const t = c.team;
     const r0 = t === 0 ? Math.ceil((MID + 28) / TS) : Math.ceil((c.y + c.h + 20) / TS);
     const r1 = t === 0 ? Math.floor((c.y - 46) / TS) : Math.floor((MID - 28) / TS);
-    let set = new Map();
-    for (let attempt = 0; attempt < 60; attempt++) {
-      const cx = 3 + (R() * (COLS - 6) | 0), cy = r0 + 2 + (R() * Math.max(1, r1 - r0 - 4) | 0);
-      set = new Map(); set.set(cy * COLS + cx, [cx, cy]);
-      let guard = 0;
-      while (set.size < FARM_TILES && guard++ < 4000) {
-        const arr = [...set.values()], [a, b] = arr[R() * arr.length | 0], d = DIR4[R() * 4 | 0], nc = a + d[0], nr = b + d[1];
-        if (nc < 2 || nc > COLS - 3 || nr < r0 || nr > r1 || set.has(nr * COLS + nc)) continue;
-        let nb = 0; for (const [dx, dy] of DIR4) if (set.has((nr + dy) * COLS + nc + dx)) nb++;
-        if (nb < 2 && R() < 0.6) continue;
-        set.set(nr * COLS + nc, [nc, nr]);
-      }
-      if (set.size === FARM_TILES) break;
+    let tiles = null, cx = 0, cy = 0;
+    for (let attempt = 0; attempt < 80 && !tiles; attempt++) {
+      cx = 3 + (R() * (COLS - 6) | 0); cy = r0 + 2 + (R() * Math.max(1, r1 - r0 - 4) | 0);
+      tiles = growShape(FARM_TILES, cx, cy, { c0: 2, c1: COLS - 3, r0, r1 }, () => true);
     }
-    const tiles = [...set.values()];
+    if (!tiles) { tiles = []; for (let j = 0; j < 5; j++) for (let i = 0; i < 6; i++) tiles.push([cx + i, r0 + 1 + j]); }
+    const set = new Map(tiles.map(([c0_, r0_]) => [r0_ * COLS + c0_, [c0_, r0_]]));
     const minC = Math.min(...tiles.map(q => q[0])), maxC = Math.max(...tiles.map(q => q[0])), minR = Math.min(...tiles.map(q => q[1])), maxR = Math.max(...tiles.map(q => q[1]));
     const rx = minC * TS, ry = minR * TS, w = (maxC - minC + 1) * TS, h = (maxR - minR + 1) * TS;
     return { team: t, isFarm: true, rx, ry, w, h, x: rx + w / 2, y: ry + h / 2, set, planted: 0, dmgAcc: 0, hitT: 0, d: { r: 0 },
@@ -330,18 +339,11 @@ function genMap() {
       const a0 = t === 0 ? Math.ceil((MID + 16) / TS) : Math.ceil((castles[1].y + castles[1].h + 16) / TS);
       const a1 = t === 0 ? Math.floor((castles[0].y - 44) / TS) : Math.floor((MID - 16) / TS);
       let done = false;
-      for (let tr = 0; tr < 40 && !done; tr++) {
+      for (let tr = 0; tr < 60 && !done; tr++) {
         const c0 = 3 + (R() * (COLS - 6) | 0), r0 = a0 + 2 + (R() * Math.max(1, a1 - a0 - 4) | 0);
         if (kAt(c0, r0)) continue;
-        const set = [[c0, r0]]; kind[r0 * COLS + c0] = 2;
-        for (let guard = 0; set.length < LAKE_TILES && guard < 4000; guard++) {
-          const [c, r] = set[R() * set.length | 0], d = DIR4[R() * 4 | 0], nc = c + d[0], nr = r + d[1];
-          if (nc < 1 || nc >= COLS - 1 || nr < a0 || nr > a1 || kAt(nc, nr)) continue;
-          let nb = 0; for (const [dx, dy] of DIR4) if (kAt(nc + dx, nr + dy) === 2) nb++;
-          if (nb < 2 && R() < 0.65) continue;
-          kind[nr * COLS + nc] = 2; set.push([nc, nr]);
-        }
-        if (set.length === LAKE_TILES) done = true; else for (const [c, r] of set) kind[r * COLS + c] = 0;
+        const shape = growShape(LAKE_TILES, c0, r0, { c0: 1, c1: COLS - 2, r0: a0, r1: a1 }, (c, r) => kAt(c, r) === 0);
+        if (shape) { for (const [c, r] of shape) kind[r * COLS + c] = 2; done = true; }
       }
       if (!done) lakesOk = false;
     }
