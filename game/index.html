@@ -713,7 +713,7 @@ function botFormation() {
   let c = SETUP_COINS; const front = [], back = [];
   const nf = R() < 0.55 ? 1 + (R() * 2 | 0) : 0; c -= nf * 2;
   const nfa = 1 + (R() * 2 | 0); c -= nfa * 3;
-  const nn = R() < 0.45 ? 1 : 0; c -= nn * 7;
+  const nn = R() < 0.75 ? 1 : 0; c -= nn * 7;
   const nk = 1 + (R() * 3 | 0);
   for (let i = 0; i < nk && c >= 5; i++) { front.push('knight'); c -= 5; }
   const nb = Math.min(nk, R() * 3 | 0);
@@ -935,11 +935,13 @@ function bishopAI(u, dt) {
 }
 
 // ===================== BOT =====================
-function pickPlan() { const r = R(); return r < 0.3 ? 'pawn' : r < 0.48 ? 'archer' : r < 0.74 ? 'knight' : r < 0.9 ? 'bishop' : 'necro'; }
+function pickPlan() { const r = R(); return r < 0.26 ? 'pawn' : r < 0.42 ? 'archer' : r < 0.66 ? 'knight' : r < 0.8 ? 'bishop' : 'necro'; }
 function botUpdate(dt) {
   bot.think -= dt; if (bot.think > 0) return;
   bot.think = 0.5 + R() * 0.8;
   const gl = gold[1];
+  // mantém sempre um necromante em campo (atrás da linha de frente)
+  if (gl >= DEF.necro.cost && !units.some(u => !u.dead && u.team === 1 && u.type === 'necro') && R() < 0.5) { const nr = deploy(1, 'necro', 30 + R() * (MW - 60), 130 + R() * 60); if (nr && typeof nr === 'object') return; }
   let threat = null;
   for (const u of units) if (!u.dead && u.team === 0 && u.y < MID + 40 && (!threat || u.y < threat.y)) threat = u;
   if (threat && gl >= 4 && R() < 0.16 && fences.filter(f => f.team === 1).length < 4) { const f = deploy(1, 'fence', threat.x, threat.y - 26); if (f && typeof f === 'object') return; }
@@ -1870,10 +1872,99 @@ function scroll(x0, y0, w, h) {
   };
   roll(0); roll(w - RW);
 }
-function banner(s, col = C.ink) {
-  const w = Math.max(96, textW(String(s)) + 40), h = 22;
-  scroll(Math.round(MW / 2 - w / 2), MID - 11, w, h);
-  drawText(s, MW / 2, MID - 3, col, 'center');
+// ---- fonte caligráfica: esqueletos de traço + pena de ponta chata (hastes grossas, linhas finas, serifas) ----
+const MSK = {
+  A: [[[0, 8], [3, 0], [6, 8]], [[1, 5], [5, 5]]],
+  B: [[[0, 0], [0, 8]], [[0, 0], [4, 0], [5, 1], [5, 3], [4, 4], [0, 4]], [[0, 4], [4, 4], [6, 5], [6, 7], [4, 8], [0, 8]]],
+  C: [[[6, 2], [5, 0.6], [3, 0], [1, 1], [0, 3], [0, 5], [1, 7], [3, 8], [5, 7.4], [6, 6]]],
+  D: [[[0, 0], [0, 8]], [[0, 0], [3, 0], [5, 1], [6, 3], [6, 5], [5, 7], [3, 8], [0, 8]]],
+  E: [[[6, 1], [4, 0], [2, 0], [0, 2], [0, 6], [2, 8], [4, 8], [6, 7]], [[1, 4], [5, 4]]],
+  F: [[[0, 0], [0, 8]], [[0, 0], [6, 0]], [[0, 4], [4, 4]]],
+  G: [[[6, 2], [5, 0.6], [3, 0], [1, 1], [0, 3], [0, 5], [1, 7], [3, 8], [5, 7], [6, 5], [6, 4], [3, 4]]],
+  H: [[[0, 0], [0, 8]], [[6, 0], [6, 8]], [[0, 4], [6, 4]]],
+  I: [[[3, 0], [3, 8]], [[1, 0], [5, 0]], [[1, 8], [5, 8]]],
+  J: [[[4, 0], [4, 6], [3, 8], [1, 8], [0, 7]]],
+  K: [[[0, 0], [0, 8]], [[6, 0], [0, 5]], [[2, 4], [6, 8]]],
+  L: [[[0, 0], [0, 8], [6, 8]]],
+  M: [[[0, 8], [0, 0], [3, 5], [6, 0], [6, 8]]],
+  N: [[[0, 8], [0, 0], [6, 8], [6, 0]]],
+  O: [[[3, 0], [1, 1], [0, 3], [0, 5], [1, 7], [3, 8], [5, 7], [6, 5], [6, 3], [5, 1], [3, 0]]],
+  P: [[[0, 0], [0, 8]], [[0, 0], [4, 0], [6, 1], [6, 3], [4, 4], [0, 4]]],
+  Q: [[[3, 0], [1, 1], [0, 3], [0, 5], [1, 7], [3, 8], [5, 7], [6, 5], [6, 3], [5, 1], [3, 0]], [[4, 6], [6, 9]]],
+  R: [[[0, 0], [0, 8]], [[0, 0], [4, 0], [6, 1], [6, 3], [4, 4], [0, 4]], [[3, 4], [6, 8]]],
+  S: [[[6, 1], [4, 0], [2, 0], [0, 1.5], [1, 3], [3, 4], [5, 5], [6, 6.5], [4, 8], [2, 8], [0, 7]]],
+  T: [[[0, 0], [6, 0]], [[3, 0], [3, 8]]],
+  U: [[[0, 0], [0, 5], [1, 7], [3, 8], [5, 7], [6, 5], [6, 0]]],
+  V: [[[0, 0], [3, 8], [6, 0]]],
+  W: [[[0, 0], [2, 8], [4, 3], [6, 8], [8, 0]]],
+  X: [[[0, 0], [6, 8]], [[6, 0], [0, 8]]],
+  Y: [[[0, 0], [3, 4], [6, 0]], [[3, 4], [3, 8]]],
+  Z: [[[0, 0], [6, 0], [0, 8], [6, 8]]],
+  '0': [[[3, 0], [1, 1], [0, 3], [0, 5], [1, 7], [3, 8], [5, 7], [6, 5], [6, 3], [5, 1], [3, 0]]],
+  '1': [[[1.5, 2], [3, 0], [3, 8]], [[1, 8], [5, 8]]],
+  '2': [[[0, 2], [1, 0.6], [3, 0], [5, 1], [6, 3], [0, 8], [6, 8]]],
+  '3': [[[0, 1], [3, 0], [6, 1.5], [4, 3.5], [3, 4], [6, 5.5], [6, 7], [3, 8], [0, 7]]],
+  '4': [[[5, 8], [5, 0], [0, 6], [6, 6]]],
+  '5': [[[6, 0], [1, 0], [0, 4], [3, 3.5], [6, 5], [6, 7], [3, 8], [0, 7]]],
+  '6': [[[5, 0.5], [2, 1], [0, 4], [0, 6], [2, 8], [4, 8], [6, 6.5], [6, 5], [4, 3.5], [1, 4.5]]],
+  '7': [[[0, 0], [6, 0], [2, 8]]],
+  '8': [[[3, 0], [1, 1], [1, 3], [3, 4], [5, 5], [5, 7], [3, 8], [1, 7], [1, 5], [3, 4], [5, 3], [5, 1], [3, 0]]],
+  '9': [[[1, 7.5], [4, 7], [6, 4], [6, 2], [4, 0], [2, 0], [0, 1.5], [0, 3], [2, 4.5], [5, 4]]],
+  '.': [[[3, 7], [3, 8]]], ',': [[[3, 7], [3, 8], [2, 10]]], ':': [[[3, 2], [3, 3]], [[3, 7], [3, 8]]], '-': [[[1, 4], [5, 4]]], '!': [[[3, 0], [3, 5]], [[3, 7], [3, 8]]],
+};
+const MACC = { 'Ã': ['A', [[2, -3], [3, -4], [4, -4], [5, -3], [6, -4]]], 'Õ': ['O', [[2, -3], [3, -4], [4, -4], [5, -3], [6, -4]]], 'Ó': ['O', [[3, -2], [4, -3], [5, -4]]], 'Á': ['A', [[3, -2], [4, -3], [5, -4]]], 'É': ['E', [[3, -2], [4, -3], [5, -4]]], 'Ê': ['E', [[2, -2], [3, -3], [4, -3], [5, -2]]], 'Ç': ['C', [[3, 9], [3, 10], [2, 11]]] };
+const MEDC = {};
+function medGlyph(ch) {
+  if (MEDC[ch]) return MEDC[ch];
+  if (ch === ' ') return (MEDC[ch] = { w: 5, px: [] });
+  let base = ch, acc = null; if (MACC[ch]) { base = MACC[ch][0]; acc = MACC[ch][1]; }
+  const sk = MSK[base]; if (!sk) return (MEDC[ch] = { w: 5, px: [] });
+  const set = new Set(), put = (x, y) => set.add(x + ',' + y);
+  const NIB = [[0, 0], [1, 0]]; // ponta chata: 2px de largura por 1px de altura
+  for (const line of sk) for (let i = 0; i < line.length; i++) {
+    const [x0, y0] = line[i], [x1, y1] = line[Math.min(i + 1, line.length - 1)], n = Math.max(1, Math.ceil(Math.hypot(x1 - x0, y1 - y0) * 3));
+    for (let k = 0; k <= n; k++) { const t = k / n, px = Math.round(x0 + (x1 - x0) * t), py = Math.round(y0 + (y1 - y0) * t); for (const [ox, oy] of NIB) put(px + ox + 1, py + oy + 0); }
+  }
+  // serifas nas pontas das hastes verticais
+  for (const line of sk) for (const [a, b] of [[0, 1], [line.length - 1, line.length - 2]]) {
+    if (line.length < 2) continue;
+    const [ex, ey] = line[a], [fx, fy] = line[b], vertical = Math.abs(ex - fx) <= 0.25 * Math.abs(ey - fy);
+    if (vertical && (Math.round(ey) === 0 || Math.round(ey) === 8)) { put(Math.round(ex), Math.round(ey)); put(Math.round(ex) + 3, Math.round(ey)); }
+  }
+  if (acc) for (const [ax, ay] of acc) put(ax, ay);
+  let minX = 99, maxX = -1; const px = [...set].map(k => k.split(',').map(Number));
+  for (const [x] of px) { minX = Math.min(minX, x); maxX = Math.max(maxX, x); }
+  return (MEDC[ch] = { w: maxX - minX + 1, px: px.map(([x, y]) => [x - minX, y]) });
+}
+const medW = s => { let w = 0; for (const ch of String(s).toUpperCase()) w += medGlyph(ch).w + 1; return Math.max(0, w - 1); };
+function medWrap(s, maxW) {
+  const words = String(s).toUpperCase().split(' '), lines = []; let cur = '';
+  for (const w of words) { const t = cur ? cur + ' ' + w : w; if (medW(t) <= maxW || !cur) cur = t; else { lines.push(cur); cur = w; } }
+  if (cur) lines.push(cur); return lines;
+}
+function drawMed(s, cx, y, ink, first) {
+  s = String(s).toUpperCase(); const x0 = Math.round(cx - medW(s) / 2);
+  for (let pass = 0; pass < 2; pass++) {
+    let x = x0, i = 0;
+    for (const ch of s) {
+      const gl = medGlyph(ch), col = (i === 0 && first) ? first : ink;
+      g.fillStyle = pass === 0 ? 'rgba(120,70,30,0.35)' : col;
+      for (const [px, py] of gl.px) g.fillRect(x + px + (pass === 0 ? 1 : 0), y + py + (pass === 0 ? 1 : 0), 1, 1);
+      x += gl.w + 1; i++;
+    }
+  }
+}
+function fleuron(cx, cy, col) { // losango ornamental de 5x5
+  g.fillStyle = col;
+  for (const [dx, dy] of [[0, -2], [-1, -1], [0, -1], [1, -1], [-2, 0], [-1, 0], [0, 0], [1, 0], [2, 0], [-1, 1], [0, 1], [1, 1], [0, 2]]) g.fillRect(cx + dx, cy + dy, 1, 1);
+  g.fillStyle = '#e8c070'; g.fillRect(cx, cy, 1, 1);
+}
+function banner(s, col) {
+  const lines = medWrap(s, Math.min(MW - 76, 220)), lw = Math.max(...lines.map(medW)), w = Math.max(110, lw + 56), h = 20 + 15 * lines.length;
+  const x0 = Math.round(MW / 2 - w / 2), y0 = Math.round(MID - h / 2);
+  scroll(x0, y0, w, h);
+  lines.forEach((ln, i) => drawMed(ln, MW / 2, y0 + 12 + i * 15, '#2e1a10', i === 0 ? '#8a1f1f' : null));
+  fleuron(x0 + 16, y0 + (h >> 1), '#8a1f1f'); fleuron(x0 + w - 17, y0 + (h >> 1), '#8a1f1f');
 }
 function drawCrop(x, y, age, seed) {
   if (age < 2) { rect(x + 3, y + 5, 2, 1, '#c8894a'); rect(x + 3, y + 4, 1, 1, '#e8c088'); return; }
@@ -1943,15 +2034,19 @@ function render() {
   } else if (msg) { g.globalAlpha = clamp(msg.t, 0, 1); banner(msg.s); g.globalAlpha = 1; }
   if (phase === 'count') {
     const n = Math.ceil(countT - 1);
-    const cw = n > 0 ? 64 : 120; scroll(Math.round(MW / 2 - cw / 2), MID - 16, cw, 32);
-    drawBig(n > 0 ? n : 'BATALHA!', MW / 2, MID - 4, C.rust, C.ember);
+    const txt = n > 0 ? String(n) : 'BATALHA!', cw = Math.max(70, medW(txt) + 60);
+    scroll(Math.round(MW / 2 - cw / 2), MID - 15, cw, 30);
+    drawMed(txt, MW / 2, MID - 4, '#7a1818', '#a02222'); fleuron(Math.round(MW / 2 - cw / 2) + 16, MID, '#8a1f1f'); fleuron(Math.round(MW / 2 + cw / 2) - 17, MID, '#8a1f1f');
   }
   if (over) {
     rect(0, 0, W, H, `rgba(27,20,22,${clamp(over.t, 0, 0.65)})`);
     if (over.t > 0.4) {
-      const sw = Math.min(W - 16, 200); scroll(Math.round(W / 2 - sw / 2), H / 2 - 32, sw, 62);
-      drawBig(over.win ? 'VITÓRIA!' : 'DERROTA', W / 2, H / 2 - 20, over.win ? '#2f8a3a' : '#c8361e', over.win ? '#1d5a2a' : C.ember);
-      if (over.t > 1.2 && Math.sin(time * 5) > -0.4) drawText('TOQUE PARA JOGAR DE NOVO', W / 2, H / 2 + 12, C.ink, 'center');
+      const sw = Math.min(W - 8, 250), sub = medWrap('TOQUE PARA JOGAR DE NOVO', sw - 60), sh = 46 + 15 * sub.length, sy = Math.round(H / 2 - sh / 2), sx = Math.round(W / 2 - sw / 2);
+      scroll(sx, sy, sw, sh);
+      const tc = over.win ? '#1d5a2a' : '#7a1818';
+      drawMed(over.win ? 'VITÓRIA!' : 'DERROTA', W / 2, sy + 12, tc, over.win ? '#b8862a' : '#a02222');
+      fleuron(sx + 18, sy + 17, tc); fleuron(sx + sw - 19, sy + 17, tc);
+      if (over.t > 1.2 && Math.sin(time * 5) > -0.4) sub.forEach((ln, i) => drawMed(ln, W / 2, sy + 36 + i * 15, '#2e1a10'));
     }
   }
   ctx.imageSmoothingEnabled = false;
