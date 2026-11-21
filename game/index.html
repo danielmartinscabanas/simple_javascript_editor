@@ -34,6 +34,25 @@ const mk = (w, h) => { const c = document.createElement('canvas'); c.width = w; 
 const buf = mk(W, H); let g = buf.getContext('2d');
 let LW = W + 10, LH = H + 10, SC = 1, OX = 5, OY = 5;
 const clamp = (v, a, b) => v < a ? a : v > b ? b : v;
+// Pós-processamento de cor (mais saturação e contraste). Usa filtro do canvas quando existe; senão, passa por pixel.
+const POST = 'saturate(1.22) contrast(1.14) brightness(0.98)', SAT = 1.22, CON = 1.14, BRI = 0.98;
+const FILTER_OK = typeof CanvasRenderingContext2D !== 'undefined' && 'filter' in CanvasRenderingContext2D.prototype;
+const gradeCache = {};
+function grade(src, key) {
+  let t = gradeCache[key];
+  if (!t || t.width !== src.width || t.height !== src.height) { t = document.createElement('canvas'); t.width = src.width; t.height = src.height; t.cx = t.getContext('2d', { willReadFrequently: !FILTER_OK }); gradeCache[key] = t; }
+  const x = t.cx; x.clearRect(0, 0, t.width, t.height);
+  if (FILTER_OK) { x.filter = POST; x.drawImage(src, 0, 0); x.filter = 'none'; return t; }
+  x.drawImage(src, 0, 0);
+  const id = x.getImageData(0, 0, t.width, t.height), D = id.data;
+  for (let i = 0; i < D.length; i += 4) {
+    const r = D[i], g = D[i + 1], b = D[i + 2], l = 0.3 * r + 0.59 * g + 0.11 * b;
+    let R_ = l + (r - l) * SAT, G_ = l + (g - l) * SAT, B_ = l + (b - l) * SAT;
+    R_ = ((R_ - 128) * CON + 128) * BRI; G_ = ((G_ - 128) * CON + 128) * BRI; B_ = ((B_ - 128) * CON + 128) * BRI;
+    D[i] = R_ < 0 ? 0 : R_ > 255 ? 255 : R_; D[i + 1] = G_ < 0 ? 0 : G_ > 255 ? 255 : G_; D[i + 2] = B_ < 0 ? 0 : B_ > 255 ? 255 : B_;
+  }
+  x.putImageData(id, 0, 0); return t;
+}
 const hash = (x, y) => { const s = Math.sin(x * 12.9898 + y * 78.233) * 43758.5453; return s - Math.floor(s); };
 
 // Paleta inspirada no banner de referência: contorno preto quente, laranja, creme/pergaminho, dourado, azul-escudo, vermelho-ferrugem, verde-lima.
@@ -42,8 +61,8 @@ const C = {
   gold: '#f4b740', goldL: '#fde08a', goldD: '#b86e1e', teal: '#2bb0c0', tealD: '#17788a', tealL: '#8fe0e8',
 };
 const TEAM = [
-  { t: '#3d8fd8', T: '#1f4f8a', h: '#93d3f5', bar: '#4aa8e8' }, // jogador (azul, embaixo)
-  { t: '#c8361e', T: '#7a1d12', h: '#f0784a', bar: '#e8452a' }, // bot (vermelho, em cima)
+  { t: '#2f86e8', T: '#17408f', h: '#8fd2ff', bar: '#3a9cf0' }, // jogador (azul, embaixo)
+  { t: '#d82c18', T: '#781208', h: '#ff8458', bar: '#f0381e' }, // bot (vermelho, em cima)
 ];
 const BASEPAL = { k: C.ink, m: '#dcdcd8', M: '#8c8f99', s: '#f2b27a', S: '#c27848', e: C.ink, b: '#a0582a', B: '#5a2e18',
   w: '#f6ecd6', W: '#c9b38e', g: C.gold, G: C.goldD, r: '#9a5a2c', R: '#5e3218', n: '#2a1610' };
@@ -55,7 +74,7 @@ const toHex = a => '#' + a.map(v => clamp(Math.round(v), 0, 255).toString(16).pa
 const mixc = (a, b, t) => { const A = hx(a), B = hx(b); return toHex(A.map((v, i) => v + (B[i] - v) * t)); };
 const lightc = c => mixc(c, '#fff2b8', 0.30);
 const darkc = c => mixc(c, '#2c2050', 0.34);
-const outc = c => mixc(c, '#1b1416', 0.72);
+const outc = c => mixc(c, '#140d10', 0.86);
 const BAY = [[0, 8, 2, 10], [12, 4, 14, 6], [3, 11, 1, 9], [15, 7, 13, 5]];
 const bay = (x, y) => (BAY[y & 3][x & 3] + 0.5) / 16;
 
@@ -861,7 +880,7 @@ function isWater(px, py) {
   return v + (hash(px >> 1, py >> 1) - 0.5) * 0.12 > 0.5;
 }
 const hex = hx;
-const GRASS = { a: '#86b53c', b: '#7dad37', dk: '#69982d', dk2: '#4f7d24', lt: '#a2cc4c', lt2: '#bfe05e', pl: '#95c446', pd: '#74a232' };
+const GRASS = { a: '#80b838', b: '#76ac32', dk: '#5c8a26', dk2: '#42701e', lt: '#a2cc4c', lt2: '#c4e65e', pl: '#98cc44', pd: '#649a2a' };
 const WOOD = ['#e0a868', '#b87a40', '#8e5128', '#5e3218'];
 function buildBackground() {
   bgCanvas = mk(MW, H); const x = bgCanvas.getContext('2d');
@@ -900,7 +919,7 @@ function buildBackground() {
       P(px, py, d > hw ? '#9a5e2e' : v < 0.15 ? '#c8894a' : v > 0.93 ? '#e8c088' : (px + py) % 7 === 0 ? '#c99a5c' : C.parch2);
     }
   }
-  x.fillStyle = 'rgba(27,20,22,0.32)';
+  x.fillStyle = 'rgba(20,12,16,0.44)';
   for (const c of castles) x.fillRect(c.x + 3, c.y + c.h - 1, c.w - 2, 4);
   for (const fm of farms) { // terra arada com sulcos; contorno de cerca acompanha a forma
     const inF = (px, py) => fm.set.has((py >> 3) * COLS + (px >> 3));
@@ -940,7 +959,7 @@ function buildBackground() {
   // pedras
   for (const rk of rocks) {
     const cx = (rk.c + rk.s / 2) * TS - 0.5, cy = (rk.r + rk.s / 2) * TS - 0.5, rx = rk.s * 4 - 0.3, ry = rk.s * 4 - 0.8;
-    x.fillStyle = 'rgba(27,20,22,0.34)';
+    x.fillStyle = 'rgba(20,12,16,0.46)';
     for (let dy = -ry; dy <= ry; dy++) { const hw = rx * Math.sqrt(Math.max(0, 1 - (dy / ry) ** 2)); x.fillRect(Math.round(cx - hw + 2), Math.round(cy + dy + 2), Math.round(hw * 2), 1); }
     const inside = (px, py) => { const dx = (px - cx) / rx, dy = (py - cy) / ry; return dx * dx + dy * dy + (hash(px, py) - 0.5) * 0.28 <= 1; };
     const RK = ['#f2ecdc', '#d2c8b2', '#a89c88', '#7e7366', '#574e46'], seed = rk.c * 7 + rk.r * 13;
@@ -962,7 +981,7 @@ function buildBackground() {
   for (const lg of logs) {
     const L = lg.len * TS, x0 = lg.c * TS, y0 = lg.r * TS;
     const at = (u, v) => lg.hz ? [x0 + (lg.flip ? L - 1 - u : u), y0 + 1 + v] : [x0 + 1 + v, y0 + (lg.flip ? L - 1 - u : u)];
-    x.fillStyle = 'rgba(27,20,22,0.34)';
+    x.fillStyle = 'rgba(20,12,16,0.46)';
     if (lg.hz) x.fillRect(x0 + 1, y0 + 7, L - 1, 2); else x.fillRect(x0 + 7, y0 + 1, 2, L - 1);
     for (let u = 0; u < L; u++) for (let v = 0; v < 6; v++) {
       const [px, py] = at(u, v);
@@ -985,7 +1004,7 @@ function buildBackground() {
   // tocos
   for (const st of stumps) {
     const cx = st.c * TS + 4, cy = st.r * TS + 4;
-    x.fillStyle = 'rgba(27,20,22,0.34)'; x.fillRect(cx - 3, cy + 3, 9, 2);
+    x.fillStyle = 'rgba(20,12,16,0.46)'; x.fillRect(cx - 3, cy + 3, 9, 2);
     for (const [dx, dy] of [[-4, 2], [4, 2], [-3, 3], [3, 3], [-5, 3], [5, 3]]) P(cx + dx, cy + dy, WOOD[3]);
     for (let dy = -4; dy <= 4; dy++) for (let dx = -4; dx <= 4; dx++) {
       const d = Math.hypot(dx, dy * 1.15); if (d > 4.1) continue;
@@ -996,7 +1015,7 @@ function buildBackground() {
     }
     P(cx - 1, cy - 2, '#fff0c8'); P(cx + 3, cy + 1, '#6aa23a'); P(cx + 3, cy, '#8cc04a');
   }
-  x.fillStyle = 'rgba(27,20,22,0.36)';
+  x.fillStyle = 'rgba(20,12,16,0.48)';
   for (const t of trees) { const bx = t.c * TS + 4, by = t.r * TS + 7; x.fillRect(bx - 6, by - 1, 13, 2); x.fillRect(bx - 4, by + 1, 9, 1); }
 }
 function buildTree() {
@@ -1199,7 +1218,7 @@ function drawUnit(u, ghost) {
   if (u.atkT > 0) ox = u.face * (u.atkT > 0.11 ? 2 : 1);
   const dx = Math.round(u.x - sp.w / 2 + ox), dy = Math.round(u.y - sp.h + 3 + oy);
   const r = u.d.r + 1, ux = Math.round(u.x), uy = Math.round(u.y);
-  rect(ux - r, uy, r * 2 + 1, 2, 'rgba(27,20,22,0.35)'); rect(ux - r + 1, uy + 2, r * 2 - 1, 1, 'rgba(27,20,22,0.35)');
+  rect(ux - r, uy, r * 2 + 1, 2, 'rgba(20,12,16,0.46)'); rect(ux - r + 1, uy + 2, r * 2 - 1, 1, 'rgba(20,12,16,0.46)');
   if (!ghost) rect(ux - r + 1, uy + 2, r * 2 - 1, 1, TEAM[u.team].t);
   const prevA = g.globalAlpha;
   if (u.deployT > 0 && phase === 'battle') g.globalAlpha = 0.45 + 0.4 * Math.abs(Math.sin(u.deployT * 18));
@@ -1250,7 +1269,7 @@ function drawCard(i) {
 function drawFence(f, ghost) {
   const sp = SP.fence, fr = (f.hitT > 0 && !ghost) ? sp.white[0][0] : sp.img[f.team][0][0];
   const prev = g.globalAlpha; if (ghost) g.globalAlpha = ghost;
-  rect(f.rx + 1, f.ry + 7, 24, 2, 'rgba(27,20,22,0.35)');
+  rect(f.rx + 1, f.ry + 7, 24, 2, 'rgba(20,12,16,0.46)');
   g.drawImage(fr, f.rx - 2, f.ry - 7);
   g.globalAlpha = prev;
   if (!ghost && f.hp < f.max) { const bx = f.rx + 2, by = f.ry - 10, w = 20; rect(bx - 1, by - 1, w + 2, 3, C.ink); rect(bx, by, Math.max(1, Math.round(w * f.hp / f.max)), 1, TEAM[f.team].bar); }
@@ -1289,7 +1308,7 @@ function drawSide() {
 // Pergaminho: corpo com pontilhado, bordas queimadas e rolos nas pontas
 function scroll(x0, y0, w, h) {
   const RW = 8, PA = ['#fff4d0', C.cream, C.parch, C.parch2, '#a8682c'];
-  rect(x0 + 3, y0 + h - 1, w - 4, 3, 'rgba(27,20,22,0.32)');
+  rect(x0 + 3, y0 + h - 1, w - 4, 3, 'rgba(20,12,16,0.44)');
   for (let py = 1; py < h - 1; py++) for (let px = RW - 2; px < w - RW + 2; px++) {
     const n = hash(px + x0, py + y0);
     let col = n < 0.05 ? PA[3] : n > 0.97 ? PA[1] : PA[2];
@@ -1335,7 +1354,7 @@ function render() {
   drawFarms();
   const placing = (sel >= 0 && phase !== 'count') || phase === 'setup';
   if (placing && !over) {
-    rect(0, 0, MW, MID + 8, phase === 'setup' ? 'rgba(27,20,22,0.35)' : 'rgba(200,54,30,0.18)');
+    rect(0, 0, MW, MID + 8, phase === 'setup' ? 'rgba(20,12,16,0.46)' : 'rgba(200,54,30,0.18)');
     g.fillStyle = C.cream; for (let px = (time * 12 | 0) % 6; px < MW; px += 6) g.fillRect(px, MID + 8, 3, 1);
   }
   if (sel >= 0 && CARDS[sel] === 'farmer' && phase !== 'count' && !over && farms[0]) {
@@ -1394,7 +1413,7 @@ function render() {
     }
   }
   ctx.imageSmoothingEnabled = false;
-  ctx.drawImage(buf, OX * SC, OY * SC, W * SC, H * SC);
+  ctx.drawImage(grade(buf, 'game'), OX * SC, OY * SC, W * SC, H * SC);
 }
 
 // ===================== INPUT =====================
@@ -1444,7 +1463,7 @@ function resize() {
   OX = Math.floor((LW - W) / 2); OY = Math.floor((LH - H) / 2);
   buildFrame();
   ctx.imageSmoothingEnabled = false;
-  ctx.drawImage(frameCanvas, 0, 0, LW * SC, LH * SC);
+  ctx.drawImage(grade(frameCanvas, 'frame'), 0, 0, LW * SC, LH * SC);
 }
 addEventListener('resize', resize);
 
