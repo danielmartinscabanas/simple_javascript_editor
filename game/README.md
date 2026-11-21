@@ -1,4 +1,4 @@
-# Castelos em Guerra
+# Medievaliant
 
 Jogo de estratégia em tempo real, single player, em pixel art, para celular e desktop. Mistura a ideia de "colocar tropas e ver elas lutarem" com uma pegada medieval mais lenta e tática. Cada lado tem um castelo, o objetivo é destruir o castelo inimigo. Há um campo único (sem lanes) com obstáculos aleatórios, uma fase de preparação antes da batalha, economia de ouro com plantação e um bot como adversário.
 
@@ -14,6 +14,7 @@ Este documento descreve **o que o jogo faz, por que foi feito assim e como o có
 - A pasta `game/` deste repositório contém o jogo. O `index.html` da raiz do repositório é outro projeto (um editor de código) e não tem relação.
 - O arquivo publicado como "artefato" no claude.ai é o mesmo código sem as tags `<!doctype>`, `<html>`, `<head>` e `<body>`, que a plataforma adiciona.
 - Idioma da interface: português do Brasil.
+- Nome do jogo: **Medievaliant**. Aparece na tag `<title>` e no título da moldura do jogo (só visível quando sobra espaço acima do campo). A chave do `localStorage` continua `castelos-config` (nome antigo) de propósito, para não perder as configurações já salvas; pode ser renomeada se não houver jogadores a preservar.
 
 ### Testes
 Não há testes automáticos no repositório. Durante o desenvolvimento os testes foram scripts Playwright (Chromium headless) que abriam a página, chamavam funções internas via `window.__game` e `evaluate`, simulavam partidas inteiras com `update(1/60)` em laço e tiravam screenshots. Vale recriar isso se o projeto crescer (ver seção 11).
