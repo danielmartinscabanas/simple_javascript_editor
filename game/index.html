@@ -255,8 +255,8 @@ function bakeAll() {
           fx.translate(cc.width, 0); fx.scale(-1, 1); fx.drawImage(cc, 0, 0); return [cc, f]; });
       }
       view.w = view.img[0][0][0].width; view.h = view.img[0][0][0].height;
-      view.ringR = view.img[0].map(pair => pair.map(cc => ringOf(cc, '#ff2e1f')));
-      view.ringG = view.img[0].map(pair => pair.map(cc => ringOf(cc, '#2eff6a')));
+      view.ringR = view.img[0].map(pair => pair.map(cc => ringOf(cc, RING_HIT)));
+      view.ringG = view.img[0].map(pair => pair.map(cc => ringOf(cc, RING_HEAL)));
       SP[k].v[name] = view;
     }
     const v = SP[k].v; v.SE = v.E; if (!v.S) v.S = v.E; if (!v.N) v.N = v.E; if (!v.NE) v.NE = v.N;
@@ -1707,7 +1707,7 @@ function drawUnit(u, ghost) {
   const dx = Math.round(u.x - vw.w / 2 + ox), dy = Math.round(u.y - vw.h + 3 + oy);
   const r = u.d.r + 1, ux = Math.round(u.x), uy = Math.round(u.y);
   rect(ux - r, uy, r * 2 + 1, 2, 'rgba(20,12,16,0.46)'); rect(ux - r + 1, uy + 2, r * 2 - 1, 1, 'rgba(20,12,16,0.46)');
-  if (!ghost) rect(ux - r + 1, uy + 2, r * 2 - 1, 1, TEAM[u.team].t);
+  if (!ghost) { if (SETTINGS.cb && u.team === 1) { for (let k = 0; k < r * 2 - 1; k += 2) rect(ux - r + 1 + k, uy + 2, 1, 1, TEAM[1].t); } else rect(ux - r + 1, uy + 2, r * 2 - 1, 1, TEAM[u.team].t); }
   if (!ghost && (u.slow || 1) < 1) { rect(ux - r - 1, uy - 1, r * 2 + 3, 3, '#4a3d26'); rect(ux - r, uy - 2, r * 2 + 1, 1, '#6e5f3c'); }
   const prevA = g.globalAlpha;
   if (u.deployT > 0 && phase === 'battle') g.globalAlpha = 0.45 + 0.4 * Math.abs(Math.sin(u.deployT * 18));
@@ -2004,7 +2004,7 @@ function render() {
   for (const f of fences) list.push({ y: f.ry + 7, f });
   list.sort((a, b) => a.y - b.y);
   for (const o of list) { if (o.u) drawUnit(o.u); else if (o.f) drawFence(o.f); else { const im = treeImgs[o.t.v | 0]; g.drawImage(im, o.t.c * TS + 4 - (im.width >> 1), o.t.y - im.height + 2); }; }
-  if (sel >= 0 && hover && hover.x >= 0 && hover.x < MW && !over && phase !== 'count' && (!hoverTouch || (drag && drag.moved))) {
+  if (sel >= 0 && hover && hover.x >= 0 && hover.x < MW && !over && !settingsOpen && phase !== 'count' && (!hoverTouch || (drag && drag.moved))) {
     const ty0 = CARDS[sel], can = purse()[0] >= DEF[ty0].cost, sp = findSpot(0, ty0, hover.x, hover.y), ok = can && !!sp;
     if (sp && ty0 === 'fence') {
       drawFence({ team: 0, rx: sp.c * TS, ry: sp.r * TS, hp: 1, max: 1, hitT: 0 }, ok ? 0.65 : 0.25);
@@ -2020,7 +2020,7 @@ function render() {
       for (let k = 0; k < 5; k++) rect(Math.round(p.x - (p.vx || 0) * k), Math.round(p.y - (p.vy || 0) * k), 1, 1, k === 0 ? '#dcdcd8' : k > 3 ? C.cream : '#9a5a2c');
     } else {
       const heal = p.kind === 'heal';
-      rect(px - 2, py - 1, 4, 2, heal ? '#7fd85a' : C.orange); rect(px - 1, py - 2, 2, 4, heal ? '#7fd85a' : C.orange);
+      rect(px - 2, py - 1, 4, 2, heal ? HEAL_PROJ : C.orange); rect(px - 1, py - 2, 2, 4, heal ? HEAL_PROJ : C.orange);
       rect(px - 1, py - 1, 2, 2, heal ? '#e6ffc0' : C.goldL);
     }
   }
@@ -2029,6 +2029,7 @@ function render() {
   for (const t of texts) { g.globalAlpha = clamp(t.life * 2, 0, 1); drawText(t.s, t.x, t.y, t.c, 'center', C.ink); }
   g.globalAlpha = 1;
   drawCorners();
+  drawGear();
   drawSide();
   if (phase === 'setup' && !over) {
     if (msg) banner(msg.s);
@@ -2052,12 +2053,19 @@ function render() {
       if (over.t > 1.2 && Math.sin(time * 5) > -0.4) sub.forEach((ln, i) => drawMed(ln, W / 2, sy + 36 + i * 15, '#2e1a10'));
     }
   }
+  if (settingsOpen) drawSettings();
   ctx.imageSmoothingEnabled = false;
-  ctx.drawImage(grade(buf, 'game'), OX * SC, OY * SC, W * SC, H * SC);
+  const gb = grade(buf, 'game');
+  if (!SETTINGS.left) ctx.drawImage(gb, OX * SC, OY * SC, W * SC, H * SC);
+  else { ctx.drawImage(gb, MW, 0, SW, H, OX * SC, OY * SC, SW * SC, H * SC); ctx.drawImage(gb, 0, 0, MW, H, (OX + SW) * SC, OY * SC, MW * SC, H * SC); } // canhoto: coluna lateral à esquerda
 }
 
 // ===================== INPUT =====================
-function toLogical(e) { const r = cv.getBoundingClientRect(); return { x: (e.clientX - r.left) / r.width * LW - OX, y: (e.clientY - r.top) / r.height * LH - OY }; }
+function toLogical(e) {
+  const r = cv.getBoundingClientRect(); let x = (e.clientX - r.left) / r.width * LW - OX;
+  if (SETTINGS.left && x >= 0 && x < W) x = x < SW ? MW + x : x - SW; // espelha: coluna lateral à esquerda na tela
+  return { x, y: (e.clientY - r.top) / r.height * LH - OY };
+}
 function cardAt(p) { for (let i = 0; i < CARDS.length; i++) if (p.x >= CARD_X && p.x <= CARD_X + CARD_W && p.y >= CARD_Y[i] - 2 && p.y <= CARD_Y[i] + CARD_H) return i; return -1; }
 const inRect = (p, b) => p.x >= b.x - 2 && p.x <= b.x + b.w + 2 && p.y >= b.y - 2 && p.y <= b.y + b.h + 2;
 const inBtn = p => inRect(p, BTN);
@@ -2071,6 +2079,8 @@ function tryDeploy(p) {
 cv.addEventListener('pointerdown', e => {
   e.preventDefault();
   const p = toLogical(e); hover = p; hoverTouch = e.pointerType !== 'mouse';
+  if (settingsOpen) { settingsTap(p); return; }
+  if (p.x >= GEAR.x - 2 && p.x < GEAR.x + GEAR.w + 2 && p.y >= GEAR.y - 2 && p.y < GEAR.y + GEAR.h + 2) { settingsOpen = true; return; }
   if (over) { if (over.t > 1.2) reset(); return; }
   if (p.x < 0 || p.y < 0 || p.x >= W || p.y >= H) return;
   try { cv.setPointerCapture(e.pointerId); } catch (_) {}
@@ -2106,13 +2116,70 @@ function resize() {
 addEventListener('resize', resize);
 
 // ===================== LOOP =====================
+// ===================== CONFIGURAÇÕES (mão dominante e daltonismo) =====================
+const SETTINGS = { left: false, cb: 0 };
+try { const raw = localStorage.getItem('castelos-config'); if (raw) { const o = JSON.parse(raw); SETTINGS.left = !!o.left; SETTINGS.cb = [0, 1, 2].includes(o.cb) ? o.cb : 0; } } catch (e) { /* sem armazenamento: usa o padrão */ }
+const saveSettings = () => { try { localStorage.setItem('castelos-config', JSON.stringify(SETTINGS)); } catch (e) { /* ignora */ } };
+let settingsOpen = false;
+// Paletas: [normal, vermelho-verde (protanopia/deuteranopia), azul-amarelo (tritanopia)]
+const CB_PAL = [
+  { t0: { t: '#2f86e8', T: '#17408f', h: '#8fd2ff', bar: '#3a9cf0' }, t1: { t: '#d82c18', T: '#781208', h: '#ff8458', bar: '#f0381e' }, hit: '#ff2e1f', heal: '#2eff6a', proj: '#7fd85a' },
+  { t0: { t: '#2f86e8', T: '#17408f', h: '#8fd2ff', bar: '#3a9cf0' }, t1: { t: '#f2a516', T: '#8a5a00', h: '#ffe08a', bar: '#ffb81e' }, hit: '#fff04a', heal: '#35e0ff', proj: '#6adfff' },
+  { t0: { t: '#18b8a8', T: '#0a5a52', h: '#8af0e0', bar: '#30d8c8' }, t1: { t: '#d82c18', T: '#781208', h: '#ff8458', bar: '#f0381e' }, hit: '#ff2e1f', heal: '#ffffff', proj: '#ffffff' },
+];
+let RING_HIT = '#ff2e1f', RING_HEAL = '#2eff6a', HEAL_PROJ = '#7fd85a';
+function applyColorblind(mode, rebake) {
+  const p = CB_PAL[mode]; Object.assign(TEAM[0], p.t0); Object.assign(TEAM[1], p.t1); RING_HIT = p.hit; RING_HEAL = p.heal; HEAL_PROJ = p.proj;
+  if (rebake) { bakeAll(); castleImg = [bakeCastle(0, true), bakeCastle(1, false)]; }
+}
+const GEAR = { x: 3, y: 3, w: 15, h: 15 };
+function drawGear() {
+  const { x, y } = GEAR;
+  rr(x, y, 15, 15, 7, '#1b1416'); rr(x + 1, y + 1, 13, 13, 6, C.gold); rr(x + 2, y + 2, 11, 11, 5, '#4a3626');
+  const cx = x + 7, cy = y + 7;
+  for (let dy = -5; dy <= 5; dy++) for (let dx = -5; dx <= 5; dx++) {
+    const r = Math.hypot(dx, dy), tooth = (dx === 0 || dy === 0 || Math.abs(dx) === Math.abs(dy)) && r > 3.2 && r <= 5;
+    if ((r <= 3.3 && r >= 1.6) || tooth) rect(cx + dx, cy + dy, 1, 1, dx + dy < 0 ? C.goldL : C.gold);
+  }
+}
+function settingsRects() {
+  const w = Math.min(MW - 12, 220), h = 172, x0 = Math.round(MW / 2 - w / 2), y0 = Math.round(H / 2 - h / 2), iw = w - 44, ix = x0 + 22, hw = (iw - 6) >> 1;
+  return { panel: { x: x0, y: y0, w, h },
+    hand: [{ x: ix, y: y0 + 56, w: hw, h: 16, v: false }, { x: ix + hw + 6, y: y0 + 56, w: hw, h: 16, v: true }],
+    cb: [0, 1, 2].map(i => ({ x: ix, y: y0 + 92 + i * 18, w: iw, h: 16, v: i })),
+    close: { x: ix + ((iw - 72) >> 1), y: y0 + 148, w: 72, h: 16 } };
+}
+function optBtn(b, label, on) {
+  rr(b.x, b.y, b.w, b.h, 4, C.ink); rr(b.x + 1, b.y + 1, b.w - 2, b.h - 2, 3, on ? '#d8a040' : '#b8925a'); rr(b.x + 2, b.y + 2, b.w - 4, b.h - 4, 2, on ? '#f6d078' : '#e0c690');
+  if (on) { rect(b.x + 5, b.y + (b.h >> 1) - 1, 3, 3, '#8a1f1f'); rect(b.x + 6, b.y + (b.h >> 1), 1, 1, '#ff9a8a'); }
+  drawText(label, b.x + Math.floor((b.w - textW(label)) / 2), b.y + Math.floor((b.h - 5) / 2), on ? C.ink : '#5a3a1c', 'left');
+}
+function drawSettings() {
+  const R_ = settingsRects(), P_ = R_.panel;
+  rect(0, 0, MW, H, 'rgba(10,6,8,0.6)');
+  scroll(P_.x, P_.y, P_.w, P_.h);
+  drawMed('AJUSTES', MW / 2, P_.y + 14, '#2e1a10', '#8a1f1f');
+  fleuron(P_.x + 22, P_.y + 19, '#8a1f1f'); fleuron(P_.x + P_.w - 23, P_.y + 19, '#8a1f1f');
+  drawText('MÃO DOMINANTE', MW / 2, P_.y + 46, '#5a3a1c', 'center');
+  optBtn(R_.hand[0], 'DESTRO', !SETTINGS.left); optBtn(R_.hand[1], 'CANHOTO', SETTINGS.left);
+  drawText('DALTONISMO', MW / 2, P_.y + 82, '#5a3a1c', 'center');
+  ['NENHUM', 'VERMELHO-VERDE', 'AZUL-AMARELO'].forEach((l, i) => optBtn(R_.cb[i], l, SETTINGS.cb === i));
+  optBtn(R_.close, 'FECHAR', false);
+}
+function settingsTap(p) {
+  const R_ = settingsRects(), inb = b => p.x >= b.x && p.x < b.x + b.w && p.y >= b.y && p.y < b.y + b.h;
+  for (const b of R_.hand) if (inb(b)) { SETTINGS.left = b.v; saveSettings(); return; }
+  for (const b of R_.cb) if (inb(b)) { if (SETTINGS.cb !== b.v) { SETTINGS.cb = b.v; applyColorblind(b.v, true); saveSettings(); } return; }
+  if (inb(R_.close) || !inb(R_.panel)) settingsOpen = false;
+}
+applyColorblind(SETTINGS.cb, false);
 bakeAll(); buildTrees(); buildSide(); buildVignette();
 castleImg = [bakeCastle(0, true), bakeCastle(1, false)];
 reset(); resize();
 let last = performance.now();
 function frame(now) {
   const dt = Math.min(0.05, (now - last) / 1000); last = now;
-  update(dt); render();
+  if (!settingsOpen) update(dt); else time += dt; render();
   requestAnimationFrame(frame);
 }
 requestAnimationFrame(frame);
