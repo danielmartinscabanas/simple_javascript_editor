@@ -18,14 +18,14 @@ canvas { display: block; flex: none; image-rendering: pixelated; image-rendering
 'use strict';
 // ===================== CONSTANTES =====================
 const SW = 52, TS = 8; // coluna lateral: 4px de moldura de cada lado, miolo de 44px centrado em MW + 26
-let MW = 216, W = MW + SW, H = 528, COLS = 27, ROWS = 66, MID = 264;
+let MW = 216, W = MW + SW, H = 584, COLS = 27, ROWS = 66, MID = 264;
 // O campo se estica para preencher a tela (largura e altura), sempre com escala inteira.
 (function fit() {
   if (!innerWidth || !innerHeight) return;
   const dpr = window.devicePixelRatio || 1, dw = Math.floor(innerWidth * dpr), dh = Math.floor(innerHeight * dpr);
-  const sc = Math.max(1, Math.floor(Math.min(dw / (SW + 226), dh / 538)));
+  const sc = Math.max(1, Math.floor(Math.min(dw / (SW + 226), dh / 594)));
   MW = Math.min(336, Math.max(216, Math.floor((dw / sc - 10 - SW) / 8) * 8));
-  H = Math.min(840, Math.max(528, Math.floor((dh / sc - 10) / 8) * 8));
+  H = Math.min(840, Math.max(584, Math.floor((dh / sc - 10) / 8) * 8));
   W = MW + SW; COLS = MW / 8; ROWS = H / 8; MID = H / 2;
 })();
 let R = Math.random;
@@ -284,7 +284,48 @@ function palN(f) {
   gBox(g, 26, 0, 1, 26, 'd'); gBox(g, 25, 0, 3, 2, 'm'); gBox(g, 27, 1, 3, 5, 't'); gBox(g, 27, 1, 3, 1, 'g');
   return g;
 }
+// ---- Alquimista ----
+function alchE(f) {
+  const g = gNew(20, 24), lg = f ? [7, 10] : [8, 11];
+  gBox(g, lg[0], 18, 2, 4, 'd'); gBox(g, lg[1], 18, 2, 4, 'd'); gBox(g, lg[0], 22, 3, 2, 'D'); gBox(g, lg[1], 22, 3, 2, 'D');
+  gEll(g, 4, 13, 3, 4, 'b'); gBox(g, 2, 8, 3, 3, 'w'); gBox(g, 3, 6, 1, 2, 'w'); gBox(g, 2, 9, 3, 2, 'a'); gPx(g, 3, 4, 'g');
+  gEll(g, 9, 13, 5, 5, 't'); gBox(g, 7, 11, 6, 8, 'b'); gBox(g, 6, 16, 8, 1, 'd'); gBox(g, 9, 12, 1, 3, 'g'); gPx(g, 11, 13, 'a');
+  gEll(g, 9, 5, 4, 4, 't'); gBox(g, 6, 8, 7, 1, 't'); gEll(g, 11, 6, 2, 2, 's'); gBox(g, 10, 5, 4, 2, 'g'); gPx(g, 11, 5, 'a'); gPx(g, 13, 5, 'a'); gBox(g, 5, 3, 1, 3, 't');
+  gBox(g, 12, 12, 4, 2, 't'); gBox(g, 15, 11, 2, 3, 's');
+  gBox(g, 16, 6, 1, 3, 'w'); gEll(g, 16, 10, 2, 2, 'a'); gPx(g, 15, 9, 'w'); gPx(g, 17, 5, 'g'); gBox(g, 15, 8, 3, 1, 'g');
+  return g;
+}
+function alchS(f) {
+  const g = gNew(20, 24), dy = f ? 1 : 0;
+  gBox(g, 6, 18, 3, 4 - dy, 'd'); gBox(g, 11, 18 + dy, 3, 4 - dy, 'd'); gBox(g, 6, 22 - dy, 4, 2, 'D'); gBox(g, 11, 22, 4, 2, 'D');
+  gEll(g, 10, 13, 6, 5, 't'); gBox(g, 7, 10, 6, 9, 'b'); gBox(g, 6, 16, 8, 1, 'd'); gBox(g, 10, 11, 1, 5, 'g');
+  gBox(g, 3, 10, 3, 7, 't'); gBox(g, 3, 16, 3, 2, 's'); gBox(g, 14, 10, 3, 4, 't');
+  gEll(g, 10, 5, 4, 4, 't'); gBox(g, 7, 5, 7, 4, 's'); gBox(g, 7, 5, 7, 2, 'g'); gBox(g, 8, 5, 2, 2, 'a'); gBox(g, 11, 5, 2, 2, 'a'); gPx(g, 10, 5, 'g');
+  gBox(g, 17, 6, 1, 3, 'w'); gEll(g, 17, 11, 2, 2, 'a'); gBox(g, 16, 9, 3, 1, 'g'); gPx(g, 17, 5, 'g'); gBox(g, 15, 12, 2, 2, 's');
+  return g;
+}
+function alchN(f) {
+  const g = gNew(20, 24), dy = f ? 1 : 0;
+  gBox(g, 6, 18, 3, 4 - dy, 'd'); gBox(g, 11, 18 + dy, 3, 4 - dy, 'd'); gBox(g, 6, 22 - dy, 4, 2, 'D'); gBox(g, 11, 22, 4, 2, 'D');
+  gEll(g, 10, 13, 6, 5, 't'); gEll(g, 10, 12, 5, 5, 'b'); gBox(g, 7, 9, 2, 3, 'w'); gBox(g, 7, 10, 2, 2, 'a'); gBox(g, 12, 8, 2, 4, 'w'); gBox(g, 12, 9, 2, 3, 'V'); gBox(g, 6, 16, 8, 1, 'd'); gBox(g, 8, 11, 4, 1, 'g');
+  gBox(g, 3, 10, 3, 7, 't'); gBox(g, 14, 10, 3, 4, 't'); gBox(g, 3, 16, 3, 2, 's');
+  gEll(g, 10, 5, 4, 4, 't'); gBox(g, 9, 4, 2, 4, 'T'); gBox(g, 8, 7, 4, 2, 'T');
+  return g;
+}
+const POTION_COLORS = ['#6bff8a', '#c46bff', '#ff8a3a', '#4ad8ff'];
+function splashPotion(p) {
+  const R2 = DEF.alchemist.aoe, sx = p.tx, sy = p.ty, col = p.col;
+  for (const u of units) { if (u.dead || u.team === p.team) continue; const d = Math.hypot(u.x - sx, (u.y - 4 - sy)); if (d < R2 + u.d.r) damage(u, p.dmg * (1 - 0.45 * d / (R2 + u.d.r)), p.team); }
+  for (const f of fences) { if (f.dead || f.team === p.team) continue; if (Math.hypot(f.x - sx, f.y - sy) < R2 + 10) damage(f, p.dmg * 0.6, p.team); }
+  for (const c of castles) if (c.team !== p.team && c.hp > 0 && rectDist(sx, sy, c) < R2 * 0.6) damage(c, p.dmg * 0.8, p.team);
+  const fm = farms[1 - p.team]; if (fm && fm.planted > 0 && fm.cells.some(c => Math.hypot(c.x + 4 - sx, c.y + 4 - sy) < R2)) damage(fm, p.dmg * 0.8, p.team);
+  for (let i = 0; i < 26; i++) { const a = i / 26 * Math.PI * 2, sp = 18 + R() * 16; parts.push({ x: sx, y: sy, vx: Math.cos(a) * sp, vy: Math.sin(a) * sp * 0.6, life: 0.5, max: 0.5, c: i % 3 ? col : '#ffffff', sz: i % 4 ? 1 : 2 }); }
+  for (let i = 0; i < 12; i++) parts.push({ x: sx + (R() - 0.5) * R2, y: sy + (R() - 0.5) * R2 * 0.7, vx: 0, vy: -6 - R() * 10, life: 0.9, max: 0.9, c: col, sz: 2, bub: false });
+  puddles.push({ x: sx, y: sy, r: R2 * 0.8, t: 2.2, col });
+}
+let puddles = [];
 const VIEWS = {
+  alchemist: { E: [alchE(0), alchE(1)], S: [alchS(0), alchS(1)], N: [alchN(0), alchN(1)] },
   necro: { E: [NECRO_A, NECRO_B], N: [backOf(NECRO_A, 3, 8, 'v', { glow: true }), backOf(NECRO_B, 3, 8, 'v', { glow: true })] },
   skeleton: { E: [SKEL_A, SKEL_B], N: [backOf(SKEL_A, 2, 4, 'n'), backOf(SKEL_B, 2, 4, 'n')] },
   pawn: { E: [PAWN_A, PAWN_B], S: [PAWN_S_A, PAWN_S_B], N: [backOf(PAWN_S_A, 5, 7, 'm', { emblem: true }), backOf(PAWN_S_B, 5, 7, 'm', { emblem: true })],
@@ -416,11 +457,12 @@ const DEF = {
   archer: { name: 'ARQUEIRO',  cost: 3, hp: 90,  dmg: 9,  cd: 1.5, range: 62, speed: 10, r: 5, mass: 1, aggro: 72, ranged: true, arrow: true },
   fence:  { name: 'CERCA',     cost: 2, hp: 260, r: 4, structure: true },
   paladin: { name: 'PALADINO', cost: 9, hp: 680, dmg: 40, cd: 1.4, range: 4, speed: 14, r: 8, mass: 6, aggro: 60 },
+  alchemist: { name: 'ALQUIMISTA', cost: 6, hp: 100, dmg: 20, cd: 2.4, range: 54, speed: 9, r: 5, mass: 1, aggro: 70, ranged: true, potion: true, aoe: 16 },
   necro:  { name: 'NECROMANTE', cost: 7, hp: 110, dmg: 0, cd: 1, range: 0, speed: 0, r: 5, mass: 2, aggro: 0, summoner: true },
   skeleton: { name: 'ESQUELETO', cost: 0, hp: 30, dmg: 6, cd: 1.0, range: 3, speed: 13, r: 4, mass: 0.6, aggro: 52, summoned: true },
   farmer: { name: 'CAMPONÊS', cost: 6, hp: 80, dmg: 0, cd: 1, range: 0, speed: 7, r: 4, mass: 1, aggro: 0, worker: true },
 };
-const CARDS = ['pawn', 'archer', 'knight', 'paladin', 'bishop', 'necro', 'fence', 'farmer'];
+const CARDS = ['pawn', 'archer', 'alchemist', 'knight', 'paladin', 'bishop', 'necro', 'fence', 'farmer'];
 const CARD_X = MW + 5, CARD_W = 42, CARD_H = 46;
 const CARD_Y = CARDS.map((_, i) => H - 2 - (CARDS.length - i) * 48);
 const BAR = { y0: 16, y1: 48 };
@@ -684,6 +726,7 @@ function drawConfetti() {
   for (const c of confetti) { const flip = Math.sin(c.t * 8 + c.ph) > 0; rect(Math.round(c.x), Math.round(c.y), flip ? c.w : c.h, flip ? c.h : c.w, c.c); }
 }
 function reset() {
+  puddles = [];
   makeCastles(); makeFarms(); farmAcc = [0, 0]; genMap();
   hist = []; units = []; fences = []; projs = []; parts = []; texts = []; gold = [5, 5]; coins = [SETUP_COINS, SETUP_COINS];
   phase = 'setup'; countT = 0; over = null; time = 0; uid = 0;
@@ -837,6 +880,7 @@ function botFormation() {
   for (let i = 0; i < nk && c >= 5; i++) { front.push('knight'); c -= 5; }
   const nb = Math.min(nk, R() * 3 | 0);
   for (let i = 0; i < nb && c >= 4; i++) { back.push('bishop'); c -= 4; }
+  if (c >= 9 && R() < 0.6) { back.push('alchemist'); c -= 6; }
   const na = 1 + (R() * 3 | 0);
   for (let i = 0; i < na && c >= 3; i++) { back.push('archer'); c -= 3; }
   while (c >= 2) { front.push('pawn'); c -= 2; }
@@ -912,6 +956,7 @@ function attack(u, t) {
   u.cd = d.cd * (0.9 + R() * 0.2); u.atkT = 0.22;
   const dmg = d.dmg * (0.85 + R() * 0.3);
   if (d.arrow) projs.push({ kind: 'arrow', x: u.x + u.face * 5, y: u.y - 9, t, sp: 120, dmg, team: u.team });
+  else if (d.potion) projs.push({ kind: 'potion', x: u.x + u.face * 4, y: u.y - 10, t, sp: 62, dmg, team: u.team, col: POTION_COLORS[R() * 4 | 0], d0: 0, prog: 0 });
   else if (d.ranged) projs.push({ kind: 'bolt', x: u.x + u.face * 4, y: u.y - 14, t, sp: 90, dmg, team: u.team });
   else damage(t, dmg, u.team);
 }
@@ -1054,7 +1099,7 @@ function bishopAI(u, dt) {
 }
 
 // ===================== BOT =====================
-function pickPlan() { const r = R(); return r < 0.24 ? 'pawn' : r < 0.38 ? 'archer' : r < 0.58 ? 'knight' : r < 0.66 ? 'paladin' : r < 0.8 ? 'bishop' : 'necro'; }
+function pickPlan() { const r = R(); return r < 0.22 ? 'pawn' : r < 0.34 ? 'archer' : r < 0.46 ? 'alchemist' : r < 0.62 ? 'knight' : r < 0.69 ? 'paladin' : r < 0.82 ? 'bishop' : 'necro'; }
 function botUpdate(dt) {
   bot.think -= dt; if (bot.think > 0) return;
   bot.think = 0.5 + R() * 0.8;
@@ -1085,6 +1130,7 @@ function botUpdate(dt) {
 function update(dt) {
   time += dt;
   updateAmbient(dt);
+  for (const pd of puddles) pd.t -= dt; puddles = puddles.filter(pd => pd.t > 0);
   if (msg && (msg.t -= dt) <= 0) msg = null;
   if (phase === 'count' && (countT -= dt) <= 0) { phase = 'battle'; for (const u of units) u.deployT = 0; }
   const rdt = dt; dt *= SPEED;
@@ -1154,8 +1200,10 @@ function update(dt) {
     if (isAlive(p.t)) { const a = aimPoint(p.t, p.x, p.y); p.tx = a.x; p.ty = a.y; }
     const dx = p.tx - p.x, dy = p.ty - p.y, L = Math.hypot(dx, dy), s = p.sp * dt;
     p.vx = dx / (L || 1); p.vy = dy / (L || 1);
+    if (p.kind === 'potion') { if (!p.d0) p.d0 = Math.max(L, 1); p.prog = clamp(1 - L / p.d0, 0, 1); }
     if (L <= s + 1) {
       p.done = true;
+      if (p.kind === 'potion') { splashPotion(p); continue; }
       if (!isAlive(p.t)) continue;
       if (p.kind === 'heal') {
         p.t.hp = Math.min(p.t.max, p.t.hp + p.dmg); p.t.healFx = FX_T;
@@ -1163,7 +1211,8 @@ function update(dt) {
         for (let i = 0; i < 6; i++) parts.push({ x: p.t.x + (R() - 0.5) * 8, y: p.t.y - R() * 10, vx: 0, vy: -12 - R() * 10, life: 0.6, max: 0.6, c: '#9dffb0' });
       } else damage(p.t, p.dmg, p.team);
     } else { p.x += p.vx * s; p.y += p.vy * s;
-      if (p.kind !== 'arrow' && R() < 0.6) parts.push({ x: p.x, y: p.y, vx: 0, vy: 0, life: 0.25, max: 0.25, c: p.kind === 'heal' ? '#7dff9a' : '#ffe680' }); }
+      if (p.kind === 'potion') { if (R() < 0.5) parts.push({ x: p.x, y: p.y - Math.sin(p.prog * Math.PI) * 14, vx: 0, vy: 2, life: 0.3, max: 0.3, c: p.col }); }
+      else if (p.kind !== 'arrow' && R() < 0.6) parts.push({ x: p.x, y: p.y, vx: 0, vy: 0, life: 0.25, max: 0.25, c: p.kind === 'heal' ? '#7dff9a' : '#ffe680' }); }
   }
   projs = projs.filter(p => !p.done);
   for (const p of parts) { p.life -= dt; p.x += p.vx * dt; p.y += p.vy * dt; if (p.gr) p.vy += p.gr * dt; }
@@ -2115,6 +2164,7 @@ function drawFarms() {
 function render() {
   g.drawImage(bgCanvas, 0, 0);
   drawCloudShadows();
+  for (const pd of puddles) { g.globalAlpha = clamp(pd.t / 1.0, 0, 0.55); for (let dy = -pd.r * 0.6; dy <= pd.r * 0.6; dy++) { const hw = pd.r * Math.sqrt(Math.max(0, 1 - (dy / (pd.r * 0.6)) ** 2)); rect(Math.round(pd.x - hw), Math.round(pd.y + dy), Math.round(hw * 2), 1, pd.col); } g.globalAlpha = 1; }
   for (const s of shimmer) { const v = Math.sin(time * s.sp + s.ph); if (v > 0.55) rect(s.x, s.y, v > 0.85 ? 3 : 2, 1, v > 0.85 ? '#e8ffff' : C.tealL); }
   drawFarms();
   const placing = (sel >= 0 && phase !== 'count') || phase === 'setup';
@@ -2145,7 +2195,11 @@ function render() {
   }
   for (const p of projs) {
     const px = Math.round(p.x), py = Math.round(p.y);
-    if (p.kind === 'arrow') {
+    if (p.kind === 'potion') {
+      const hy = py - Math.round(Math.sin(p.prog * Math.PI) * 14), spin = ((time * 12) | 0) % 2;
+      rect(px - 1, py + 1, 3, 1, 'rgba(20,12,16,0.35)');
+      rect(px - 1, hy - 1, 3, 4, C.ink); rect(px, hy - 3, 1, 2, '#e6f0ff'); rect(px - (spin ? 0 : 1), hy, 2, 2, p.col); rect(px - 1 + spin, hy + 1, 2, 1, '#ffffff');
+    } else if (p.kind === 'arrow') {
       for (let k = 0; k < 5; k++) rect(Math.round(p.x - (p.vx || 0) * k), Math.round(p.y - (p.vy || 0) * k), 1, 1, k === 0 ? '#dcdcd8' : k > 3 ? C.cream : '#9a5a2c');
     } else {
       const heal = p.kind === 'heal';
