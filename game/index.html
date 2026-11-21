@@ -1589,7 +1589,9 @@ function barracksSpr(seed) {
     for (const cx of [10, 33]) for (let py = 0; py < 6; py++) for (let px = cx; px < cx + 3; px++) P(px, py + 1, py === 0 ? STN[4] : STN[2]);
   });
 }
+let structCanvas = null;
 function buildCompound(x) {
+  structCanvas = mk(MW, H); const sx = structCanvas.getContext('2d'); // camada das construções: desenhada por cima das tropas
   const walls = [], structs = [];
   const kinds = [t => towerSpr(t, R() * 99 | 0, false), t => towerSpr(t, R() * 99 | 0, true), t => keepSpr(t, R() * 99 | 0), () => houseSpr(R() * 99 | 0), () => houseSpr(R() * 99 | 0), () => chapelSpr(R() * 99 | 0), () => barnSpr(R() * 99 | 0), () => barracksSpr(R() * 99 | 0), t => keepSpr(t, R() * 99 | 0)];
   const strip = (x0, x1, by, seed) => { for (let px = x0; px < x1; px += 26) walls.push({ img: wallSpr(seed + px, Math.min(26, x1 - px)), x: px - 1, by }); };
@@ -1639,7 +1641,7 @@ function buildCompound(x) {
   for (const it of accepted) {
     const w = it.img.width, h = it.img.height;
     if (!it.side && !it.tower && it.img.height > 12) { x.fillStyle = 'rgba(20,12,16,0.4)'; x.fillRect(it.x + 2, it.by - 1, w - 2, 3); }
-    x.drawImage(it.img, it.x - 1, it.by - h + 1 - 1);
+    sx.drawImage(it.img, it.x - 1, it.by - h + 1 - 1);
   }
 }
 // ---- árvores: pinheiros e carvalhos sombrios ----
@@ -2176,13 +2178,15 @@ function render() {
     const f = farms[0], pulse = Math.sin(time * 6) > 0;
     for (const c of f.cells) rect(c.x, c.y, 8, 8, pulse ? 'rgba(255,240,184,0.32)' : 'rgba(255,240,184,0.16)');
   }
-  for (const c of castles) drawCastle(c);
   const list = [];
   for (const u of units) list.push({ y: u.y, u });
   for (const t of trees) list.push({ y: t.y, t });
   for (const f of fences) list.push({ y: f.ry + 7, f });
   list.sort((a, b) => a.y - b.y);
   for (const o of list) { if (o.u) drawUnit(o.u); else if (o.f) drawFence(o.f); else { const im = treeImgs[o.t.v | 0]; g.drawImage(im, o.t.c * TS + 4 - (im.width >> 1), o.t.y - im.height + 2); }; }
+  // castelos e construções sempre por cima das tropas (vista superior)
+  if (structCanvas) g.drawImage(structCanvas, 0, 0);
+  for (const c of castles) drawCastle(c);
   if (sel >= 0 && hover && hover.x >= 0 && hover.x < MW && !over && !settingsOpen && phase !== 'count' && (!hoverTouch || (drag && drag.moved))) {
     const ty0 = CARDS[sel], can = purse()[0] >= DEF[ty0].cost, sp = findSpot(0, ty0, hover.x, hover.y), ok = can && !!sp;
     if (sp && ty0 === 'fence') {
