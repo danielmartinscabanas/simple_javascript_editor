@@ -351,7 +351,7 @@ const BTN = { x: MW + 4, y: 108, w: 42, h: 22 };
 const SETUP_COINS = 30;
 
 // ===================== MAPA =====================
-let kind, rocks, trees, logs, stumps, castles, shimmer;
+let kind, rocks, trees, logs, stumps, mts = [], castles, shimmer;
 const DIR4 = [[1,0],[-1,0],[0,1],[0,-1]];
 const kAt = (c, r) => (c < 0 || r < 0 || c >= COLS || r >= ROWS) ? 9 : kind[r * COLS + c];
 function freeAt(x, y) {
@@ -373,8 +373,8 @@ function markCastles() {
 }
 const FARM_TILES = 30, LAKE_TILES = FARM_TILES * 2, MAX_FARMERS = 4; // lago = dobro da área de cultivo, sempre
 // Cresce uma forma de N tiles: elipse com proporção sorteada (de redonda a bem alongada) e borda irregular.
-function growShape(N, cx, cy, b, free) {
-  const rho = 1 + R() * 2.6, area = N / Math.PI, ax = Math.sqrt(area * rho), ay = Math.sqrt(area / rho);
+function growShape(N, cx, cy, b, free, maxRho = 3.6) {
+  const rho = 1 + R() * (maxRho - 1), area = N / Math.PI, ax = Math.sqrt(area * rho), ay = Math.sqrt(area / rho);
   const [rx, ry] = R() < 0.5 ? [ay, ax] : [ax, ay];
   const set = [[cx, cy]], has = new Set([cy * COLS + cx]);
   let lim = 1.0, stall = 0;
@@ -413,7 +413,7 @@ const nearFarm = (c, r) => farms.some(f => { for (let dy = -1; dy <= 1; dy++) fo
 function genMap() {
   // 0 grama, 1 pedra, 2 água, 3 árvore, 4 castelo, 5 tronco caído, 6 toco
   for (let attempt = 0; attempt < 150; attempt++) {
-    kind = new Uint8Array(COLS * ROWS); rocks = []; trees = []; logs = []; stumps = [];
+    kind = new Uint8Array(COLS * ROWS); rocks = []; trees = []; logs = []; stumps = []; mts = [];
     markCastles();
     for (const f of farms) for (const q of f.cells) for (let dy = -1; dy <= 1; dy++) for (let dx = -1; dx <= 1; dx++) { const cc = q.x / TS + dx, rr = q.y / TS + dy; if (kAt(cc, rr) === 0) kind[rr * COLS + cc] = 8; }
     const RMIN = 12, RMAX = ROWS - 12, k = (RMAX - RMIN) / 42 * MW / 216;
@@ -436,54 +436,45 @@ function genMap() {
       if (!done) lakesOk = false;
     }
     if (!lakesOk) continue;
-    const around = (cx, cy, rad, fn, tries = 40) => { for (let i = 0; i < tries; i++) { const a = R() * 6.283, d = Math.sqrt(R()) * rad; if (fn(Math.round(cx + Math.cos(a) * d), Math.round(cy + Math.sin(a) * d))) return true; } return false; };
-    // afloramentos de pedras
-    const nR = Math.max(2, Math.round(2 + k * 0.4));
-    for (let i = 0; i < nR; i++) {
-      const [cx, cy] = rc(), cnt = 4 + (R() * 4 | 0);
-      for (let j = 0; j < cnt; j++) around(cx, cy, 3.5, (c, r) => {
-        const s = R() < 0.5 ? 2 : 1; if (!okArea(c, r, s, s)) return false;
-        for (let a = 0; a < s; a++) for (let b = 0; b < s; b++) kind[(r + b) * COLS + c + a] = 1;
-        rocks.push({ c, r, s }); return true; });
+    // Montanhas e rochedos: poucos blocos grandes e sólidos (sem pedrinhas, árvores ou troncos soltos)
+    const near8 = (c, r) => { for (let dy = -1; dy <= 1; dy++) for (let dx = -1; dx <= 1; dx++) if (kAt(c + dx, r + dy) !== 0 && kAt(c + dx, r + dy) !== 9) return true; return false; };
+    const sizes = [36 + (R() * 14 | 0), 28 + (R() * 10 | 0), 16 + (R() * 8 | 0), 10 + (R() * 6 | 0)].slice(0, 3 + (R() < 0.5 ? 1 : 0));
+    let mtOk = true;
+    for (const N of sizes) {
+      let done = false;
+      for (let tr = 0; tr < 80 && !done; tr++) {
+        const [c0, r0] = rc(); if (near8(c0, r0)) continue;
+        const shape = growShape(N, c0, r0, { c0: 2, c1: COLS - 3, r0: RMIN, r1: RMAX }, (c, r) => kAt(c, r) === 0 && !near8(c, r), 1.7);
+        if (shape) { for (const [c, r] of shape) kind[r * COLS + c] = 1; mts.push(shape); done = true; }
+      }
+      if (!done) mtOk = false;
     }
-    // bosques (árvores com no mínimo 4 tiles de distância, para as copas não se sobreporem)
-    const nG = Math.max(3, Math.round(1.5 + k * 0.6)), groves = [];
-    for (let i = 0; i < nG; i++) {
-      const [cx, cy] = rc(), cnt = 3 + (R() * 3 | 0); groves.push([cx, cy]);
-      for (let j = 0; j < cnt; j++) around(cx, cy, 9, (c, r) => {
-        if (!okArea(c, r, 1, 1) || trees.some(t => Math.abs(t.c - c) < 4 && Math.abs(t.r - r) < 4)) return false;
-        kind[r * COLS + c] = 3; trees.push({ c, r, y: r * TS + 7, v: R() < 0.6 ? (R() * 3 | 0) : 3 + (R() * 2 | 0) }); return true; }, 30);
-    }
-    // troncos caídos e tocos perto dos bosques
-    for (const [cx, cy] of groves) {
-      const nl = R() < 0.7 ? 1 + (R() * 2 | 0) : 0;
-      for (let j = 0; j < nl; j++) around(cx, cy, 8, (c, r) => {
-        const hz = R() < 0.6, len = R() < 0.3 ? 3 : 2, w = hz ? len : 1, h = hz ? 1 : len;
-        if (!okArea(c, r, w, h)) return false;
-        for (let a = 0; a < w; a++) for (let b = 0; b < h; b++) kind[(r + b) * COLS + c + a] = 5;
-        logs.push({ c, r, hz, len, flip: R() < 0.5 }); return true; });
-      const ns = 1 + (R() * 3 | 0);
-      for (let j = 0; j < ns; j++) around(cx, cy, 8, (c, r) => { if (!okArea(c, r, 1, 1)) return false; kind[r * COLS + c] = 6; stumps.push({ c, r }); return true; });
-    }
+    if (!mtOk) continue;
     for (let i = 0; i < kind.length; i++) if (kind[i] === 8) kind[i] = 0;
     if (connected()) return;
   }
-  kind = new Uint8Array(COLS * ROWS); rocks = []; trees = []; logs = []; stumps = []; markCastles();
+  kind = new Uint8Array(COLS * ROWS); rocks = []; trees = []; logs = []; stumps = []; mts = []; markCastles();
 }
+function solidNear(c, r) { for (let dy = -1; dy <= 1; dy++) for (let dx = -1; dx <= 1; dx++) { const k = kAt(c + dx, r + dy); if (k !== 0 && k !== 9) return true; } return false; }
 function connected() {
-  const seen = new Uint8Array(COLS * ROWS), q = [((H - 72) / TS) * COLS + (COLS >> 1)]; seen[q[0]] = 1;
-  let n = 0;
-  while (q.length) {
-    const i = q.pop(); n++;
-    const c = i % COLS, r = (i / COLS) | 0;
-    for (const [dx, dy] of DIR4) {
-      const nc = c + dx, nr = r + dy;
-      if (kAt(nc, nr) !== 0) continue;
-      const j = nr * COLS + nc; if (seen[j]) continue; seen[j] = 1; q.push(j);
-    }
-  }
+  // 1) todo tile livre pertence a uma única região
+  const flood = (start, ok) => {
+    const seen = new Uint8Array(COLS * ROWS), q = [start]; seen[start] = 1; let n = 0;
+    while (q.length) { const i = q.pop(); n++; const c = i % COLS, r = (i / COLS) | 0;
+      for (const [dx, dy] of DIR4) { const nc = c + dx, nr = r + dy; if (!ok(nc, nr)) continue; const j = nr * COLS + nc; if (seen[j]) continue; seen[j] = 1; q.push(j); } }
+    return { n, seen };
+  };
+  const startC = COLS >> 1, rowA = Math.floor((castles[0].y - 20) / TS), rowB = Math.ceil((castles[1].y + castles[1].h + 20) / TS);
+  const a = flood(rowA * COLS + startC, (c, r) => kAt(c, r) === 0);
   let total = 0; for (let i = 0; i < kind.length; i++) if (kind[i] === 0) total++;
-  return n === total;
+  if (a.n !== total) return false;
+  // 2) com folga: corredores com pelo menos 3 tiles de largura ligam os dois castelos e todos os tiles "abertos"
+  const open = (c, r) => kAt(c, r) === 0 && !solidNear(c, r);
+  if (!open(startC, rowA) || !open(startC, rowB)) return false;
+  const b = flood(rowA * COLS + startC, open);
+  if (!b.seen[rowB * COLS + startC]) return false;
+  let totalOpen = 0; for (let r = 0; r < ROWS; r++) for (let c = 0; c < COLS; c++) if (open(c, r)) totalOpen++;
+  return b.n >= totalOpen * 0.94;
 }
 
 // ===================== PATHFINDING (A*) =====================
@@ -496,7 +487,7 @@ function nearestFreeTile(c, r) {
     }
   return [c, r];
 }
-function astar(sc, sr, gc, gr) {
+function astar(sc, sr, gc, gr, wide) {
   const N = COLS * ROWS, gs = new Float32Array(N).fill(1e9), from = new Int32Array(N).fill(-1), closed = new Uint8Array(N);
   const heap = [], hf = [];
   const push = (i, f) => { heap.push(i); hf.push(f); let k = heap.length - 1;
@@ -520,6 +511,7 @@ function astar(sc, sr, gc, gr) {
       const nc = c + dx, nr = r + dy;
       if (kAt(nc, nr) !== 0) continue;
       if (dx && dy && (kAt(c + dx, r) !== 0 || kAt(c, r + dy) !== 0)) continue;
+      if (wide && !(nc === gc && nr === gr) && solidNear(nc, nr)) continue;
       const j = nr * COLS + nc; if (closed[j]) continue;
       const ng = gs[i] + (dx && dy ? 1.414 : 1);
       if (ng < gs[j]) { gs[j] = ng; from[j] = i; push(j, ng + hh(nc, nr)); }
@@ -533,7 +525,7 @@ function astar(sc, sr, gc, gr) {
 function findPath(x, y, gx, gy) {
   const [sc, sr] = nearestFreeTile((x / TS) | 0, (y / TS) | 0);
   const [gc, gr] = nearestFreeTile(clamp((gx / TS) | 0, 0, COLS - 1), clamp((gy / TS) | 0, 0, ROWS - 1));
-  const p = astar(sc, sr, gc, gr); if (!p) return null;
+  const p = astar(sc, sr, gc, gr, true) || astar(sc, sr, gc, gr, false); if (!p) return null;
   if (free(gx, gy)) { if (p.length) p[p.length - 1] = { x: gx, y: gy }; else p.push({ x: gx, y: gy }); }
   return p;
 }
@@ -570,19 +562,19 @@ const fenceSpot = (x, y) => ({ c: clamp(Math.round(x / TS - 1.5), 0, COLS - 3), 
 function fenceOk(c, r) {
   for (let i = 0; i < 3; i++) if (kAt(c + i, r) !== 0) return false;
   for (let i = 0; i < 3; i++) if (nearFarm(c + i, r)) return false;
+  if (fences.some(f => !f.dead && Math.abs(f.r - r) < 1 && c < f.c + 3 && c + 3 > f.c)) return false;
   const x0 = c * TS - 6, x1 = (c + 3) * TS + 6, y0 = r * TS - 6, y1 = (r + 1) * TS + 6;
   return !units.some(u => u.x > x0 && u.x < x1 && u.y > y0 && u.y < y1);
 }
 function placeFence(team, c, r, d) {
   if (!fenceOk(c, r)) return 'blocked';
   purse()[team] -= d.cost;
-  for (let i = 0; i < 3; i++) kind[r * COLS + c + i] = 7;
   const f = { team, isFence: true, type: 'fence', d, c, r, rx: c * TS, ry: r * TS, x: (c + 1.5) * TS, y: r * TS + 4, w: 24, h: 8, hp: d.hp, max: d.hp, hitT: 0, dead: false };
   fences.push(f);
   for (let i = 0; i < 10; i++) parts.push({ x: f.x + (R() - 0.5) * 22, y: f.y + 3, vx: (R() - 0.5) * 12, vy: -R() * 8, life: 0.4, max: 0.4, c: C.parch2 });
   return f;
 }
-function clearFence(f) { for (let i = 0; i < 3; i++) kind[f.r * COLS + f.c + i] = 0; }
+function clearFence(f) { /* cercas não ocupam o mapa: não há o que liberar */ }
 const zoneY = team => team === 0 ? [MID + 8, H - 72] : [100, MID - 8];
 // Lugar permitido mais próximo do ponto pedido: nunca recusa, sempre ajusta.
 function findSpot(team, type, x, y) {
@@ -819,12 +811,22 @@ function warrior(u, dt) {
     if (e && (!u.target || Math.hypot(e.x - u.x, e.y - u.y) < Math.hypot(u.target.x - u.x, u.target.y - u.y) * 0.6)) u.target = e;
   }
   if (!u.target) { const fm = farms[1 - u.team]; if (fm && fm.planted > 0 && distTo(u, fm) < 20) u.target = fm; }
-  if (u.stuckT > 0.9 && !u.target) { let bf = null, bd = 12; for (const f of fences) { if (f.dead || f.team === u.team) continue; const dd = distTo(u, f); if (dd < bd) { bd = dd; bf = f; } } if (bf) u.target = bf; }
   const t = u.target || ec;
   if (distTo(u, t) <= d.range) attack(u, t);
   else { const p = t.isCastle ? castlePoint(u, t) : t; moveTo(u, p.x, p.y, dt); }
-  const mv = Math.hypot(u.x - (u.lx ?? u.x), u.y - (u.ly ?? u.y)); u.lx = u.x; u.ly = u.y;
-  if (u.moving && mv < d.speed * dt * 0.25) u.stuckT = (u.stuckT || 0) + dt; else u.stuckT = Math.max(0, (u.stuckT || 0) - dt * 2);
+}
+const FENCE_DMG = 10, FENCE_WEAR = 6;
+function unstick(u) {
+  u.stuckT = 0; u.path = null; u.pathT = 0; u.los = false; u.losT = 0;
+  const clear = (x, y) => free(x, y) && free(x - 6, y) && free(x + 6, y) && free(x, y - 6) && free(x, y + 6);
+  let fb = null;
+  for (let rad = 3; rad <= 48; rad += 3) for (let k = 0; k < 16; k++) {
+    const a = k / 16 * Math.PI * 2, nx = u.x + Math.cos(a) * rad, ny = u.y + Math.sin(a) * rad;
+    if (nx < 5 || nx > MW - 5 || ny < 5 || ny > H - 5) continue;
+    if (clear(nx, ny)) { u.x = nx; u.y = ny; return; }
+    if (!fb && free(nx, ny)) fb = [nx, ny];
+  }
+  if (fb) { u.x = fb[0]; u.y = fb[1]; }
 }
 function bishopAI(u, dt) {
   const d = u.d, fwd = u.team === 0 ? -1 : 1; // sentido do inimigo no eixo y
@@ -932,8 +934,22 @@ function update(dt) {
       if (u.dead) continue;
       u.hitT -= dt; u.healFx -= dt; u.atkT -= dt; u.cd -= dt; u.moving = false; u.working = false;
       if (u.deployT > 0) { u.deployT -= dt; continue; }
+      if (!free(u.x, u.y)) unstick(u);
       if (u.type === 'bishop') bishopAI(u, dt); else if (u.type === 'farmer') farmerAI(u, dt); else warrior(u, dt);
       if (u.moving || u.working) u.walk += dt;
+      { const mv = Math.hypot(u.x - (u.sx ?? u.x), u.y - (u.sy ?? u.y)); u.sx = u.x; u.sy = u.y;
+        if (u.moving && mv < u.d.speed * dt * 0.25) u.stuckT = (u.stuckT || 0) + dt; else u.stuckT = Math.max(0, (u.stuckT || 0) - dt * 2);
+        if (u.stuckT > 1.2) unstick(u); }
+      // cercas inimigas: dá para atravessar, mas as estacas ferem
+      u.spikeCd = (u.spikeCd || 0) - dt;
+      if (u.spikeCd <= 0) for (const f of fences) {
+        if (f.dead || f.team === u.team) continue;
+        if (u.x > f.rx - 1 && u.x < f.rx + 25 && u.y > f.ry - 2 && u.y < f.ry + 10) {
+          u.spikeCd = 0.8; damage(u, FENCE_DMG, f.team); f.hitT = 0.1; f.hp -= FENCE_WEAR;
+          if (f.hp <= 0 && !f.dead) { f.dead = true; for (let i = 0; i < 10; i++) parts.push({ x: f.x + (R() - 0.5) * 22, y: f.y, vx: (R() - 0.5) * 24, vy: -R() * 20, life: 0.5, max: 0.5, c: C.parch2, gr: 50 }); }
+          break;
+        }
+      }
     }
     for (const f of fences) f.hitT -= dt;
     // separação entre unidades
@@ -1007,36 +1023,36 @@ function buildBackground() {
   const off = R() * 100;
   for (let py = 0; py < H; py++) for (let px = 0; px < MW; px++) {
     const h = hash(px, py);
-    const n = Math.sin(px * 0.06 + Math.sin(py * 0.045 + off) * 2) + Math.sin(py * 0.08 - px * 0.03 + off * 1.7) + Math.sin((px + py) * 0.04 + off) + (bay(px, py) - 0.5) * 0.8 + (h - 0.5) * 0.3;
+    const n = Math.sin(px * 0.045 + Math.sin(py * 0.035 + off) * 2) + Math.sin(py * 0.06 - px * 0.025 + off * 1.7) + Math.sin((px + py) * 0.03 + off) + (bay(px, py) - 0.5) * 0.25;
     const m = Math.sin(px * 0.035 - off) + Math.sin(py * 0.05 + px * 0.02 + off * 2.3) + (bay(px + 2, py + 1) - 0.5) * 0.9;
     let col = A;
     if (n > 1.0) col = PL; else if (n < -1.3) col = PD; else if (n < -0.45) col = B;
     if (m > 1.35 && bay(px, py) > 0.45) col = SR;
-    if (h < 0.05) col = DK; else if (h > 0.985) col = LT;
+    if (h < 0.012) col = DK; else if (h > 0.996) col = LT;
     const i = (py * MW + px) * 4; D[i] = col[0]; D[i + 1] = col[1]; D[i + 2] = col[2]; D[i + 3] = 255;
   }
   x.putImageData(id, 0, 0);
   const P = (px, py, c) => { x.fillStyle = c; x.fillRect(px, py, 1, 1); };
   // poças de lama e terra batida
-  for (let i = 0; i < 8; i++) { const cx = R() * MW | 0, cy = R() * H | 0, rr = 3 + R() * 4;
+  for (let i = 0; i < 3; i++) { const cx = R() * MW | 0, cy = R() * H | 0, rr = 3 + R() * 4;
     for (let dy = -6; dy <= 6; dy++) for (let dx = -8; dx <= 8; dx++) { const d = Math.sqrt(dx * dx / 1.7 + dy * dy), v = d + (bay(cx + dx, cy + dy) - 0.5) * 1.6;
       if (v < rr) P(cx + dx, cy + dy, v < rr * 0.55 ? '#3e3022' : hash(cx + dx, cy + dy) < 0.3 ? '#55402a' : '#4a3826'); } }
   // tufos de grama alta
-  for (let i = 0; i < 360; i++) { const px = R() * MW | 0, py = R() * H | 0;
+  for (let i = 0; i < 50; i++) { const px = R() * MW | 0, py = R() * H | 0;
     P(px, py, GRASS.dk2); P(px + 2, py, GRASS.dk2); P(px + 1, py + 1, GRASS.dk2); P(px + 1, py, GRASS.lt2); if (R() < 0.5) { P(px + 3, py - 1, GRASS.lt); P(px + 3, py, GRASS.dk2); } }
-  for (let i = 0; i < 90; i++) { const px = R() * MW | 0, py = R() * H | 0; P(px, py, '#b8ab68'); P(px, py + 1, '#8a7e48'); P(px + 1, py + 1, '#6e6438'); }
+  for (let i = 0; i < 12; i++) { const px = R() * MW | 0, py = R() * H | 0; P(px, py, '#b8ab68'); P(px, py + 1, '#8a7e48'); P(px + 1, py + 1, '#6e6438'); }
   // flores discretas: branca, amarelo-pálido e urze
   const petals = [C.cream, C.goldL, '#f08a5a', '#f2a0b8'];
-  for (let i = 0; i < 30; i++) { const px = 3 + R() * (MW - 6) | 0, py = 3 + R() * (H - 8) | 0, pc = petals[R() * 4 | 0];
+  for (let i = 0; i < 7; i++) { const px = 3 + R() * (MW - 6) | 0, py = 3 + R() * (H - 8) | 0, pc = petals[R() * 4 | 0];
     P(px, py + 2, GRASS.dk2); P(px, py + 3, GRASS.dk2); P(px - 1, py, pc); P(px + 1, py, pc); P(px, py - 1, pc); P(px, py + 1, mixc(pc, '#2a2418', 0.4)); P(px, py, C.gold); }
-  for (let i = 0; i < 5; i++) { const px = 3 + R() * (MW - 8) | 0, py = 3 + R() * (H - 8) | 0; // cogumelos
+  for (let i = 0; i < 1; i++) { const px = 3 + R() * (MW - 8) | 0, py = 3 + R() * (H - 8) | 0; // cogumelos
     P(px + 1, py + 2, C.cream); P(px + 1, py + 3, '#d8c8a0'); for (let k = 0; k < 4; k++) P(px + k, py + 1, k === 0 || k === 3 ? '#a82a1e' : '#d8402c'); P(px + 1, py, '#d8402c'); P(px + 2, py, '#d8402c'); P(px + 1, py + 1, C.cream); }
-  for (let i = 0; i < 44; i++) { const px = R() * (MW - 3) | 0, py = R() * H | 0; P(px, py, '#a29c8a'); P(px + 1, py, '#827c6c'); P(px, py + 1, '#625c50'); P(px + 1, py + 1, '#625c50'); P(px + 2, py + 1, GRASS.dk2); }
+  for (let i = 0; i < 6; i++) { const px = R() * (MW - 3) | 0, py = R() * H | 0; P(px, py, '#a29c8a'); P(px + 1, py, '#827c6c'); P(px, py + 1, '#625c50'); P(px + 1, py + 1, '#625c50'); P(px + 2, py + 1, GRASS.dk2); }
   // restos de batalha: flechas cravadas no chão e marcas de queimado
-  for (let i = 0; i < 14; i++) { const px = 4 + R() * (MW - 10) | 0, py = 6 + R() * (H - 14) | 0, dirx = R() < 0.5 ? 1 : -1;
+  for (let i = 0; i < 3; i++) { const px = 4 + R() * (MW - 10) | 0, py = 6 + R() * (H - 14) | 0, dirx = R() < 0.5 ? 1 : -1;
     for (let k = 0; k < 6; k++) P(px + k * dirx, py - k, k === 5 ? '#c8c4b8' : '#4a3422');
     P(px + 6 * dirx, py - 6, '#8a2a22'); P(px + 5 * dirx, py - 6, '#6a2018'); }
-  for (let i = 0; i < 5; i++) { const cx = R() * MW | 0, cy = R() * H | 0;
+  for (let i = 0; i < 2; i++) { const cx = R() * MW | 0, cy = R() * H | 0;
     for (let dy = -3; dy <= 3; dy++) for (let dx = -5; dx <= 5; dx++) { const d = dx * dx / 2.2 + dy * dy + (bay(cx + dx, cy + dy) - 0.5) * 5; if (d < 8) P(cx + dx, cy + dy, d < 4 ? '#1f1b18' : '#2e2a22'); } }
   // estrada de terra batida
   for (const c of castles) {
@@ -1087,24 +1103,36 @@ function buildBackground() {
     for (let k = 0; k < hgt; k++) P(px, py - k, k > hgt - 3 ? '#6a5a30' : '#566a34');
     P(px, py - hgt + 1, '#4a2e1a'); P(px, py - hgt + 2, '#4a2e1a'); P(px + 1, py - 1, '#566a34'); P(px - 1, py - 2, '#42562a');
   }
-  // pedras: granito escuro com musgo
-  for (const rk of rocks) {
-    const cx = (rk.c + rk.s / 2) * TS - 0.5, cy = (rk.r + rk.s / 2) * TS - 0.5, rx = rk.s * 4 - 0.3, ry = rk.s * 4 - 0.8;
+  // montanhas: massas de rocha sólidas, com relevo iluminado de cima-esquerda
+  if (mts.length) {
+    const RKM = ['#d9d1bd', '#bfb7a1', '#9e9681', '#7e7768', '#615b50', '#473f38'];
+    const isRk = (px, py) => {
+      const fx = px / TS - 0.5, fy = py / TS - 0.5, c0 = Math.floor(fx), r0 = Math.floor(fy);
+      let tx = fx - c0, ty = fy - r0; tx = tx * tx * (3 - 2 * tx); ty = ty * ty * (3 - 2 * ty);
+      const w = (c, r) => kAt(c, r) === 1 ? 1 : 0;
+      const v = (w(c0, r0) * (1 - tx) + w(c0 + 1, r0) * tx) * (1 - ty) + (w(c0, r0 + 1) * (1 - tx) + w(c0 + 1, r0 + 1) * tx) * ty;
+      return v + (hash(px >> 1, py >> 1) - 0.5) * 0.14 > 0.5;
+    };
+    const mask = new Uint8Array(MW * H); for (let py = 0; py < H; py++) for (let px = 0; px < MW; px++) mask[py * MW + px] = isRk(px, py) ? 1 : 0;
+    const dist = new Float32Array(MW * H); for (let i = 0; i < dist.length; i++) dist[i] = mask[i] ? 1e4 : 0;
+    for (let py = 1; py < H - 1; py++) for (let px = 1; px < MW - 1; px++) { const i = py * MW + px; if (!mask[i]) continue;
+      dist[i] = Math.min(dist[i], dist[i - 1] + 1, dist[i - MW] + 1, dist[i - MW - 1] + 1.414, dist[i - MW + 1] + 1.414); }
+    for (let py = H - 2; py > 0; py--) for (let px = MW - 2; px > 0; px--) { const i = py * MW + px; if (!mask[i]) continue;
+      dist[i] = Math.min(dist[i], dist[i + 1] + 1, dist[i + MW] + 1, dist[i + MW + 1] + 1.414, dist[i + MW - 1] + 1.414); }
+    const ht = (px, py) => { if (px < 0 || py < 0 || px >= MW || py >= H) return 0; const d = Math.min(dist[py * MW + px], 14);
+      return d + Math.sin(px * 0.21 + py * 0.13) * 0.45 + Math.sin(py * 0.27 - px * 0.09) * 0.45 + (mask[py * MW + px] ? 0 : -2); };
     x.fillStyle = 'rgba(20,12,16,0.46)';
-    for (let dy = -ry; dy <= ry; dy++) { const hw = rx * Math.sqrt(Math.max(0, 1 - (dy / ry) ** 2)); x.fillRect(Math.round(cx - hw + 2), Math.round(cy + dy + 2), Math.round(hw * 2), 1); }
-    const inside = (px, py) => { const dx = (px - cx) / rx, dy = (py - cy) / ry; return dx * dx + dy * dy + (hash(px, py) - 0.5) * 0.28 <= 1; };
-    const RK = ['#f2ecdc', '#d2c8b2', '#a89c88', '#7e7366', '#574e46'], seed = rk.c * 7 + rk.r * 13;
-    for (let py = Math.floor(cy - ry - 1); py <= cy + ry + 1; py++) for (let px = Math.floor(cx - rx - 1); px <= cx + rx + 1; px++) {
-      if (!inside(px, py)) continue;
-      if (!inside(px + 1, py) || !inside(px - 1, py) || !inside(px, py + 1) || !inside(px, py - 1)) { P(px, py, '#2e2620'); continue; }
-      const nx = (px - cx) / rx, ny = (py - cy) / ry, facet = Math.sin((px + seed) * 0.9 + (py - seed) * 0.5) * 0.12;
-      const L = -(nx * 0.55 + ny * 0.85) + facet + (bay(px, py) - 0.5) * 0.35;
-      let c = RK[L > 0.75 ? 0 : L > 0.3 ? 1 : L > -0.2 ? 2 : L > -0.65 ? 3 : 4];
-      if (ny < -0.15 && nx < 0.3 && hash(px * 3 + seed, py) > 0.5 && L > 0.05) c = hash(px, py) > 0.5 ? '#8cc04a' : '#6aa23a';
+    for (let py = 0; py < H; py++) for (let px = 0; px < MW; px++) if (!mask[py * MW + px] && (mask[Math.max(0, py - 2) * MW + Math.max(0, px - 2)] || mask[Math.max(0, py - 3) * MW + Math.max(0, px - 3)] || mask[Math.max(0, py - 4) * MW + Math.max(0, px - 3)])) x.fillRect(px, py, 1, 1);
+    for (let py = 0; py < H; py++) for (let px = 0; px < MW; px++) {
+      const i = py * MW + px; if (!mask[i]) continue;
+      const edge = !mask[i - 1] || !mask[i + 1] || !mask[i - MW] || !mask[i + MW];
+      if (edge) { P(px, py, '#241e1a'); continue; }
+      const lit = (ht(px - 1, py - 1) - ht(px + 1, py + 1)) * 0.35, hgt = Math.min(dist[i], 10) / 10;
+      const L = lit * 0.8 + (hgt - 0.5) * 0.55 + (bay(px, py) - 0.5) * 0.3;
+      let c = RKM[L > 0.55 ? 0 : L > 0.28 ? 1 : L > 0.0 ? 2 : L > -0.28 ? 3 : L > -0.55 ? 4 : 5];
+      if (hgt < 0.3 && hash(px * 3, py * 5) > 0.7 && L > -0.5) c = hash(px, py) > 0.5 ? '#7a9a48' : '#5e7e38';
       P(px, py, c);
     }
-    if (rk.s === 2) { for (let k = 0; k < 4; k++) P(Math.round(cx + 1 + k), Math.round(cy - 1 + (k >> 1)), '#2a2724'); }
-    P(Math.round(cx - rx * 0.4), Math.round(cy - ry * 0.45), '#fff8e6');
   }
   // troncos caídos
   for (const lg of logs) {
