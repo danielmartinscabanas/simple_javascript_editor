@@ -22,7 +22,7 @@ const R = Math.random;
 const cv = document.getElementById('c'), ctx = cv.getContext('2d');
 const mk = (w, h) => { const c = document.createElement('canvas'); c.width = w; c.height = h; return c; };
 const buf = mk(W, H); let g = buf.getContext('2d');
-let LW = W + 12, LH = H + 12, SC = 1, OX = 6, OY = 6;
+let LW = W + 10, LH = H + 10, SC = 1, OX = 5, OY = 5;
 const clamp = (v, a, b) => v < a ? a : v > b ? b : v;
 const hash = (x, y) => { const s = Math.sin(x * 12.9898 + y * 78.233) * 43758.5453; return s - Math.floor(s); };
 
@@ -838,23 +838,21 @@ function buildFrame() {
   const P = (px, py, c) => { x.fillStyle = c; x.fillRect(px, py, 1, 1); };
   // fundo: tabuleiro escuro (referência ao xadrez)
   for (let py = 0; py < LH; py += 12) for (let px = 0; px < LW; px += 12) {
-    x.fillStyle = (((px / 12) + (py / 12)) & 1) ? '#3a2418' : '#2b1a12'; x.fillRect(px, py, 12, 12);
-    x.fillStyle = (((px / 12) + (py / 12)) & 1) ? '#4a2e1c' : '#33201a'; x.fillRect(px, py, 12, 1);
+    x.fillStyle = (((px / 12) + (py / 12)) & 1) ? '#241713' : '#201412'; x.fillRect(px, py, 12, 12);
+    x.fillStyle = (((px / 12) + (py / 12)) & 1) ? '#241713' : '#201412'; x.fillRect(px, py, 12, 1);
   }
-  const rings = [C.ink, C.goldD, C.gold, C.goldL, C.rust, C.ink];
+  const rings = [C.ink, C.gold, C.goldD, C.ink];
   for (let i = rings.length - 1; i >= 0; i--) { const d = i + 1; x.fillStyle = rings[i]; x.fillRect(OX - d, OY - d, W + d * 2, H + d * 2); }
-  for (let px = OX - 3; px < OX + W + 3; px += 8) { P(px, OY - 4, C.goldD); P(px, OY + H + 3, C.goldD); }
-  for (let py = OY - 3; py < OY + H + 3; py += 8) { P(OX - 4, py, C.goldD); P(OX + W + 3, py, C.goldD); }
+  for (let px = OX - 1; px < OX + W + 1; px += 6) { P(px, OY - 2, C.goldL); P(px, OY + H + 1, C.goldL); }
+  for (let py = OY - 1; py < OY + H + 1; py += 6) { P(OX - 2, py, C.goldL); P(OX + W + 1, py, C.goldL); }
   const gem = (cx, cy) => {
-    for (let dy = -5; dy <= 5; dy++) for (let dx = -5; dx <= 5; dx++) {
-      const d = Math.hypot(dx, dy); if (d > 5.2) continue;
-      P(cx + dx, cy + dy, d > 4.4 ? C.ink : d > 3.2 ? (dx + dy < 0 ? C.goldL : C.gold) : d > 2.4 ? C.ink : (dx < 0 && dy < 0 ? '#f6a060' : C.rust));
+    for (let dy = -3; dy <= 3; dy++) for (let dx = -3; dx <= 3; dx++) {
+      const d = Math.hypot(dx, dy); if (d > 3.2) continue;
+      P(cx + dx, cy + dy, d > 2.3 ? C.ink : (dx < 0 && dy < 0 ? '#f6a060' : C.rust));
     }
-    P(cx - 1, cy - 1, C.cream);
   };
-  gem(OX - 3, OY - 3); gem(OX + W + 2, OY - 3); gem(OX - 3, OY + H + 2); gem(OX + W + 2, OY + H + 2);
-  gem(OX + (MW >> 1), OY - 3); gem(OX + (MW >> 1), OY + H + 2);
-  if (OY >= 24) { const og = g; g = x; drawBig('CASTELOS EM GUERRA', LW / 2, Math.floor(OY / 2) - 3, C.goldL, C.orange); g = og; }
+  gem(OX - 2, OY - 2); gem(OX + W + 1, OY - 2); gem(OX - 2, OY + H + 1); gem(OX + W + 1, OY + H + 1);
+  if (OY >= 26) { const og = g; g = x; drawBig('CASTELOS EM GUERRA', LW / 2, Math.floor(OY / 2) - 3, C.goldL, C.orange); g = og; }
 }
 
 // ===================== RENDER =====================
@@ -1050,8 +1048,8 @@ cv.addEventListener('contextmenu', e => e.preventDefault());
 function resize() {
   const dpr = window.devicePixelRatio || 1;
   const dw = Math.floor(document.body.clientWidth * dpr), dh = Math.floor(document.body.clientHeight * dpr);
-  SC = Math.max(1, Math.floor(Math.min(dw / (W + 12), dh / (H + 12))));
-  LW = Math.max(W + 12, Math.floor(dw / SC)); LH = Math.max(H + 12, Math.floor(dh / SC));
+  SC = Math.max(1, Math.floor(Math.min(dw / (W + 10), dh / (H + 10))));
+  LW = Math.max(W + 10, Math.floor(dw / SC)); LH = Math.max(H + 10, Math.floor(dh / SC));
   cv.width = LW * SC; cv.height = LH * SC;
   cv.style.width = (LW * SC / dpr) + 'px'; cv.style.height = (LH * SC / dpr) + 'px';
   OX = Math.floor((LW - W) / 2); OY = Math.floor((LH - H) / 2);
