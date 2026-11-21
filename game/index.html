@@ -1741,7 +1741,8 @@ function rr(x, y, w, h, r, col) {
 function drawCard(i) {
   const type = CARDS[i], d = DEF[type], x = CARD_X, isSel = sel === i, y = CARD_Y[i] - (isSel ? 2 : 0);
   const P = purse(), can = P[0] >= d.cost && phase !== 'count';
-  const rim = isSel ? (Math.sin(time * 8) > 0 ? C.goldL : C.gold) : '#9a7a44';
+  const pulse = Math.sin(time * 10) > 0, rim = isSel ? (pulse ? '#35f0ff' : '#ffe27a') : '#9a7a44';
+  if (isSel) { rr(x - 3, y - 3, CARD_W + 6, CARD_H + 6, 8, pulse ? 'rgba(53,240,255,0.45)' : 'rgba(255,226,122,0.40)'); rr(x - 2, y - 2, CARD_W + 4, CARD_H + 4, 7, pulse ? '#35f0ff' : '#ffe27a'); rr(x - 1, y - 1, CARD_W + 2, CARD_H + 2, 6, pulse ? '#ffffff' : '#ff9a1a'); }
   rr(x, y, CARD_W, CARD_H, 5, C.ink);
   rr(x + 1, y + 1, CARD_W - 2, CARD_H - 2, 4, rim);
   rr(x + 2, y + 2, CARD_W - 4, CARD_H - 4, 4, C.ink);
@@ -1790,14 +1791,14 @@ function drawFence(f, ghost) {
   g.globalAlpha = prev;
   if (!ghost && f.hp < f.max) { const bx = f.rx + 2, by = f.ry - 10, w = 20; rect(bx - 1, by - 1, w + 2, 3, C.ink); rect(bx, by, Math.max(1, Math.round(w * f.hp / f.max)), 1, TEAM[f.team].bar); }
 }
-function drawBar(y0, y1, val, max) {
+function drawBar(y0, y1, val, max, warn) {
   const bw = 12, bx = MW + 26 - bw / 2, bh = y1 - y0;
-  rr(bx - 3, y0 - 3, bw + 6, bh + 6, 6, C.ink); rr(bx - 2, y0 - 2, bw + 4, bh + 4, 6, '#b8923e'); rr(bx - 1, y0 - 1, bw + 2, bh + 2, 5, C.ink); rr(bx, y0, bw, bh, 5, '#24171a');
+  rr(bx - 3, y0 - 3, bw + 6, bh + 6, 6, C.ink); rr(bx - 2, y0 - 2, bw + 4, bh + 4, 6, warn ? '#ff3a1a' : '#b8923e'); rr(bx - 1, y0 - 1, bw + 2, bh + 2, 5, C.ink); rr(bx, y0, bw, bh, 5, '#24171a');
   const fill = Math.round(bh * clamp(val / max, 0, 1));
   for (let j = 0; j < fill; j++) {
     const py = y1 - 1 - j, k = Math.min(py - y0, y1 - 1 - py); let inset = 0;
     if (k < 5) inset = Math.round(5 - Math.sqrt(Math.max(0, 25 - (5 - k - 0.5) ** 2)));
-    rect(bx + inset, py, bw - inset * 2, 1, C.gold); rect(bx + inset + 1, py, 2, 1, C.goldL); rect(bx + bw - inset - 2, py, 1, 1, C.goldD);
+    rect(bx + inset, py, bw - inset * 2, 1, warn ? '#ff7a2a' : C.gold); rect(bx + inset + 1, py, 2, 1, warn ? '#ffd0a0' : C.goldL); rect(bx + bw - inset - 2, py, 1, 1, C.goldD);
   }
   if (fill > 0) rect(bx + 3, y1 - fill, bw - 6, 1, C.goldL);
   const step = max > 12 ? 5 : 1;
@@ -1827,14 +1828,16 @@ function drawSide() {
     button(BTN, 'PRONTO', '#2c6a38', ['#3e8a4c', '#74c07c'], Math.sin(time * 4) > 0.6, false, C.cream);
   } else {
     drawText('OURO', MW + 26, 4, C.goldL, 'center', C.ink);
-    drawBar(BAR.y0, BAR.y1, gold[0], 10);
-    plate(MW + 14, BAR.y1 + 6, 24, 14); drawBig(Math.floor(gold[0]), MW + 26, BAR.y1 + 9, C.goldL, C.gold);
+    const warn = gold[0] >= 9.98 && !over && Math.sin(time * 10) > 0; // ouro cheio: pisca para avisar que está sobrando
+    drawBar(BAR.y0, BAR.y1, gold[0], 10, warn);
+    plate(MW + 14, BAR.y1 + 6, 24, 14); drawBig(Math.floor(gold[0]), MW + 26, BAR.y1 + 9, warn ? '#ffb090' : C.goldL, warn ? '#ff5a2a' : C.gold);
     const rate = (BASE_GOLD + farmIncome(0)) * SPEED;
     drawText('+' + rate.toFixed(1) + '/S', MW + 26, BAR.y1 + 26, C.goldL, 'center', C.ink);
   }
   if (BTN.y + BTN.h + 8 < CARD_Y[0] - 6) chain(MW + 7, MW + 46, BTN.y + BTN.h + 8);
   if (CARD_Y[0] - 8 > BTN.y + BTN.h + 24) chain(MW + 7, MW + 46, CARD_Y[0] - 8);
-  for (let i = 0; i < CARDS.length; i++) drawCard(i);
+  for (let i = 0; i < CARDS.length; i++) if (i !== sel) { drawCard(i); if (sel >= 0) rr(CARD_X, CARD_Y[i], CARD_W, CARD_H, 5, 'rgba(27,20,22,0.3)'); }
+  if (sel >= 0) drawCard(sel);
 }
 function drawCorners() { // arabescos dourados nos quatro cantos do campo
   const arc = (ox, oy, sx, sy) => {
