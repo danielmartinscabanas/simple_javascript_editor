@@ -2141,15 +2141,15 @@ function applyColorblind(mode, rebake) {
   const p = CB_PAL[mode]; Object.assign(TEAM[0], p.t0); Object.assign(TEAM[1], p.t1); RING_HIT = p.hit; RING_HEAL = p.heal; HEAL_PROJ = p.proj;
   if (rebake) { bakeAll(); castleImg = [bakeCastle(0, true), bakeCastle(1, false)]; buildBackground(true); }
 }
-const GEAR = { x: 3, y: 3, w: 15, h: 15 };
+const GEAR = { x: 3, y: 3, w: 25, h: 25 };
 function drawGear() {
-  const { x, y } = GEAR;
-  rr(x, y, 15, 15, 7, '#1b1416'); rr(x + 1, y + 1, 13, 13, 6, C.gold); rr(x + 2, y + 2, 11, 11, 5, '#4a3626');
-  const cx = x + 7, cy = y + 7;
-  for (let dy = -5; dy <= 5; dy++) for (let dx = -5; dx <= 5; dx++) {
-    const r = Math.hypot(dx, dy), tooth = (dx === 0 || dy === 0 || Math.abs(dx) === Math.abs(dy)) && r > 3.2 && r <= 5;
-    if ((r <= 3.3 && r >= 1.6) || tooth) rect(cx + dx, cy + dy, 1, 1, dx + dy < 0 ? C.goldL : C.gold);
+  const { x, y, w } = GEAR, cx = x + 12, cy = y + 12;
+  rr(x, y, w, w, 12, '#1b1416'); rr(x + 1, y + 1, w - 2, w - 2, 11, '#d8a040'); rr(x + 2, y + 2, w - 4, w - 4, 10, '#1b1416'); rr(x + 3, y + 3, w - 6, w - 6, 9, '#4a3626');
+  for (let dy = -9; dy <= 9; dy++) for (let dx = -9; dx <= 9; dx++) {
+    const r = Math.hypot(dx, dy), ang = Math.atan2(dy, dx), tooth = r > 6.2 && r <= 9 && Math.cos(ang * 8) > 0.35;
+    if ((r <= 6.2 && r >= 3.6) || tooth) rect(cx + dx, cy + dy, 1, 1, (dx + dy < -2) ? C.goldL : (dx + dy > 3) ? C.goldD : C.gold);
   }
+  for (let dy = -3; dy <= 3; dy++) for (let dx = -3; dx <= 3; dx++) if (Math.hypot(dx, dy) < 3.4) rect(cx + dx, cy + dy, 1, 1, '#1b1416');
 }
 function settingsRects() {
   const w = Math.min(MW - 12, 220), h = 172, x0 = Math.round(MW / 2 - w / 2), y0 = Math.round(H / 2 - h / 2), iw = w - 44, ix = x0 + 22, hw = (iw - 6) >> 1;
