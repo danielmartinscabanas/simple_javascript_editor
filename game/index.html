@@ -175,7 +175,7 @@ const FARMER_B = compose(15, 18, [[0, 0, FARMER_BODY], [13, 5, vline(13, 'd')], 
 // ---- vistas direcionais: S (de frente), N (de costas), E (lado; oeste = espelho), SE/SW (lado com rosto), NE/NW (lado com nuca) ----
 function backOf(grid, r0, r1, to, o = {}) {
   return grid.map((row, y) => row.map((ch, x) => {
-    if (y >= r0 && y <= r1 && (ch === 's' || ch === 'k') && (o.x0 === undefined || (x >= o.x0 && x <= o.x1))) return to;
+    if (y >= r0 && y <= r1 && (ch === 's' || ch === 'k' || (o.glow && ch === 'a')) && (o.x0 === undefined || (x >= o.x0 && x <= o.x1))) return to;
     if (o.emblem && ch === 'g') return 't';
     return ch;
   }));
@@ -215,7 +215,15 @@ const KNIGHT_N_A = compose(22, 24, [[6, 18, ['HH', 'HH', 'HH', 'DD']], [14, 18, 
 const KNIGHT_N_B = compose(22, 24, [[6, 17, ['HH', 'HH', 'HH', 'DD']], [14, 19, ['HH', 'HH', 'HH', 'DD']], [3, 10, KN_S_COMMON[0][2]], [5, 10, KN_N_COMMON[1][2]], [10, 17, ['dd', 'dd', 'dd', 'dd', '.d']],
   ...KN_N_RIDER, [4, 19, ['hh', 'hh', 'hh', 'dd']], [16, 17, ['hh', 'hh', 'hh', 'dd']]]);
 
+const NECRO_ROBE = ['...tttttt...', '..vvvvvvvv..', '.vvvvvvvvvv.', '.vvkkkkkkvv.', '.vvkaakaakv.', '.vvkkkkkkvv.', '..vvnknnvv..', '...vvvvvv...', '..vVvvvvVv..', '.vVVvttvVVv.', '.vVvvttvvVv.', 'nvVvvttvvVvn', '.vVvvvvvvVv.', '.vVvvvvvvVv.', 'vVVvvvvvvVVv', 'vVvvvvvvvvVv', 'vvvvvvvvvvvv'];
+const NECRO_A = compose(15, 21, [[0, 3, NECRO_ROBE], [0, 20, ['tttttttttttt']], [12, 0, ['.a.', 'aaa', '.a.']], [13, 3, vline(18, 'd')], [12, 6, ['nn']], [12, 11, ['n']]]);
+const NECRO_B = compose(15, 21, [[0, 3, NECRO_ROBE], [1, 20, ['tttttttttt']], [12, 0, ['.a.', 'aaa', '.a.']], [13, 3, vline(18, 'd')], [12, 6, ['nn']], [12, 11, ['n']]]);
+const SKEL_BODY = ['...nnnn.....', '..nTTTTn....', '..nkknkn....', '..nnnnnn....', '...nNNn.....', '....nn......', '..nnnnnn....', '.n.nNNn.n...', '.n.nknN.n...', '.n.nNNn.n...', '...nnnn.....', '...tttt.....'];
+const SKEL_A = compose(12, 15, [[0, 0, SKEL_BODY], [9, 5, ['m', 'm', 'm', 'm', 'd']], [0, 12, ['...n..n.....', '...n..n.....', '..nn..nn....']]]);
+const SKEL_B = compose(12, 15, [[0, 0, SKEL_BODY], [9, 5, ['m', 'm', 'm', 'm', 'd']], [0, 12, ['..n...n.....', '..n...n.....', '.nn...nn....']]]);
 const VIEWS = {
+  necro: { E: [NECRO_A, NECRO_B], N: [backOf(NECRO_A, 3, 8, 'v', { glow: true }), backOf(NECRO_B, 3, 8, 'v', { glow: true })] },
+  skeleton: { E: [SKEL_A, SKEL_B], N: [backOf(SKEL_A, 2, 4, 'n'), backOf(SKEL_B, 2, 4, 'n')] },
   pawn: { E: [PAWN_A, PAWN_B], S: [PAWN_S_A, PAWN_S_B], N: [backOf(PAWN_S_A, 5, 7, 'm', { emblem: true }), backOf(PAWN_S_B, 5, 7, 'm', { emblem: true })],
           NE: [backOf(PAWN_A, 5, 7, 'm', { emblem: true }), backOf(PAWN_B, 5, 7, 'm', { emblem: true })] },
   archer: { E: [ARCHER_A, ARCHER_B], S: [ARCHER_S_A, ARCHER_S_B], N: [backOf(ARCHER_S_A, 3, 6, 'T', { emblem: true }), backOf(ARCHER_S_B, 3, 6, 'T', { emblem: true })],
@@ -241,7 +249,8 @@ function bakeAll() {
       const view = { img: [], ringR: [], ringG: [] };
       for (let t = 0; t < 2; t++) {
         const pal = { m: '#b9c2ce', s: '#f2b27a', t: TEAM[t].t, T: TEAM[t].T, p: TEAM[t].h, g: C.gold, G: C.goldD, b: '#a0582a', d: '#5e3218',
-          h: t ? '#8a5430' : '#b97a42', H: t ? '#63391f' : '#8e5a2e', D: '#3e2210', w: '#f3ead6', c: '#e8d4a0', y: '#e8c060', k: C.ink };
+          h: t ? '#8a5430' : '#b97a42', H: t ? '#63391f' : '#8e5a2e', D: '#3e2210', w: '#f3ead6', c: '#e8d4a0', y: '#e8c060', k: C.ink,
+          v: '#3c2c52', V: '#5a4378', n: '#e6dfc8', N: '#b8b098', a: '#6bff8a' };
         view.img[t] = V[name].map(gr => { const cc = renderGrid(gr, pal); const f = mk(cc.width, cc.height), fx = f.getContext('2d');
           fx.translate(cc.width, 0); fx.scale(-1, 1); fx.drawImage(cc, 0, 0); return [cc, f]; });
       }
@@ -332,6 +341,7 @@ function drawBig(s, x, y, fill, shade, outline = C.ink) {
 
 // ===================== UNIDADES =====================
 const BASE_GOLD = 1 / 2.6; // ouro por segundo de jogo, sem camponeses (antes 1/1.5)
+let dtStep = 0;
 const SPEED = 0.62; // fator global de lentidão da simulação
 const DEF = {
   pawn:   { name: 'PEÃO',      cost: 2, hp: 120, dmg: 10, cd: 0.9, range: 3,  speed: 10, r: 5, mass: 1, aggro: 46 },
@@ -340,14 +350,16 @@ const DEF = {
             ranged: true, heal: 18, healCd: 1.4, healRange: 36 },
   archer: { name: 'ARQUEIRO',  cost: 3, hp: 90,  dmg: 9,  cd: 1.5, range: 62, speed: 10, r: 5, mass: 1, aggro: 72, ranged: true, arrow: true },
   fence:  { name: 'CERCA',     cost: 2, hp: 260, r: 4, structure: true },
+  necro:  { name: 'NECROMANTE', cost: 7, hp: 110, dmg: 0, cd: 1, range: 0, speed: 0, r: 5, mass: 2, aggro: 0, summoner: true },
+  skeleton: { name: 'ESQUELETO', cost: 0, hp: 30, dmg: 6, cd: 1.0, range: 3, speed: 13, r: 4, mass: 0.6, aggro: 52, summoned: true },
   farmer: { name: 'CAMPONÊS', cost: 6, hp: 80, dmg: 0, cd: 1, range: 0, speed: 7, r: 4, mass: 1, aggro: 0, worker: true },
 };
-const CARDS = ['pawn', 'archer', 'knight', 'bishop', 'fence', 'farmer'];
+const CARDS = ['pawn', 'archer', 'knight', 'bishop', 'necro', 'fence', 'farmer'];
 const CARD_X = MW + 5, CARD_W = 42, CARD_H = 50;
 const CARD_Y = CARDS.map((_, i) => H - 2 - (CARDS.length - i) * 52);
 const BAR = { y0: 16, y1: 64 };
-const UNDO = { x: MW + 5, y: 86, w: 42, h: 18 };
-const BTN = { x: MW + 5, y: 108, w: 42, h: 22 };
+const UNDO = { x: MW + 4, y: 88, w: 44, h: 24 };
+const BTN = { x: MW + 4, y: 116, w: 44, h: 28 };
 const SETUP_COINS = 30;
 
 // ===================== MAPA =====================
@@ -701,6 +713,7 @@ function botFormation() {
   let c = SETUP_COINS; const front = [], back = [];
   const nf = R() < 0.55 ? 1 + (R() * 2 | 0) : 0; c -= nf * 2;
   const nfa = 1 + (R() * 2 | 0); c -= nfa * 3;
+  const nn = R() < 0.45 ? 1 : 0; c -= nn * 7;
   const nk = 1 + (R() * 3 | 0);
   for (let i = 0; i < nk && c >= 5; i++) { front.push('knight'); c -= 5; }
   const nb = Math.min(nk, R() * 3 | 0);
@@ -721,6 +734,7 @@ function botFormation() {
   const ks = placed.filter(u => u.type === 'knight');
   back.forEach((t, i) => { const k = ks[i % Math.max(1, ks.length)] || placed[i % Math.max(1, placed.length)];
     if (k) deploy(1, t, k.x + (R() - 0.5) * 14, k.y - 22); else deploy(1, t, MW / 2 + (R() - 0.5) * 40, 150); });
+  if (nn) deploy(1, 'necro', 30 + R() * (MW - 60), 140 + R() * 30);
   const fb = farms[1]; for (let i = 0; i < nfa && fb; i++) { const sp = farmSpot(fb); deploy(1, 'farmer', sp.x, sp.y); }
   for (let i = 0; i < nf; i++) deploy(1, 'fence', 30 + R() * (MW - 60), 236 + R() * 12);
 }
@@ -846,6 +860,19 @@ function unstick(u) {
   }
   if (fb) { u.x = fb[0]; u.y = fb[1]; }
 }
+function summonSkeleton(u) {
+  for (let k = 0; k < 14; k++) {
+    const a = R() * 6.283, rad = 11 + (k >> 2) * 4, nx = u.x + Math.cos(a) * rad, ny = u.y + Math.sin(a) * rad * 0.7;
+    if (!free(nx, ny) || nx < 5 || nx > MW - 5 || units.some(o => !o.dead && Math.hypot(o.x - nx, o.y - ny) < o.d.r + 5)) continue;
+    const sk = spawn(u.team, 'skeleton', nx, ny); sk.deployT = 0.5; sk.owner = u.id; sk.life = 26; u.castT = 0.55;
+    for (let i = 0; i < 12; i++) parts.push({ x: nx + (R() - 0.5) * 6, y: ny - R() * 8, vx: (R() - 0.5) * 12, vy: -6 - R() * 14, life: 0.6, max: 0.6, c: i % 2 ? '#6bff8a' : '#a46aff' });
+    return;
+  }
+}
+function necroAI(u) {
+  u.spawnCd = (u.spawnCd === undefined ? 1.4 : u.spawnCd) - dtStep;
+  if (u.spawnCd <= 0) { u.spawnCd = 4.5; if (units.filter(o => o.owner === u.id && !o.dead).length < 5) summonSkeleton(u); }
+}
 function bishopAI(u, dt) {
   const d = u.d, fwd = u.team === 0 ? -1 : 1; // sentido do inimigo no eixo y
   u.hcd -= dt; u.thinkT = (u.thinkT || 0) - dt;
@@ -908,7 +935,7 @@ function bishopAI(u, dt) {
 }
 
 // ===================== BOT =====================
-function pickPlan() { const r = R(); return r < 0.32 ? 'pawn' : r < 0.52 ? 'archer' : r < 0.8 ? 'knight' : 'bishop'; }
+function pickPlan() { const r = R(); return r < 0.3 ? 'pawn' : r < 0.48 ? 'archer' : r < 0.74 ? 'knight' : r < 0.9 ? 'bishop' : 'necro'; }
 function botUpdate(dt) {
   bot.think -= dt; if (bot.think > 0) return;
   bot.think = 0.5 + R() * 0.8;
@@ -951,9 +978,15 @@ function update(dt) {
     for (const u of units) {
       if (u.dead) continue;
       u.hitT -= dt; u.healFx -= dt; u.atkT -= dt; u.cd -= dt; u.moving = false; u.working = false; u.slow = 1;
+      u.castT = (u.castT || 0) - dt;
+      if (u.life !== undefined) {
+        u.life -= dt;
+        if (u.life <= 0 || !units.some(o => o.id === u.owner && !o.dead)) { u.dead = true; for (let i = 0; i < 10; i++) parts.push({ x: u.x + (R() - 0.5) * 6, y: u.y - R() * 10, vx: (R() - 0.5) * 20, vy: -R() * 16, life: 0.6, max: 0.6, gr: 40, c: i % 2 ? '#e6dfc8' : '#b8b098' }); continue; }
+      }
       if (u.deployT > 0) { u.deployT -= dt; continue; }
       if (!free(u.x, u.y)) unstick(u);
-      if (u.type === 'bishop') bishopAI(u, dt); else if (u.type === 'farmer') farmerAI(u, dt); else warrior(u, dt);
+      dtStep = dt;
+      if (u.type === 'bishop') bishopAI(u, dt); else if (u.type === 'farmer') farmerAI(u, dt); else if (u.type === 'necro') necroAI(u); else warrior(u, dt);
       if (u.moving || u.working) u.walk += dt * (u.moving ? (u.slow || 1) : 1);
       { const mv = Math.hypot(u.x - (u.sx ?? u.x), u.y - (u.sy ?? u.y)); u.sx = u.x; u.sy = u.y;
         if (u.moving && mv < u.d.speed * dt * 0.25) u.stuckT = (u.stuckT || 0) + dt; else u.stuckT = Math.max(0, (u.stuckT || 0) - dt * 2);
@@ -1592,7 +1625,8 @@ function buildSide() {
     }
     for (const px of [9, 25, 41]) { x.fillStyle = '#c8a050'; x.fillRect(px, y + 3, 2, 2); x.fillStyle = '#f0d890'; x.fillRect(px, y + 3, 1, 1); }
   };
-  strap(BTN.y + BTN.h + 14); strap(CARD_Y[0] - 22);
+  if (BTN.y + BTN.h + 14 + 8 < CARD_Y[0] - 2) strap(BTN.y + BTN.h + 14);
+  if (CARD_Y[0] - 22 > BTN.y + BTN.h + 32) strap(CARD_Y[0] - 22);
   for (let py = 6; py < H; py += 64) for (const px of [7, 16, 25, 34, 43]) { x.fillStyle = '#1b1416'; x.fillRect(px, py, 2, 2); x.fillStyle = C.goldL; x.fillRect(px, py, 1, 1); }
 }
 let frameCanvas, vigCanvas;
@@ -1679,6 +1713,8 @@ function drawUnit(u, ghost) {
   const blink = t => t > 0 && Math.ceil(t / (FX_T / 5)) % 2 === 1;
   if (!ghost && blink(u.hitT)) g.drawImage(vw.ringR[fr][flip], dx - 2, dy - 2);
   if (!ghost && blink(u.healFx)) g.drawImage(vw.ringG[fr][flip], dx - 2, dy - 2);
+  if (!ghost && u.type === 'necro') { const pulse = (u.castT > 0 ? 1.0 : 0.45) * (0.7 + 0.3 * Math.sin(time * 5)); g.globalAlpha = prevA * pulse * 0.55; rect(dx + (flip ? 0 : vw.w - 7), dy - 2, 7, 7, '#6bff8a'); g.globalAlpha = prevA; }
+  if (!ghost && u.life !== undefined && u.life < 4 && Math.sin(time * 20) > 0) g.globalAlpha = prevA * 0.45;
   g.drawImage(vw.img[u.team][fr][flip], dx, dy);
   g.globalAlpha = prevA;
   if (!ghost && u.hp < u.max) {
@@ -1728,7 +1764,7 @@ function drawCard(i) {
   rect(Math.round(x + CARD_W / 2 - 7), ay + ah - 4, 15, 2, 'rgba(27,20,22,0.3)');
   g.drawImage(sp.img[0][0][0], Math.round(x + CARD_W / 2 - sp.w / 2), ay + ah - sp.h + 1);
   // faixa com o nome (extremidades em "V", como uma flâmula)
-  const ry = y + 31, rx = x + 2, rw = CARD_W - 4;
+  const ry = y + 31, rx = x, rw = CARD_W;
   rect(rx, ry, rw, 8, C.ink); rect(rx + 1, ry + 1, rw - 2, 6, '#8a2222'); rect(rx + 1, ry + 1, rw - 2, 1, '#c04a3a'); rect(rx + 1, ry + 6, rw - 2, 1, '#5a1212');
   for (const sx of [rx, rx + rw - 2]) { rect(sx, ry + 3, 2, 2, C.parch); rect(sx + (sx === rx ? 2 : -1), ry + 3, 1, 2, C.ink); }
   rect(rx + 4, ry + 3, 1, 2, C.gold); rect(rx + rw - 5, ry + 3, 1, 2, C.gold);
@@ -1794,8 +1830,8 @@ function drawSide() {
     const rate = (BASE_GOLD + farmIncome(0)) * SPEED;
     drawText('+' + rate.toFixed(1) + '/S', MW + 26, BAR.y1 + 26, C.goldL, 'center', C.ink);
   }
-  chain(MW + 7, MW + 46, BTN.y + BTN.h + 8);
-  chain(MW + 7, MW + 46, CARD_Y[0] - 8);
+  if (BTN.y + BTN.h + 8 < CARD_Y[0] - 6) chain(MW + 7, MW + 46, BTN.y + BTN.h + 8);
+  if (CARD_Y[0] - 8 > BTN.y + BTN.h + 24) chain(MW + 7, MW + 46, CARD_Y[0] - 8);
   for (let i = 0; i < CARDS.length; i++) drawCard(i);
 }
 function drawCorners() { // arabescos dourados nos quatro cantos do campo
