@@ -132,9 +132,26 @@ const BISHOP_BODY = ['.....gg.....', '....gwwg....', '...gwwwwg...', '...wwwwww.
 const BISHOP_A = compose(16, 21, [[1, 0, BISHOP_BODY], [3, 19, ['dd......dd']], [13, 0, ['.g.', 'ggg', '.g.']], [14, 3, vline(17, 'd')], [13, 12, ['s']]]);
 const BISHOP_B = compose(16, 21, [[1, 0, BISHOP_BODY], [4, 19, ['dd....dd']], [13, 0, ['.g.', 'ggg', '.g.']], [14, 3, vline(17, 'd')], [13, 12, ['s']]]);
 
+const ARCHER_BODY = ['...TTTT...', '..TTTTTT..', '.TTTTTTTT.', '.TTsssTTT.', '.TsskssTT.', '..TsssssT.', '...ssss...', '.dttttttt.', 'ddttttttss', 'ddtttgttts', 'dbbbbbbbb.', '.tttttttt.', '.tttttttt.', '.mtttttt..'];
+const ARCHER_BOW = ['bb..', '.bb.', '..bb', '..bb', '..bb', '..bb', '..bb', '.bb.', 'bb..'];
+const ARCHER_A = compose(16, 18, [[0, 0, ARCHER_BODY], [11, 3, ARCHER_BOW], [10, 4, vline(7, 'w')], [9, 7, ['sbbbbbm']], [2, 14, ['tt..tt']], [2, 15, ['mm..mm']], [2, 16, ['bb..bb']], [1, 17, ['dbb..bbd']]]);
+const ARCHER_B = compose(16, 18, [[0, 0, ARCHER_BODY], [11, 3, ARCHER_BOW], [10, 4, vline(7, 'w')], [9, 7, ['sbbbbbm']], [3, 14, ['tt.tt']], [3, 15, ['mm.mm']], [2, 16, ['bb..bb']], [2, 17, ['dbb.bbd']]]);
+function makeFence() {
+  const w = 26, h = 14, gr = Array.from({ length: h }, () => Array(w).fill('.'));
+  const S = (x, y, ch) => { if (x >= 0 && y >= 0 && x < w && y < h) gr[y][x] = ch; };
+  for (let x = 0; x < w; x++) { S(x, 5, 'W'); S(x, 6, 'b'); S(x, 9, 'W'); S(x, 10, 'b'); }
+  const posts = [1, 6, 11, 16, 21];
+  for (let i = 0; i < 4; i++) { const g0 = posts[i] + 2; for (let y = 3; y <= 11; y++) { const t = Math.round((y - 3) / 8 * 2); S(g0 + t, y, 'd'); S(g0 + 2 - t, y, 'd'); } }
+  for (const px of posts) { for (let y = 2; y <= 12; y++) { S(px, y, 'W'); S(px + 1, y, 'b'); } S(px, 0, 'W'); S(px, 1, 'W'); S(px + 1, 1, 'b'); S(px, 13, 'd'); S(px + 1, 13, 'd'); }
+  for (const [x, y] of [[13, 1], [14, 1], [13, 2], [14, 2], [15, 2]]) S(x, y, 't');
+  S(13, 3, 'T'); S(14, 3, 'T');
+  return gr;
+}
+const FENCE_A = makeFence();
+
 const SP = {};
 function bakeAll() {
-  const defs = { pawn: [PAWN_A, PAWN_B], knight: [KNIGHT_A, KNIGHT_B], bishop: [BISHOP_A, BISHOP_B] };
+  const defs = { pawn: [PAWN_A, PAWN_B], knight: [KNIGHT_A, KNIGHT_B], bishop: [BISHOP_A, BISHOP_B], archer: [ARCHER_A, ARCHER_B], fence: [FENCE_A] };
   for (const k in defs) {
     SP[k] = { img: [], white: [] };
     for (let t = 0; t < 2; t++) {
@@ -223,15 +240,19 @@ function drawBig(s, x, y, fill, shade, outline = C.ink) {
 }
 
 // ===================== UNIDADES =====================
+const SPEED = 0.62; // fator global de lentidão da simulação
 const DEF = {
-  pawn:   { name: 'PEÃO',      cost: 2, hp: 120, dmg: 10, cd: 0.9, range: 3,  speed: 10, r: 3, mass: 1, aggro: 46 },
-  knight: { name: 'CAVALEIRO', cost: 5, hp: 360, dmg: 26, cd: 1.4, range: 4,  speed: 15, r: 5, mass: 3, aggro: 56 },
-  bishop: { name: 'BISPO',     cost: 4, hp: 140, dmg: 7,  cd: 1.5, range: 30, speed: 9,  r: 3, mass: 1, aggro: 44,
+  pawn:   { name: 'PEÃO',      cost: 2, hp: 120, dmg: 10, cd: 0.9, range: 3,  speed: 10, r: 5, mass: 1, aggro: 46 },
+  knight: { name: 'CAVALEIRO', cost: 5, hp: 360, dmg: 26, cd: 1.4, range: 4,  speed: 15, r: 8, mass: 3, aggro: 56 },
+  bishop: { name: 'BISPO',     cost: 4, hp: 140, dmg: 7,  cd: 1.5, range: 30, speed: 9,  r: 5, mass: 1, aggro: 44,
             ranged: true, heal: 18, healCd: 1.4, healRange: 36 },
+  archer: { name: 'ARQUEIRO',  cost: 3, hp: 90,  dmg: 9,  cd: 1.5, range: 62, speed: 10, r: 5, mass: 1, aggro: 72, ranged: true, arrow: true },
+  fence:  { name: 'CERCA',     cost: 2, hp: 260, r: 4, structure: true },
 };
-const CARDS = ['pawn', 'knight', 'bishop'];
-const CARD_Y = [H - 206, H - 138, H - 70], CARD_X = MW + 4, CARD_W = 42, CARD_H = 66;
-const BTN = { x: MW + 4, y: 268, w: 42, h: 22 };
+const CARDS = ['pawn', 'archer', 'knight', 'bishop', 'fence'];
+const CARD_X = MW + 4, CARD_W = 42, CARD_H = 50;
+const CARD_Y = CARDS.map((_, i) => H - 262 + i * 52);
+const BTN = { x: MW + 4, y: CARD_Y[0] - 28, w: 42, h: 22 };
 const SETUP_COINS = 30;
 
 // ===================== MAPA =====================
@@ -383,11 +404,11 @@ function lineClear(x0, y0, x1, y1) {
 }
 
 // ===================== ESTADO =====================
-let units, projs, parts, texts, gold, coins, phase, countT, over, time, uid, sel, drag, hover, hoverTouch, bot, msg, bgCanvas, castleImg, sideCanvas, treeImg;
+let units, fences, projs, parts, texts, gold, coins, phase, countT, over, time, uid, sel, drag, hover, hoverTouch, bot, msg, bgCanvas, castleImg, sideCanvas, treeImg;
 
 function reset() {
   makeCastles(); genMap();
-  units = []; projs = []; parts = []; texts = []; gold = [5, 5]; coins = [SETUP_COINS, SETUP_COINS];
+  units = []; fences = []; projs = []; parts = []; texts = []; gold = [5, 5]; coins = [SETUP_COINS, SETUP_COINS];
   phase = 'setup'; countT = 0; over = null; time = 0; uid = 0;
   sel = 0; drag = null; hover = null; msg = { s: 'MONTE SUA FORMAÇÃO', t: 4 };
   bot = { think: 1.5, plan: 'pawn', follow: null };
@@ -405,12 +426,30 @@ function spawn(team, type, x, y) {
     parts.push({ x: x + Math.cos(a) * 3, y: y + Math.sin(a) * 1.5, vx: Math.cos(a) * 14, vy: Math.sin(a) * 6, life: 0.5, max: 0.5, c: C.cream }); }
   return u;
 }
+const fenceSpot = (x, y) => ({ c: clamp(Math.round(x / TS - 1.5), 0, COLS - 3), r: clamp(Math.floor(y / TS), 0, ROWS - 1) });
+function fenceOk(c, r) {
+  for (let i = 0; i < 3; i++) if (kAt(c + i, r) !== 0) return false;
+  const x0 = c * TS - 6, x1 = (c + 3) * TS + 6, y0 = r * TS - 6, y1 = (r + 1) * TS + 6;
+  return !units.some(u => u.x > x0 && u.x < x1 && u.y > y0 && u.y < y1);
+}
+function placeFence(team, x, y, d) {
+  const { c, r } = fenceSpot(x, y);
+  if (!fenceOk(c, r)) return 'blocked';
+  purse()[team] -= d.cost;
+  for (let i = 0; i < 3; i++) kind[r * COLS + c + i] = 7;
+  const f = { team, isFence: true, type: 'fence', d, c, r, rx: c * TS, ry: r * TS, x: (c + 1.5) * TS, y: r * TS + 4, w: 24, h: 8, hp: d.hp, max: d.hp, hitT: 0, dead: false };
+  fences.push(f);
+  for (let i = 0; i < 10; i++) parts.push({ x: f.x + (R() - 0.5) * 22, y: f.y + 3, vx: (R() - 0.5) * 12, vy: -R() * 8, life: 0.4, max: 0.4, c: C.parch2 });
+  return f;
+}
+function clearFence(f) { for (let i = 0; i < 3; i++) kind[f.r * COLS + f.c + i] = 0; }
 function deploy(team, type, x, y) {
   const d = DEF[type], P = purse();
   if (P[team] < d.cost) return null;
   const [ymin, ymax] = team === 0 ? [MID + 8, H - 72] : [100, MID - 8];
   x = clamp(x, 5, MW - 5);
   if (y < ymin || y > ymax) { if (team === 0) return 'zone'; y = clamp(y, ymin, ymax); }
+  if (type === 'fence') return placeFence(team, x, y, d);
   const crowded = (px, py) => phase === 'setup' && units.some(o => Math.hypot(o.x - px, o.y - py) < o.d.r + d.r);
   if (!free(x, y) || crowded(x, y)) {
     let found = false;
@@ -425,6 +464,11 @@ function deploy(team, type, x, y) {
   return spawn(team, type, x, y);
 }
 function removeAt(p) {
+  for (const f of fences) if (f.team === 0 && p.x >= f.rx - 2 && p.x <= f.rx + 26 && p.y >= f.ry - 8 && p.y <= f.ry + 10) {
+    coins[0] += f.d.cost; clearFence(f); fences = fences.filter(o => o !== f);
+    for (let i = 0; i < 8; i++) parts.push({ x: f.x + (R() - 0.5) * 20, y: f.y, vx: (R() - 0.5) * 20, vy: -R() * 20, life: 0.4, max: 0.4, c: C.cream });
+    return true;
+  }
   let best = null, bd = 7;
   for (const u of units) { if (u.team !== 0) continue; const d = Math.hypot(u.x - p.x, u.y - 4 - p.y); if (d < bd) { bd = d; best = u; } }
   if (!best) return false;
@@ -435,23 +479,28 @@ function removeAt(p) {
 function botFormation() {
   // gasta as moedas da preparação numa formação aleatória
   let c = SETUP_COINS; const front = [], back = [];
+  const nf = R() < 0.55 ? 1 + (R() * 2 | 0) : 0; c -= nf * 2;
   const nk = 1 + (R() * 3 | 0);
   for (let i = 0; i < nk && c >= 5; i++) { front.push('knight'); c -= 5; }
   const nb = Math.min(nk, R() * 3 | 0);
   for (let i = 0; i < nb && c >= 4; i++) { back.push('bishop'); c -= 4; }
+  const na = 1 + (R() * 3 | 0);
+  for (let i = 0; i < na && c >= 3; i++) { back.push('archer'); c -= 3; }
   while (c >= 2) { front.push('pawn'); c -= 2; }
   front.sort(() => R() - 0.5);
-  const style = R();
-  const placed = [];
+  const style = R(), placed = [];
+  const span = MW - 36;
   front.forEach((t, i) => {
-    const x = 14 + (i + 0.5) * (MW - 28) / front.length + (R() - 0.5) * 6;
-    let y = 196 + R() * 30;
-    if (style < 0.4) y += Math.abs(i - (front.length - 1) / 2) * -6 + 20; // cunha
-    else if (style < 0.7 && t === 'knight') y += 25;                         // cavaleiros na frente
+    const x = 18 + (i + 0.5) * span / front.length + (R() - 0.5) * 6;
+    let y = 190 + R() * 30;
+    if (style < 0.4) y += Math.abs(i - (front.length - 1) / 2) * -8 + 20;
+    else if (style < 0.7 && t === 'knight') y += 25;
     const u = deploy(1, t, x, y); if (u && typeof u === 'object') placed.push(u);
   });
   const ks = placed.filter(u => u.type === 'knight');
-  back.forEach((t, i) => { const k = ks[i % Math.max(1, ks.length)] || placed[0]; if (k) deploy(1, t, k.x + (R() - 0.5) * 6, k.y - 15); else deploy(1, t, 108, 150); });
+  back.forEach((t, i) => { const k = ks[i % Math.max(1, ks.length)] || placed[i % Math.max(1, placed.length)];
+    if (k) deploy(1, t, k.x + (R() - 0.5) * 14, k.y - 22); else deploy(1, t, MW / 2 + (R() - 0.5) * 40, 150); });
+  for (let i = 0; i < nf; i++) deploy(1, 'fence', 30 + R() * (MW - 60), 236 + R() * 12);
 }
 function startBattle() {
   if (phase !== 'setup') return;
@@ -466,7 +515,7 @@ function rectDist(x, y, c) {
   const dx = Math.max(c.x - x, 0, x - (c.x + c.w)), dy = Math.max(c.y - y, 0, y - (c.y + c.h));
   return Math.hypot(dx, dy);
 }
-function distTo(u, t) { return t.isCastle ? rectDist(u.x, u.y, t) - u.d.r : Math.hypot(t.x - u.x, t.y - u.y) - u.d.r - t.d.r; }
+function distTo(u, t) { if (t.isFence) return rectDist(u.x, u.y, { x: t.rx, y: t.ry, w: t.w, h: t.h }) - u.d.r; return t.isCastle ? rectDist(u.x, u.y, t) - u.d.r : Math.hypot(t.x - u.x, t.y - u.y) - u.d.r - t.d.r; }
 function aimPoint(t, fx, fy) {
   if (!t.isCastle) return { x: t.x, y: t.y - 4 };
   return { x: clamp(fx, t.x + 2, t.x + t.w - 2), y: clamp(fy, t.y + 2, t.y + t.h - 2) };
@@ -505,7 +554,8 @@ function attack(u, t) {
   if (u.cd > 0) return;
   u.cd = d.cd * (0.9 + R() * 0.2); u.atkT = 0.22;
   const dmg = d.dmg * (0.85 + R() * 0.3);
-  if (d.ranged) projs.push({ kind: 'bolt', x: u.x + u.face * 4, y: u.y - 14, t, sp: 90, dmg, team: u.team });
+  if (d.arrow) projs.push({ kind: 'arrow', x: u.x + u.face * 5, y: u.y - 9, t, sp: 120, dmg, team: u.team });
+  else if (d.ranged) projs.push({ kind: 'bolt', x: u.x + u.face * 4, y: u.y - 14, t, sp: 90, dmg, team: u.team });
   else damage(t, dmg, u.team);
 }
 function step(u, tx, ty, dt) {
@@ -546,9 +596,12 @@ function warrior(u, dt) {
     const e = nearestEnemy(u, d.aggro);
     if (e && (!u.target || Math.hypot(e.x - u.x, e.y - u.y) < Math.hypot(u.target.x - u.x, u.target.y - u.y) * 0.6)) u.target = e;
   }
+  if (u.stuckT > 0.9 && !u.target) { let bf = null, bd = 12; for (const f of fences) { if (f.dead || f.team === u.team) continue; const dd = distTo(u, f); if (dd < bd) { bd = dd; bf = f; } } if (bf) u.target = bf; }
   const t = u.target || ec;
   if (distTo(u, t) <= d.range) attack(u, t);
   else { const p = t.isCastle ? castlePoint(u, t) : t; moveTo(u, p.x, p.y, dt); }
+  const mv = Math.hypot(u.x - (u.lx ?? u.x), u.y - (u.ly ?? u.y)); u.lx = u.x; u.ly = u.y;
+  if (u.moving && mv < d.speed * dt * 0.25) u.stuckT = (u.stuckT || 0) + dt; else u.stuckT = Math.max(0, (u.stuckT || 0) - dt * 2);
 }
 function bishopAI(u, dt) {
   const d = u.d;
@@ -578,13 +631,14 @@ function bishopAI(u, dt) {
 }
 
 // ===================== BOT =====================
-function pickPlan() { const r = R(); return r < 0.42 ? 'pawn' : r < 0.78 ? 'knight' : 'bishop'; }
+function pickPlan() { const r = R(); return r < 0.32 ? 'pawn' : r < 0.52 ? 'archer' : r < 0.8 ? 'knight' : 'bishop'; }
 function botUpdate(dt) {
   bot.think -= dt; if (bot.think > 0) return;
   bot.think = 0.5 + R() * 0.8;
   const gl = gold[1];
   let threat = null;
   for (const u of units) if (!u.dead && u.team === 0 && u.y < MID + 40 && (!threat || u.y < threat.y)) threat = u;
+  if (threat && gl >= 4 && R() < 0.16 && fences.filter(f => f.team === 1).length < 4) { const f = deploy(1, 'fence', threat.x, threat.y - 26); if (f && typeof f === 'object') return; }
   if (threat && gl >= 2) {
     const type = gl >= 5 && (threat.type === 'knight' || R() < 0.5) ? 'knight' : 'pawn';
     const r = deploy(1, type, threat.x + (R() - 0.5) * 30, threat.y - 35);
@@ -596,7 +650,7 @@ function botUpdate(dt) {
   }
   if (bot.plan === 'bishop' && !units.some(u => !u.dead && u.team === 1 && u.type !== 'bishop')) bot.plan = 'pawn';
   if (gl >= DEF[bot.plan].cost) {
-    const u = deploy(1, bot.plan, 10 + R() * (MW - 20), 90 + R() * 110);
+    const u = deploy(1, bot.plan, 10 + R() * (MW - 20), 110 + R() * 110);
     if (u && typeof u === 'object') { if (bot.plan === 'knight' && R() < 0.6) bot.follow = u; bot.plan = pickPlan(); }
   }
 }
@@ -606,6 +660,7 @@ function update(dt) {
   time += dt;
   if (msg && (msg.t -= dt) <= 0) msg = null;
   if (phase === 'count' && (countT -= dt) <= 0) { phase = 'battle'; for (const u of units) u.deployT = 0; }
+  const rdt = dt; dt *= SPEED;
   if (!over && phase === 'battle') {
     for (let t = 0; t < 2; t++) gold[t] = Math.min(10, gold[t] + dt / 1.5);
     botUpdate(dt);
@@ -616,16 +671,17 @@ function update(dt) {
       if (u.type === 'bishop') bishopAI(u, dt); else warrior(u, dt);
       if (u.moving) u.walk += dt;
     }
+    for (const f of fences) f.hitT -= dt;
     // separação entre unidades
     for (let i = 0; i < units.length; i++) {
       const a = units[i]; if (a.dead) continue;
       for (let j = i + 1; j < units.length; j++) {
         const b = units[j]; if (b.dead) continue;
-        const rr = a.d.r + b.d.r, dx = b.x - a.x, dy = b.y - a.y, d2 = dx * dx + dy * dy;
+        const rr = a.d.r + b.d.r + 1.5, dx = b.x - a.x, dy = b.y - a.y, d2 = dx * dx + dy * dy;
         if (d2 >= rr * rr) continue;
         const d = Math.sqrt(d2) || 0.01, nx = d2 ? dx / d : R() - 0.5, ny = d2 ? dy / d : R() - 0.5, push = (rr - d) * 0.5;
         const ma = a.d.mass * (a.atkT > -0.5 ? 2 : 1), mb = b.d.mass * (b.atkT > -0.5 ? 2 : 1), wa = mb / (ma + mb), wb = ma / (ma + mb);
-        move(a, -nx * push * wa * 1.6, -ny * push * wa * 1.6); move(b, nx * push * wb * 1.6, ny * push * wb * 1.6);
+        move(a, -nx * push * wa * 2, -ny * push * wa * 2); move(b, nx * push * wb * 2, ny * push * wb * 2);
       }
     }
     // castelos atiram flechas
@@ -638,7 +694,7 @@ function update(dt) {
         projs.push({ kind: 'arrow', x: c.x + (c.shot ? 11 : c.w - 12), y: c.y - 4, t: best, sp: 150, dmg: 18, team: c.team }); }
       if (c.hp < c.max * 0.5 && R() < dt * 5) parts.push({ x: c.x + 10 + R() * (c.w - 20), y: c.y - 6 + R() * 20, vx: (R() - 0.5) * 4, vy: -8 - R() * 6, life: 1.6, max: 1.6, c: '#5c5650', sz: 2 });
     }
-  } else if (over) over.t += dt;
+  } else if (over) over.t += rdt;
   // projéteis
   for (const p of projs) {
     if (isAlive(p.t)) { const a = aimPoint(p.t, p.x, p.y); p.tx = a.x; p.ty = a.y; }
@@ -661,6 +717,8 @@ function update(dt) {
   for (const t of texts) { t.life -= dt; t.y -= 12 * dt; }
   texts = texts.filter(t => t.life > 0);
   units = units.filter(u => !u.dead);
+  for (const f of fences) if (f.dead) clearFence(f);
+  fences = fences.filter(f => !f.dead);
   // bot e jogador: limpa referência a mortos
   if (bot.follow && bot.follow.dead) bot.follow = null;
 }
@@ -1026,28 +1084,34 @@ function drawCard(i) {
   rect(x + 3, y + 3, CARD_W - 6, CARD_H - 6, C.parch);
   rect(x + 3, y + 3, CARD_W - 6, 1, C.cream); rect(x + 3, y + 3, 1, CARD_H - 6, C.cream);
   rect(x + 3, y + CARD_H - 4, CARD_W - 6, 1, C.parch2); rect(x + CARD_W - 4, y + 3, 1, CARD_H - 6, C.parch2);
-  for (const [cx, cy] of [[x + 4, y + 4], [x + CARD_W - 5, y + 4], [x + 4, y + CARD_H - 5], [x + CARD_W - 5, y + CARD_H - 5]]) rect(cx, cy, 1, 1, C.rust);
-  // janela da arte: céu e campo com dither
-  const ax = x + 5, ay = y + 6, aw = CARD_W - 10, ah = 30;
+  const ax = x + 5, ay = y + 5, aw = CARD_W - 10, ah = 26;
   rect(ax - 1, ay - 1, aw + 2, ah + 2, C.ink);
   for (let py = 0; py < ah; py++) for (let px = 0; px < aw; px++) {
     const t = py / ah; let col;
-    if (py < 20) col = t + (bay(px, py) - 0.5) * 0.25 < 0.4 ? C.tealL : '#6cd0dc'; else col = (py + (bay(px, py) > 0.5 ? 1 : 0)) % 4 === 0 ? GRASS.dk : py < 23 ? GRASS.lt : GRASS.a;
+    if (py < 16) col = t + (bay(px, py) - 0.5) * 0.25 < 0.35 ? C.tealL : '#6cd0dc'; else col = (py + (bay(px, py) > 0.5 ? 1 : 0)) % 4 === 0 ? GRASS.dk : py < 19 ? GRASS.lt : GRASS.a;
     rect(ax + px, ay + py, 1, 1, col);
   }
-  rect(ax, ay + 20, aw, 1, GRASS.dk);
+  rect(ax, ay + 16, aw, 1, GRASS.dk);
   const sp = SP[type];
-  rect(Math.round(x + CARD_W / 2 - 7), ay + ah - 5, 15, 2, 'rgba(27,20,22,0.3)');
+  rect(Math.round(x + CARD_W / 2 - 7), ay + ah - 4, 15, 2, 'rgba(27,20,22,0.3)');
   g.drawImage(sp.img[0][0][0], Math.round(x + CARD_W / 2 - sp.w / 2), ay + ah - sp.h + 1);
-  drawText(d.name, x + CARD_W / 2, y + 40, C.ink, 'center');
-  circ(x + CARD_W / 2, y + 54, 6, C.ink);
-  circ(x + CARD_W / 2, y + 54, 5, can ? C.gold : C.parch2);
-  circ(x + CARD_W / 2 - 1, y + 53, 2, can ? C.goldL : C.parch);
-  drawText(d.cost, x + CARD_W / 2 + 1, y + 52, C.ink, 'center');
+  drawText(d.name, x + CARD_W / 2, y + 33, C.ink, 'center');
+  circ(x + CARD_W / 2, y + 43, 5, C.ink);
+  circ(x + CARD_W / 2, y + 43, 4, can ? C.gold : C.parch2);
+  circ(x + CARD_W / 2 - 1, y + 42, 1, can ? C.goldL : C.parch);
+  drawText(d.cost, x + CARD_W / 2 + 1, y + 41, C.ink, 'center');
   if (!can) {
     rect(x, y, CARD_W, CARD_H, 'rgba(27,20,22,0.6)');
     const f = clamp(P[0] / d.cost, 0, 1); rect(x, Math.round(y + CARD_H * (1 - f)), CARD_W, Math.round(CARD_H * f), 'rgba(244,183,64,0.18)');
   }
+}
+function drawFence(f, ghost) {
+  const sp = SP.fence, fr = (f.hitT > 0 && !ghost) ? sp.white[0][0] : sp.img[f.team][0][0];
+  const prev = g.globalAlpha; if (ghost) g.globalAlpha = ghost;
+  rect(f.rx + 1, f.ry + 7, 24, 2, 'rgba(27,20,22,0.35)');
+  g.drawImage(fr, f.rx - 2, f.ry - 7);
+  g.globalAlpha = prev;
+  if (!ghost && f.hp < f.max) { const bx = f.rx + 2, by = f.ry - 10, w = 20; rect(bx - 1, by - 1, w + 2, 3, C.ink); rect(bx, by, Math.max(1, Math.round(w * f.hp / f.max)), 1, TEAM[f.team].bar); }
 }
 function drawBar(y0, y1, val, max) {
   const bx = MW + 17, bw = 16, bh = y1 - y0;
@@ -1066,8 +1130,8 @@ function drawSide() {
   g.drawImage(sideCanvas, MW, 0);
   if (phase === 'setup') {
     drawText('MOEDAS', MW + 25, 5, C.gold, 'center', C.ink);
-    drawBar(16, 244, coins[0], SETUP_COINS);
-    drawBig(coins[0], MW + 25, 252, C.goldL, C.gold);
+    drawBar(16, BTN.y - 20, coins[0], SETUP_COINS);
+    drawBig(coins[0], MW + 25, BTN.y - 14, C.goldL, C.gold);
     const b = BTN, pressed = Math.sin(time * 4) > 0.6;
     bevel(b.x, b.y, b.w, b.h, C.tealD);
     rect(b.x + 2, b.y + 2, b.w - 4, b.h - (pressed ? 4 : 6), C.teal);
@@ -1075,10 +1139,10 @@ function drawSide() {
     drawText('PRONTO', b.x + b.w / 2 + 1, b.y + (pressed ? 9 : 8), C.ink, 'center');
   } else {
     drawText('OURO', MW + 25, 5, C.gold, 'center', C.ink);
-    drawBar(16, 290, gold[0], 10);
-    drawBig(Math.floor(gold[0]), MW + 25, 300, C.goldL, C.gold);
+    drawBar(16, BTN.y - 20, gold[0], 10);
+    drawBig(Math.floor(gold[0]), MW + 25, BTN.y - 14, C.goldL, C.gold);
   }
-  for (let i = 0; i < 3; i++) drawCard(i);
+  for (let i = 0; i < CARDS.length; i++) drawCard(i);
 }
 function banner(s, col = C.goldL) {
   rect(0, MID - 9, MW, 18, 'rgba(27,20,22,0.8)'); rect(0, MID - 10, MW, 1, C.rust); rect(0, MID + 8, MW, 1, C.rust);
@@ -1096,12 +1160,18 @@ function render() {
   const list = [];
   for (const u of units) list.push({ y: u.y, u });
   for (const t of trees) list.push({ y: t.y, t });
+  for (const f of fences) list.push({ y: f.ry + 7, f });
   list.sort((a, b) => a.y - b.y);
-  for (const o of list) { if (o.u) drawUnit(o.u); else g.drawImage(treeImg, o.t.c * TS + 4 - 12, o.t.y - 29); }
+  for (const o of list) { if (o.u) drawUnit(o.u); else if (o.f) drawFence(o.f); else g.drawImage(treeImg, o.t.c * TS + 4 - 12, o.t.y - 29); }
   if (sel >= 0 && hover && hover.x >= 0 && hover.x < MW && !over && phase !== 'count' && (!hoverTouch || (drag && drag.moved))) {
     const ok = hover.y >= MID + 8 && hover.y <= H - 72 && purse()[0] >= DEF[CARDS[sel]].cost;
+    if (CARDS[sel] === 'fence') {
+      const sp = fenceSpot(hover.x, hover.y), good = ok && fenceOk(sp.c, sp.r);
+      drawFence({ team: 0, rx: sp.c * TS, ry: sp.r * TS, hp: 1, max: 1, hitT: 0 }, good ? 0.65 : 0.25);
+      rect(sp.c * TS, sp.r * TS + 9, 24, 1, good ? C.cream : C.rust);
+    } else {
     drawUnit({ type: CARDS[sel], d: DEF[CARDS[sel]], x: hover.x, y: hover.y, team: 0, face: 1, moving: false, atkT: 0, hitT: 0, deployT: 0, hp: 1, max: 1 }, ok ? 0.6 : 0.25);
-    rect(Math.round(hover.x) - 6, Math.round(hover.y) + 3, 12, 1, ok ? C.cream : C.rust);
+    rect(Math.round(hover.x) - 6, Math.round(hover.y) + 3, 12, 1, ok ? C.cream : C.rust); }
   }
   for (const p of projs) {
     const px = Math.round(p.x), py = Math.round(p.y);
@@ -1142,7 +1212,7 @@ function render() {
 
 // ===================== INPUT =====================
 function toLogical(e) { const r = cv.getBoundingClientRect(); return { x: (e.clientX - r.left) / r.width * LW - OX, y: (e.clientY - r.top) / r.height * LH - OY }; }
-function cardAt(p) { for (let i = 0; i < 3; i++) if (p.x >= CARD_X && p.x <= CARD_X + CARD_W && p.y >= CARD_Y[i] - 3 && p.y <= CARD_Y[i] + CARD_H) return i; return -1; }
+function cardAt(p) { for (let i = 0; i < CARDS.length; i++) if (p.x >= CARD_X && p.x <= CARD_X + CARD_W && p.y >= CARD_Y[i] - 2 && p.y <= CARD_Y[i] + CARD_H) return i; return -1; }
 const inBtn = p => p.x >= BTN.x - 2 && p.x <= BTN.x + BTN.w + 2 && p.y >= BTN.y - 2 && p.y <= BTN.y + BTN.h + 2;
 function tryDeploy(p) {
   const r = deploy(0, CARDS[sel], p.x, p.y);
