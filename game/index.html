@@ -230,6 +230,7 @@ const VIEWS = {
           NE: [backOf(PAWN_A, 5, 7, 'm', { emblem: true }), backOf(PAWN_B, 5, 7, 'm', { emblem: true })] },
   archer: { E: [ARCHER_A, ARCHER_B], S: [ARCHER_S_A, ARCHER_S_B], N: [backOf(ARCHER_S_A, 3, 6, 'T', { emblem: true }), backOf(ARCHER_S_B, 3, 6, 'T', { emblem: true })],
           NE: [backOf(ARCHER_A, 3, 6, 'T', { emblem: true }), backOf(ARCHER_B, 3, 6, 'T', { emblem: true })] },
+  paladin: { E: [KNIGHT_A, KNIGHT_B], S: [KNIGHT_S_A, KNIGHT_S_B], N: [KNIGHT_N_A, KNIGHT_N_B], NE: [backOf(KNIGHT_A, 5, 7, 'm', { x0: 11, x1: 20, emblem: true }), backOf(KNIGHT_B, 5, 7, 'm', { x0: 11, x1: 20, emblem: true })] },
   knight: { E: [KNIGHT_A, KNIGHT_B], S: [KNIGHT_S_A, KNIGHT_S_B], N: [KNIGHT_N_A, KNIGHT_N_B],
           NE: [backOf(KNIGHT_A, 5, 7, 'm', { x0: 11, x1: 20, emblem: true }), backOf(KNIGHT_B, 5, 7, 'm', { x0: 11, x1: 20, emblem: true })] },
   bishop: { E: [BISHOP_A, BISHOP_B], N: [backOf(BISHOP_A, 5, 7, 'b'), backOf(BISHOP_B, 5, 7, 'b')] },
@@ -253,6 +254,7 @@ function bakeAll() {
         const pal = { m: '#b9c2ce', s: '#f2b27a', t: TEAM[t].t, T: TEAM[t].T, p: TEAM[t].h, g: C.gold, G: C.goldD, b: '#a0582a', d: '#5e3218',
           h: t ? '#8a5430' : '#b97a42', H: t ? '#63391f' : '#8e5a2e', D: '#3e2210', w: '#f3ead6', c: '#e8d4a0', y: '#e8c060', k: C.ink,
           v: '#3c2c52', V: '#5a4378', n: '#e6dfc8', N: '#b8b098', a: '#6bff8a' };
+        if (k === 'paladin') Object.assign(pal, { m: '#f0d060', h: '#f2eee4', H: '#c4beb0', D: '#8a8478', g: '#fff4b8', G: '#c89a2a', p: '#fff4b8' });
         view.img[t] = V[name].map(gr => { const cc = renderGrid(gr, pal); const f = mk(cc.width, cc.height), fx = f.getContext('2d');
           fx.translate(cc.width, 0); fx.scale(-1, 1); fx.drawImage(cc, 0, 0); return [cc, f]; });
       }
@@ -352,16 +354,17 @@ const DEF = {
             ranged: true, heal: 18, healCd: 1.4, healRange: 36 },
   archer: { name: 'ARQUEIRO',  cost: 3, hp: 90,  dmg: 9,  cd: 1.5, range: 62, speed: 10, r: 5, mass: 1, aggro: 72, ranged: true, arrow: true },
   fence:  { name: 'CERCA',     cost: 2, hp: 260, r: 4, structure: true },
+  paladin: { name: 'PALADINO', cost: 9, hp: 680, dmg: 40, cd: 1.4, range: 4, speed: 14, r: 8, mass: 6, aggro: 60 },
   necro:  { name: 'NECROMANTE', cost: 7, hp: 110, dmg: 0, cd: 1, range: 0, speed: 0, r: 5, mass: 2, aggro: 0, summoner: true },
   skeleton: { name: 'ESQUELETO', cost: 0, hp: 30, dmg: 6, cd: 1.0, range: 3, speed: 13, r: 4, mass: 0.6, aggro: 52, summoned: true },
   farmer: { name: 'CAMPONÊS', cost: 6, hp: 80, dmg: 0, cd: 1, range: 0, speed: 7, r: 4, mass: 1, aggro: 0, worker: true },
 };
-const CARDS = ['pawn', 'archer', 'knight', 'bishop', 'necro', 'fence', 'farmer'];
-const CARD_X = MW + 5, CARD_W = 42, CARD_H = 50;
-const CARD_Y = CARDS.map((_, i) => H - 2 - (CARDS.length - i) * 52);
-const BAR = { y0: 16, y1: 64 };
-const UNDO = { x: MW + 4, y: 88, w: 44, h: 24 };
-const BTN = { x: MW + 4, y: 116, w: 44, h: 28 };
+const CARDS = ['pawn', 'archer', 'knight', 'paladin', 'bishop', 'necro', 'fence', 'farmer'];
+const CARD_X = MW + 5, CARD_W = 42, CARD_H = 46;
+const CARD_Y = CARDS.map((_, i) => H - 2 - (CARDS.length - i) * 48);
+const BAR = { y0: 16, y1: 48 };
+const UNDO = { x: MW + 4, y: 76, w: 44, h: 22 };
+const BTN = { x: MW + 4, y: 101, w: 44, h: 26 };
 const SETUP_COINS = 30;
 
 // ===================== MAPA =====================
@@ -717,6 +720,7 @@ function botFormation() {
   const nfa = 1 + (R() * 2 | 0); c -= nfa * 3;
   const nn = R() < 0.75 ? 1 : 0; c -= nn * 7;
   const nk = 1 + (R() * 3 | 0);
+  if (c >= 14 && R() < 0.45) { front.push('paladin'); c -= 9; }
   for (let i = 0; i < nk && c >= 5; i++) { front.push('knight'); c -= 5; }
   const nb = Math.min(nk, R() * 3 | 0);
   for (let i = 0; i < nb && c >= 4; i++) { back.push('bishop'); c -= 4; }
@@ -730,10 +734,10 @@ function botFormation() {
     const x = 18 + (i + 0.5) * span / front.length + (R() - 0.5) * 6;
     let y = 190 + R() * 30;
     if (style < 0.4) y += Math.abs(i - (front.length - 1) / 2) * -8 + 20;
-    else if (style < 0.7 && t === 'knight') y += 25;
+    else if (style < 0.7 && (t === 'knight' || t === 'paladin')) y += 25;
     const u = deploy(1, t, x, y); if (u && typeof u === 'object') placed.push(u);
   });
-  const ks = placed.filter(u => u.type === 'knight');
+  const ks = placed.filter(u => u.type === 'knight' || u.type === 'paladin');
   back.forEach((t, i) => { const k = ks[i % Math.max(1, ks.length)] || placed[i % Math.max(1, placed.length)];
     if (k) deploy(1, t, k.x + (R() - 0.5) * 14, k.y - 22); else deploy(1, t, MW / 2 + (R() - 0.5) * 40, 150); });
   if (nn) deploy(1, 'necro', 30 + R() * (MW - 60), 140 + R() * 30);
@@ -937,7 +941,7 @@ function bishopAI(u, dt) {
 }
 
 // ===================== BOT =====================
-function pickPlan() { const r = R(); return r < 0.26 ? 'pawn' : r < 0.42 ? 'archer' : r < 0.66 ? 'knight' : r < 0.8 ? 'bishop' : 'necro'; }
+function pickPlan() { const r = R(); return r < 0.24 ? 'pawn' : r < 0.38 ? 'archer' : r < 0.58 ? 'knight' : r < 0.66 ? 'paladin' : r < 0.8 ? 'bishop' : 'necro'; }
 function botUpdate(dt) {
   bot.think -= dt; if (bot.think > 0) return;
   bot.think = 0.5 + R() * 0.8;
@@ -1729,7 +1733,7 @@ function drawUnit(u, ghost) {
   g.drawImage(vw.img[u.team][fr][flip], dx, dy);
   g.globalAlpha = prevA;
   if (!ghost && u.hp < u.max) {
-    const w = u.type === 'knight' ? 14 : 10, bx = Math.round(u.x - w / 2), by = dy - 5;
+    const w = (u.type === 'knight' || u.type === 'paladin') ? 16 : 10, bx = Math.round(u.x - w / 2), by = dy - 5;
     rect(bx - 1, by - 1, w + 2, 3, C.ink); rect(bx, by, Math.max(1, Math.round(w * u.hp / u.max)), 1, TEAM[u.team].bar);
   }
 }
@@ -1762,7 +1766,7 @@ function drawCard(i) {
   for (const [cx, cy, sx, sy] of [[x + 4, y + 4, 1, 1], [x + CARD_W - 5, y + 4, -1, 1]]) { rect(cx, cy, 3 * sx > 0 ? 3 : -3, 1, 0); }
   for (const [cx, cy, sx] of [[x + 5, y + 5, 1], [x + CARD_W - 6, y + 5, -1]]) { rect(cx, cy, 1, 1, '#b8863a'); rect(cx + sx, cy, 1, 1, '#d8a850'); rect(cx, cy + 1, 1, 1, '#d8a850'); }
   // janela em arco (estilo vitral gótico)
-  const ax = x + 5, ay = y + 5, aw = CARD_W - 10, ah = 25, ar = aw / 2;
+  const ax = x + 5, ay = y + 5, aw = CARD_W - 10, ah = 24, ar = aw / 2;
   const inside = (px, py) => { if (py < 0 || py >= ah) return false; if (py < ar) { const dy = ar - py - 0.5, hw = Math.sqrt(Math.max(0, ar * ar - dy * dy)); return Math.abs(px + 0.5 - ar) <= hw; } return px >= 0 && px < aw; };
   for (let py = -1; py <= ah; py++) for (let px = -1; px <= aw; px++) {
     const ins = inside(px, py);
@@ -1776,15 +1780,14 @@ function drawCard(i) {
   rect(Math.round(x + CARD_W / 2 - 7), ay + ah - 4, 15, 2, 'rgba(27,20,22,0.3)');
   g.drawImage(sp.img[0][0][0], Math.round(x + CARD_W / 2 - sp.w / 2), ay + ah - sp.h + 1);
   // faixa com o nome (extremidades em "V", como uma flâmula)
-  const ry = y + 31, rx = x, rw = CARD_W;
+  const ry = y + 29, rx = x, rw = CARD_W;
   rect(rx, ry, rw, 8, C.ink); rect(rx + 1, ry + 1, rw - 2, 6, '#8a2222'); rect(rx + 1, ry + 1, rw - 2, 1, '#c04a3a'); rect(rx + 1, ry + 6, rw - 2, 1, '#5a1212');
   for (const sx of [rx, rx + rw - 2]) { rect(sx, ry + 3, 2, 2, C.parch); rect(sx + (sx === rx ? 2 : -1), ry + 3, 1, 2, C.ink); }
   rect(rx + 4, ry + 3, 1, 2, C.gold); rect(rx + rw - 5, ry + 3, 1, 2, C.gold);
   drawText(d.name, x + CARD_W / 2, ry + 2, C.cream, 'center', '#2a0808');
   // medalhão de custo
-  const mx = x + CARD_W / 2, my = y + CARD_H - 4;
-  circ(mx, my, 5, C.ink); circ(mx, my, 4, can ? C.gold : C.parch2); circ(mx - 1, my - 1, 2, can ? C.goldL : C.parch);
-  rect(mx - 3, my - 3, 1, 1, '#fff6c8');
+  const mx = x + CARD_W / 2, my = y + CARD_H - 5;
+  circ(mx, my, 4, C.ink); circ(mx, my, 3, can ? C.gold : C.parch2); rect(mx - 2, my - 2, 1, 1, can ? C.goldL : C.parch);
   drawText(d.cost, mx + 1, my - 2, C.ink, 'center');
   if (isSel) { for (const [gx, gy] of [[x + 2, y + 2], [x + CARD_W - 3, y + 2]]) { rect(gx, gy, 1, 1, C.goldL); rect(gx - 1, gy, 3, 1, 'rgba(255,230,140,0.4)'); } }
   if (!can) {
