@@ -1151,13 +1151,16 @@ function buildBackground() {
       return d + Math.sin(px * 0.21 + py * 0.13) * 0.45 + Math.sin(py * 0.27 - px * 0.09) * 0.45 + (mask[py * MW + px] ? 0 : -2); };
     x.fillStyle = 'rgba(20,12,16,0.46)';
     for (let py = 0; py < H; py++) for (let px = 0; px < MW; px++) if (!mask[py * MW + px] && (mask[Math.max(0, py - 2) * MW + Math.max(0, px - 2)] || mask[Math.max(0, py - 3) * MW + Math.max(0, px - 3)] || mask[Math.max(0, py - 4) * MW + Math.max(0, px - 3)])) x.fillRect(px, py, 1, 1);
+    const owner = new Uint8Array(MW * H);
+    mts.forEach((shape, mi) => { for (const [tc, tr] of shape) for (let dy = -4; dy < 12; dy++) for (let dx = -4; dx < 12; dx++) { const qx = tc * TS + dx, qy = tr * TS + dy; if (qx >= 0 && qy >= 0 && qx < MW && qy < H) owner[qy * MW + qx] = mi; } });
     for (let py = 0; py < H; py++) for (let px = 0; px < MW; px++) {
-      const i = py * MW + px; if (!mask[i]) continue;
+      const i = py * MW + px; if (!mask[i]) continue; const mi = owner[i];
       const edge = !mask[i - 1] || !mask[i + 1] || !mask[i - MW] || !mask[i + MW];
       if (edge) { P(px, py, '#241e1a'); continue; }
       const lit = (ht(px - 1, py - 1) - ht(px + 1, py + 1)) * 0.35, hgt = Math.min(dist[i], 10) / 10;
       const L = lit * 0.8 + (hgt - 0.5) * 0.55 + (bay(px, py) - 0.5) * 0.3;
-      let c = RKM[L > 0.55 ? 0 : L > 0.28 ? 1 : L > 0.0 ? 2 : L > -0.28 ? 3 : L > -0.55 ? 4 : 5];
+      const lvl = L > 0.5 ? 0 : L > 0.22 ? 1 : L > -0.05 ? 2 : L > -0.32 ? 3 : L > -0.6 ? 4 : 5;
+      let c = blockAt(px, py, lvl, 5 + mi);
       if (hgt < 0.3 && hash(px * 3, py * 5) > 0.7 && L > -0.5) c = hash(px, py) > 0.5 ? '#7a9a48' : '#5e7e38';
       P(px, py, c);
     }
@@ -1201,7 +1204,37 @@ function buildBackground() {
   }
   x.fillStyle = 'rgba(20,12,16,0.5)';
   for (const t of trees) { const w = t.v < 3 ? 5 : 8; const bx = t.c * TS + 4, by = t.r * TS + 7; x.fillRect(bx - w, by - 1, w * 2 + 1, 2); x.fillRect(bx - w + 2, by + 1, w * 2 - 3, 1); }
+  paveCourtyards(x);
   buildCompound(x);
+}
+// pedra de montanha: blocos irregulares na mesma paleta das muralhas do castelo
+function blockAt(px, py, level, seed) {
+  const row = py >> 2, off = (hash(row * 3 + seed, 7) * 8) | 0, w = 6 + ((hash(row, seed) * 4) | 0), bx = Math.floor((px + off) / w);
+  let lv = level + (hash(bx * 5 + seed, row * 11) < 0.25 ? 1 : hash(bx * 3 + seed, row * 7) > 0.8 ? -1 : 0);
+  if ((py & 3) === 3 || (px + off) % w === w - 1) return STN[clamp(lv + 2, 0, 5)];
+  if ((py & 3) === 0) lv -= 1;
+  if (hash(px * 3 + seed, py * 7) > 0.97) lv += 1;
+  return STN[clamp(lv, 0, 5)];
+}
+// pátio: pedras redondas de calçamento, de tom diferente das muralhas
+function paveCourtyards(x) {
+  const COB = ['#c4b9a4', '#a99e8a', '#8e8470', '#726a5a'], MORT = '#3e382e';
+  for (const c of castles) {
+    const x0 = 10, x1 = MW - 10, y0 = c.team === 0 ? c.y + 6 : 19, y1 = c.team === 0 ? H - 19 : c.y + c.h;
+    for (let py = y0; py < y1; py++) for (let px = x0; px < x1; px++) {
+      const cx = Math.floor(px / 6), cy = Math.floor(py / 6); let m1 = 1e9, m2 = 1e9, id = 0, ccx = 0, ccy = 0;
+      for (let dy = -1; dy <= 1; dy++) for (let dx = -1; dx <= 1; dx++) {
+        const gx = cx + dx, gy = cy + dy, ox = gx * 6 + 1 + hash(gx, gy) * 4, oy = gy * 6 + 1 + hash(gy, gx + 9) * 4, d = Math.hypot(px - ox, (py - oy) * 1.1);
+        if (d < m1) { m2 = m1; m1 = d; id = gx * 131 + gy; ccx = ox; ccy = oy; } else if (d < m2) m2 = d;
+      }
+      let col;
+      if (m2 - m1 < 0.95) col = MORT;
+      else { const tone = hash(id, 3) < 0.25 ? 0 : hash(id, 5) < 0.6 ? 1 : 2; let k = tone; const sh = (px - ccx) + (py - ccy);
+        if (sh < -2) k = Math.max(0, k - 1); else if (sh > 2) k = Math.min(3, k + 1); col = COB[k]; if (hash(px * 3, py * 5) > 0.985) col = '#6a7a48'; }
+      x.fillStyle = col; x.fillRect(px, py, 1, 1);
+    }
+    x.fillStyle = 'rgba(20,12,16,0.3)'; x.fillRect(x0, y0, x1 - x0, 2); x.fillRect(x0, y0, 2, y1 - y0); x.fillRect(x1 - 2, y0, 2, y1 - y0);
+  }
 }
 // ---- vila e fortaleza ao redor do castelo (decoração sólida: ocupa tiles, não é alvo) ----
 const STN = ['#f4ecda', '#dcd2bc', '#bcb09a', '#968b7c', '#6e6458', '#4c443c'];
