@@ -282,7 +282,7 @@ const BIG = {
   '6':'00110010001000011110100011000101110','7':'11111000010001000100010000100001000','8':'01110100011000101110100011000101110',
   '9':'01110100011000101111000010001001100','!':'00100001000010000100001000000000100',' ':'00000000000000000000000000000000000',
 };
-const ACC = { 'Ê': ['E', [[0,-1],[1,-2],[2,-1]]], 'Ã': ['A', [[0,-2],[1,-2],[2,-2]]], 'Ó': ['O', [[1,-2],[2,-2]]], 'Ç': ['C', [[1,5]]], 'Á': ['A', [[1,-2],[2,-2]]] };
+const ACC = { 'É': ['E', [[1,-1],[2,-2]]], 'Ê': ['E', [[0,-1],[1,-2],[2,-1]]], 'Ã': ['A', [[0,-2],[1,-2],[2,-2]]], 'Ó': ['O', [[1,-2],[2,-2]]], 'Ç': ['C', [[1,5]]], 'Á': ['A', [[1,-2],[2,-2]]] };
 const ACCB = { 'Ó': ['O', [[2,-2],[3,-2],[3,-3],[4,-3]]], 'Ã': ['A', [[0,-2],[1,-3],[2,-2],[3,-2],[4,-3]]], 'Á': ['A', [[2,-2],[3,-2],[3,-3],[4,-3]]] };
 const textW = s => s.length * 4 - 1;
 function drawText(s, x, y, col, align = 'left', shadow) {
@@ -331,11 +331,12 @@ function drawBig(s, x, y, fill, shade, outline = C.ink) {
 }
 
 // ===================== UNIDADES =====================
+const BASE_GOLD = 1 / 2.6; // ouro por segundo de jogo, sem camponeses (antes 1/1.5)
 const SPEED = 0.62; // fator global de lentidão da simulação
 const DEF = {
   pawn:   { name: 'PEÃO',      cost: 2, hp: 120, dmg: 10, cd: 0.9, range: 3,  speed: 10, r: 5, mass: 1, aggro: 46 },
   knight: { name: 'CAVALEIRO', cost: 5, hp: 360, dmg: 26, cd: 1.4, range: 4,  speed: 15, r: 8, mass: 3, aggro: 56 },
-  bishop: { name: 'BISPO',     cost: 4, hp: 140, dmg: 7,  cd: 1.5, range: 30, speed: 9,  r: 5, mass: 1, aggro: 44,
+  bishop: { name: 'CLÉRICO',   cost: 4, hp: 140, dmg: 7,  cd: 1.5, range: 30, speed: 9,  r: 5, mass: 1, aggro: 44,
             ranged: true, heal: 18, healCd: 1.4, healRange: 36 },
   archer: { name: 'ARQUEIRO',  cost: 3, hp: 90,  dmg: 9,  cd: 1.5, range: 62, speed: 10, r: 5, mass: 1, aggro: 72, ranged: true, arrow: true },
   fence:  { name: 'CERCA',     cost: 2, hp: 260, r: 4, structure: true },
@@ -883,7 +884,7 @@ function update(dt) {
     for (let t = 0; t < 2; t++) {
       const f = farms[t]; let inc = 0;
       if (f) { f.hitT -= dt; f.planted = 0; for (const c of f.cells) if (c.age >= 0) { c.age += dt; f.planted++; inc += cellRate(c.age); } }
-      gold[t] = Math.min(10, gold[t] + dt / 1.5 + inc * dt);
+      gold[t] = Math.min(10, gold[t] + dt * BASE_GOLD + inc * dt);
       farmAcc[t] += inc * dt;
       if (farmAcc[t] >= 1) { farmAcc[t] -= 1; const rp = f.cells.filter(c => c.age >= 10); if (t === 0 && rp.length) { const c = rp[R() * rp.length | 0]; texts.push({ x: c.x + 4, y: c.y, s: '+1', c: C.goldL, life: 0.9 }); } }
     }
@@ -1366,7 +1367,7 @@ function drawCard(i) {
   rect(x + 3, y + 3, CARD_W - 6, CARD_H - 6, C.parch);
   rect(x + 3, y + 3, CARD_W - 6, 1, C.cream); rect(x + 3, y + 3, 1, CARD_H - 6, C.cream);
   rect(x + 3, y + CARD_H - 4, CARD_W - 6, 1, C.parch2); rect(x + CARD_W - 4, y + 3, 1, CARD_H - 6, C.parch2);
-  const ax = x + 5, ay = y + 5, aw = CARD_W - 10, ah = 26;
+  const ax = x + 5, ay = y + 5, aw = CARD_W - 10, ah = 25;
   rect(ax - 1, ay - 1, aw + 2, ah + 2, C.ink);
   for (let py = 0; py < ah; py++) for (let px = 0; px < aw; px++) {
     const t = py / ah; let col;
@@ -1422,7 +1423,7 @@ function drawSide() {
     drawText('OURO', MW + 25, 5, C.gold, 'center', C.ink);
     drawBar(BAR.y0, BAR.y1, gold[0], 10);
     drawBig(Math.floor(gold[0]), MW + 25, BAR.y1 + 8, C.goldL, C.gold);
-    const rate = (1 / 1.5 + farmIncome(0)) * SPEED;
+    const rate = (BASE_GOLD + farmIncome(0)) * SPEED;
     drawText('+' + rate.toFixed(1) + '/S', MW + 25, BAR.y1 + 24, C.goldL, 'center', C.ink);
   }
   for (let i = 0; i < CARDS.length; i++) drawCard(i);
